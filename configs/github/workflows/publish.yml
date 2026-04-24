@@ -1,0 +1,109 @@
+name: Publish Distribution
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: "What to publish/review"
+        required: true
+        type: choice
+        options:
+          - affected
+          - all
+      snapshot:
+        description: "Run as a snapshot build (no registry publish)"
+        required: true
+        type: boolean
+        default: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  router:
+    name: Determine Target
+    runs-on: ubuntu-latest
+    outputs:
+      task: ${{ steps.parse.outputs.task }}
+      target: ${{ steps.parse.outputs.target }}
+      environment: ${{ steps.parse.outputs.environment }}
+    steps:
+      - id: parse
+        run: |
+          TASK="publish"
+          TARGET=""
+          ENV=""
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$INPUT_SNAPSHOT" == "true" ]]; then
+              TASK="review"
+            fi
+
+            if [[ "$INPUT_SCOPE" == "affected" ]]; then
+              TARGET=":${TASK} --affected"
+            else
+              TARGET=":${TASK}"
+            fi
+          fi
+
+          if [[ "$EVENT_NAME" == "release" ]]; then
+            COMP=$(echo "$RELEASE_TAG" | sed -E 's/-v[0-9].*//')
+
+            if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
+              TASK="review"
+            else
+              TASK="publish"
+              ENV="release"
+            fi
+
+            TARGET="${COMP}:${TASK}"
+          fi
+
+          {
+            echo "task=${TASK}"
+            echo "target=${TARGET}"
+            echo "environment=${ENV}"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_SNAPSHOT: ${{ inputs.snapshot }}
+          INPUT_SCOPE: ${{ inputs.scope }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+  publish:
+    name: Moon Run ${{ needs.router.outputs.target }}
+    needs: router
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ needs.router.outputs.environment }}
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      # Shallow checkout so GH Actions can resolve local composite actions.
+      # The setup action re-checks out with full history for moon's affected detection.
+      # TODO: Remove once composite actions are published to a shared repo.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: ./.github/actions/setup
+
+      - name: Execute Moon Task
+        run: moon run ${{ needs.router.outputs.target }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+
+      - name: Attach standalone artifacts to release
+        if: github.event_name == 'release'
+        run: |
+          if [ -d dist/ ]; then
+            gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

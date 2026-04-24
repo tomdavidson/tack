@@ -1,0 +1,29 @@
+import type { PluginOptions, ResolvedConfig } from './types.js';
+
+const DEFAULTS: ResolvedConfig = {
+  featureEnabled: true,
+{% if hasContentLayer %}
+  collections: [],
+{% endif %}
+};
+
+export const mergeConfig = (options?: PluginOptions): ResolvedConfig => ({
+  featureEnabled: options?.featureEnabled ?? DEFAULTS.featureEnabled,
+{% if hasContentLayer %}
+  collections: options?.collections ?? DEFAULTS.collections,
+{% endif %}
+});
+
+if (import.meta.vitest) {
+  const { describe, test, expect } = import.meta.vitest;
+  
+  describe('mergeConfig', () => {
+    test('returns defaults when no options provided', () => {
+      expect(mergeConfig()).toEqual(DEFAULTS);
+    });
+
+    test('overrides defaults with provided options', () => {
+      expect(mergeConfig({ featureEnabled: false }).featureEnabled).toBe(false);
+    });
+  });
+}

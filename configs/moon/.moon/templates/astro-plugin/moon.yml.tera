@@ -1,0 +1,9 @@
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+toolchains:
+  typescript:
+    enabled: true
+    
+tags:
+  - "gh-pkg-npm"
+  - "astro-plugin"

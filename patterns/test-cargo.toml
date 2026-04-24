@@ -1,0 +1,13 @@
+[dev-dependencies]
+arbitrary = { version = "1.3", features = ["derive"] }
+proptest = "1.4"
+proptest-derive = "0.8"
+datatest-stable = "0.3"
+
+[features]
+default = []
+
+# run only the fast tests in watch by using the feature and lableing slow tests with ignore in tdd mode
+# `#[cfg_attr(feature = "tdd", ignore)]`
+# `cargo nextest run --features tdd`
+tdd = []

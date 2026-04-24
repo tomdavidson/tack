@@ -1,0 +1,18 @@
+// All domain types are readonly. No classes.
+export type PluginOptions = {
+  readonly featureEnabled?: boolean;
+{% if hasContentLayer %}
+  readonly collections?: ReadonlyArray<string>;
+{% endif %}
+};
+
+export type ResolvedConfig = {
+  readonly featureEnabled: boolean;
+{% if hasContentLayer %}
+  readonly collections: ReadonlyArray<string>;
+{% endif %}
+};
+
+export type PluginError = 
+  | { readonly type: 'ValidationFailed'; readonly reason: string }
+  | { readonly type: 'MissingDependency'; readonly pkg: string };

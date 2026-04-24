@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "extends": [
+    "./node_modules/@astro-bay/eslint-config/src/oxlintrc.jsonc"
+  ],
+  "overrides": [
+    {
+      "files": [
+        "**/*.spec.ts",
+        "**/*.test.ts",
+        "**/src/test/**/*.ts"
+      ],
+      "rules": {
+        "typescript/no-unsafe-type-assertion": "off"
+      }
+    },
+    {
+      "files": [
+        "**/*.config.ts",
+        "**/*.config.mts"
+      ],
+      "rules": {
+        "import/no-default-export": "off"
+      }
+    }
+  ]
+}

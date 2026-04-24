@@ -1,0 +1,2 @@
+# Rendered by tack.sh via tera. vars_from points at the fixture tackrc.yml.
+greeting: "hello, {{ vars.who }}"

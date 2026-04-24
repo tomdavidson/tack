@@ -1,0 +1,7 @@
+import { z } from 'astro/zod';
+
+export const {{ name | replace(from="-", to="") }}Schema = z.object({
+  title: z.string(),
+  description: z.string().optional(),
+  publishDate: z.coerce.date().optional(),
+});

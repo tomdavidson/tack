@@ -1,0 +1,59 @@
+import type { AstroIntegration } from 'astro';
+import { mergeConfig } from './config.js';
+import type { PluginOptions } from './types.js';
+
+const VIRTUAL_MODULE_ID = '{{ name }}:config';
+const RESOLVED_VIRTUAL_ID = '\0' + VIRTUAL_MODULE_ID;
+
+export default function {{ name | replace(from="-", to="") }}Plugin(options?: PluginOptions): AstroIntegration {
+  const config = mergeConfig(options);
+
+  return {
+    name: '@astro-bay/{{ name }}',
+    hooks: {
+      'astro:config:setup': ({ updateConfig, logger{% if hasInjectedPages %}, injectRoute{% endif %} }) => {
+        logger.info('Initializing plugin...');
+
+        // 1. Register virtual module for config
+        updateConfig({
+          vite: {
+            plugins: [{
+              name: 'vite-plugin-{{ name }}-virtual',
+              resolveId(id) {
+                return id === VIRTUAL_MODULE_ID ? RESOLVED_VIRTUAL_ID : null;
+              },
+              load(id) {
+                return id === RESOLVED_VIRTUAL_ID ? `export default ${JSON.stringify(config)}` : null;
+              }
+            }]
+          }
+        });
+
+{% if hasInjectedPages %}
+        // 2. Inject plugin routes
+        injectRoute({
+          pattern: '/{{ name }}/[...page]',
+          entrypoint: '@astro-bay/{{ name }}/pages/Index.astro',
+          prerender: true,
+        });
+{% endif %}
+      },
+
+      'astro:config:done': ({ injectTypes }) => {
+        // 3. Expose virtual module types to user's env.d.ts
+        injectTypes({
+          filename: 'types.d.ts',
+          content: `declare module '${VIRTUAL_MODULE_ID}' {
+  import type { ResolvedConfig } from '@astro-bay/{{ name }}/types';
+  const config: ResolvedConfig;
+  export default config;
+}`
+        });
+      },
+
+      'astro:build:done': ({ dir, logger }) => {
+        logger.info('Build complete. Running post-build tasks...');
+      }
+    }
+  };
+}

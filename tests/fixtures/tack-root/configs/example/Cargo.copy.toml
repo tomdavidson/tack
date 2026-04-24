@@ -1,0 +1,3 @@
+# Copied verbatim to Cargo.toml by tack.sh.
+[workspace.package]
+edition = "2021"

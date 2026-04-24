@@ -1,0 +1,12 @@
+# https://moonrepo.dev/docs/config/toolchain
+$schema: "https://moonrepo.dev/schemas/toolchain.json"
+
+javascript:
+  packageManager: "pnpm"
+
+node: {}
+
+pnpm: {}
+
+proto:
+  version: "0.55.4"

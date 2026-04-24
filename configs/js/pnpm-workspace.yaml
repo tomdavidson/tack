@@ -1,0 +1,17 @@
+# pnpm-workspace.yaml
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "plugins/*"
+  - "website"
+
+catalog:
+  "@astrojs/check": ^0.9.8
+  "@tailwindcss/vite": ^4.2.2
+  astro: ^6.0.0
+  eslint: ^9.0.0
+  fast-check: ^3.0.0
+  oxlint: ^1.58.0
+  typescript: ^5.9.3
+  vitest: ^2.0.0
+  oxlint-tsgolint: ^0.19.0

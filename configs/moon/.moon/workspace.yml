@@ -1,0 +1,31 @@
+$schema: "https://moonrepo.dev/schemas/workspace.json"
+
+projects:
+  globs:
+    - "apps/*"
+    - "packages/*"
+    - "plugins/*"
+    - "website"
+  sources:
+    root: "."
+
+generator:
+  templates:
+    - ".moon/templates"
+
+vcs:
+  provider: "github"
+  defaultBranch: "main"
+  sync: true
+  hooks:
+    pre-commit:
+      - "moon run :lint-ox-fix :fmt --affected --status=staged"
+      - "git diff --cached --name-only --diff-filter=ACMR | xargs git add"
+    pre-push:
+      - "git diff --quiet && git diff --cached --quiet || (echo 'Dirty working tree. Commit all changes before pushing.' && exit 1)"
+      - "moon run :lint --affected"
+      - "moon run :fmt-check --affected"
+      - "moon run :test --affected"
+
+hasher:
+  optimization: "accuracy"

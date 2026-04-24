@@ -1,0 +1,27 @@
+# .moon/templates/astro-plugin/template.yml
+$schema: "https://moonrepo.dev/schemas/template.json"
+
+title: "Astro 6 Plugin"
+description: "Scaffold a strict, functional Astro 6 integration package for astro-bay"
+destination: "plugins/[name]"
+
+variables:
+  name:
+    type: string
+    required: true
+    prompt: "Plugin name (e.g., rss, sitemap, content-hub)"
+
+  description:
+    type: string
+    default: "An Astro 6 integration."
+    prompt: "Short description of the plugin"
+
+  hasContentLayer:
+    type: boolean
+    default: false
+    prompt: "Does this plugin read Astro Content Collections?"
+
+  hasInjectedPages:
+    type: boolean
+    default: false
+    prompt: "Does this plugin inject routes/pages into the user's site?"

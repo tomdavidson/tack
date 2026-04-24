@@ -1,0 +1,56 @@
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+inheritedBy:
+  tags: ["gh-pkg-npm"]
+  order: 30
+
+tasks:
+  publish:
+    command: "bash"
+    args:
+      - "-c"
+      - >
+          set -euo pipefail;
+          PR="${PR_NUMBER:-$(gh pr view --json number --jq .number 2>/dev/null || echo "")}";
+          if [ -z "${PR}" ]; then
+            echo "Could not determine PR number. Set PR_NUMBER or run from a PR branch.";
+            exit 1;
+          fi;
+          SHA=$(git rev-parse --short HEAD);
+          PKG_NAME=$(jq -r .name package.json);
+          BASE_VERSION=$(jq -r .version package.json);
+          PREVIEW_VERSION="${BASE_VERSION}-pr.${PR}.${SHA}";
+          TAG="pr-${PR}";
+          echo "Publishing ${PKG_NAME}@${PREVIEW_VERSION} to GitHub Packages with tag ${TAG}";
+          npm version "${PREVIEW_VERSION}" --no-git-tag-version;
+          npm publish --registry https://npm.pkg.github.com --tag "${TAG}"
+    toolchains: ["javascript", "node"]
+    options:
+      runInCI: false
+      cache: false
+
+  unpublish:
+    command: "bash"
+    args:
+      - "-c"
+      - >
+          set -euo pipefail;
+          PR="${PR_NUMBER:-$(gh pr view --json number --jq .number 2>/dev/null || echo "")}";
+          if [ -z "${PR}" ]; then
+            echo "No PR number available, nothing to unpublish";
+            exit 0;
+          fi;
+          PKG_NAME=$(jq -r .name package.json);
+          TAG="pr-${PR}";
+          echo "Unpublishing ${PKG_NAME}@${TAG} from GitHub Packages";
+          VERSION=$(npm view "${PKG_NAME}@${TAG}" version --registry https://npm.pkg.github.com 2>/dev/null || true);
+          if [ -n "${VERSION}" ]; then
+            npm unpublish "${PKG_NAME}@${VERSION}" --registry https://npm.pkg.github.com;
+            echo "Unpublished ${PKG_NAME}@${VERSION}";
+          else
+            echo "No version found for tag ${TAG}, nothing to unpublish";
+          fi
+    toolchains: ["javascript", "node"]
+    options:
+      runInCI: false
+      cache: false

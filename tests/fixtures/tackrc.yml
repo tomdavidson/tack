@@ -1,0 +1,3 @@
+# Fixture tackrc.yml used as vars_from by example/greeting.tera.yml.
+vars:
+  who: "world"

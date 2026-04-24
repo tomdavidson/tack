@@ -1,0 +1,35 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+tags:
+  - "tooling"
+
+tasks:
+  sync-release:
+    script: "bun $MOON_WORKSPACE_ROOT/.moon/scripts/sync-release-please.ts"
+    inputs:
+      - "/plugins/*/package.json"
+      - "/apps/*/package.json"
+      - "/release-please-config.json"
+      - "/.release-please-manifest.json"
+    options:
+      runInCI: false
+      runFromWorkspaceRoot: true
+
+  fmt:
+    script: "dprint fmt"
+    inputs:
+      - "/**/*.{js,jsx,ts,tsx,mjs,cjs,json,jsonc,md,yml,yaml,css,scss,html,astro}"
+      - "/dprint.json"
+    options:
+      runInCI: false
+      runFromWorkspaceRoot: true
+      affectedFiles: args
+
+  fmt-check:
+    script: "dprint check"
+    inputs:
+      - "/**/*.{js,jsx,ts,tsx,mjs,cjs,json,jsonc,md,yml,yaml,css,scss,html,astro}"
+      - "/dprint.json"
+    options:
+      runFromWorkspaceRoot: true
+      affectedFiles: true

@@ -1,0 +1,17 @@
+# Per-package overrides for the rust package.
+# Suffix-driven classification handles mode; this file declares the params
+# the suffix cannot carry (merge target, enforced keys, template vars, hooks).
+# Absence of a file entry means pure suffix-driven defaults apply.
+
+files:
+  clippy-cargo.merge.toml:
+    target: ../../Cargo.toml
+    # Deep merge via tomlq '.[0] * .[1]'. No narrower section declared so the
+    # full [workspace.lints.rust] and [workspace.lints.clippy] tables merge in.
+    enforced:
+      # Safety and panic-discipline always win over project-local overrides.
+      # Keep this list small; only add keys that are compliance-critical.
+      - workspace.lints.rust.unsafe_code
+      - workspace.lints.clippy.unwrap_used
+      - workspace.lints.clippy.expect_used
+      - workspace.lints.clippy.panic

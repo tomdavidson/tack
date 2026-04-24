@@ -1,0 +1,51 @@
+name: Review App & Artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: run or rm
+        type: choice
+        options:
+          - run
+          - rm
+        required: true
+      pr-number:
+        description: PR number
+        type: string
+        required: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  PR_NUMBER: ${{ inputs.pr-number }}
+  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+concurrency:
+  group: raa-${{ inputs.pr-number }}
+  cancel-in-progress: true
+
+jobs:
+  raa:
+    name: RAA ${{ inputs.command }} PR #${{ inputs.pr-number }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+
+      - id: raa
+        uses: ./.github/actions/moon-raa
+        with:
+          command: ${{ inputs.command }}
+          pr-number: ${{ inputs.pr-number }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        if: always()
+        run: echo "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          SUMMARY: ${{ steps.raa.outputs.summary }}

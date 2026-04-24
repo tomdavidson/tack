@@ -1,0 +1,6 @@
+# Merged into Cargo.toml by tack.sh via tomlq.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
