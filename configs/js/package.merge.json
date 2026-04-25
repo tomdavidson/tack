@@ -1,0 +1,15 @@
+{
+  "name": "",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "devDependencies": {
+    "eslint": "catalog:",
+    "fast-check": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "scripts": {}
+}

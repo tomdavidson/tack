@@ -1,0 +1,10 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+tags:
+  - "gh-pkg-npm"
+
+project:
+  metadata:
+    raa:
+      run: publish
+      rm: unpublish

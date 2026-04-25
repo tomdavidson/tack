@@ -1,0 +1,8 @@
+# config/moon/.moon/toolchains.tera.yml
+$schema: "https://moonrepo.dev/schemas/toolchain.json"
+extends:
+{% for t in moon.toolchains %}  - "../../shared/toolchains-{{ t }}.yml"
+{% endfor %}
+
+proto:
+  version: "0.55"

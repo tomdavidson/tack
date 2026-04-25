@@ -1,0 +1,154 @@
+# Universal .gitignore for monorepos.
+# Keep entries broad enough to apply across the entire repo. If a single
+# component, package, or subdirectory needs project-specific ignores, add a
+# local .gitignore in that directory rather than expanding this file.
+
+# ---- OS ----
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ---- Editors / IDEs ----
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+.fleet/
+.zed/
+*.swp
+*.swo
+*.swn
+*.kate-swp
+.kateconfig
+*~
+.netrwhist
+Session.vim
+.vim/
+.helix/
+
+# ---- Direnv / env ----
+.envrc.local
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.*.example
+
+# ---- Logs / temp ----
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-store/
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+.cache/
+tmp/
+temp/
+
+# ---- Build / dist ----
+dist/
+build/
+out/
+target/
+bin/
+obj/
+*.tsbuildinfo
+.next/
+.nuxt/
+.output/
+.svelte-kit/
+.astro/
+.docusaurus/
+.vercel/
+.netlify/
+
+# ---- Coverage / test artifacts ----
+coverage/
+.nyc_output/
+*.lcov
+junit.xml
+.tap/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# ---- Node / JS ----
+node_modules/
+.npm/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# ---- Rust ----
+**/*.rs.bk
+Cargo.lock.bak
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+.eggs/
+
+# ---- Tooling caches ----
+.turbo/
+.moon/cache/
+.moon/docker/
+.nx/cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+.dprint-cache/
+
+# ---- Containers / infra ----
+*.pid
+*.seed
+*.pid.lock
+docker-compose.override.yml
+
+# ---- Secrets / credentials ----
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+.secrets/
+secrets.yml
+secrets.yaml
+secrets.json
+credentials.json
+
+# ---- Archive ----
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar

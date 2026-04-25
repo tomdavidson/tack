@@ -4,12 +4,7 @@
 
 export BATS_LIB_PATH=/usr/lib/bats
 
-
 setup() {
-
-  # : "${BATS_LIB_PATH:=/usr/lib/bats:/usr/lib}"
-  # export BATS_LIB_PATH
-  
   bats_load_library bats-support
   bats_load_library bats-assert
   bats_load_library bats-file
@@ -19,10 +14,15 @@ setup() {
   TACK_SH="$HERE/../tack.sh"
   TARGET="$(mktemp -d -t tack-smoke.XXXXXX)"
 
-  # Seed a Cargo.toml so merge_file has a real target to merge into.
   cat > "$TARGET/Cargo.toml" <<EOF
 [workspace.package]
 edition = "2021"
+EOF
+
+  # Seed a consumer-root tackrc.yml so bare vars_from: tackrc.yml resolves.
+  cat > "$TARGET/tackrc.yml" <<'EOF'
+vars:
+  who: world
 EOF
 
   export TACK_ROOT="$FIXTURE/tack-root"
@@ -32,6 +32,22 @@ teardown() {
   rm -rf "$TARGET"
 }
 
+# Build a PATH that preserves system dirs but excludes any dir holding BIN.
+path_without() {
+  bin=$1
+  out=""
+  IFS=':'
+  for p in $PATH; do
+    if [ -n "$p" ] && [ ! -x "$p/$bin" ]; then
+      out="${out:+$out:}$p"
+    fi
+  done
+  unset IFS
+  printf '%s' "$out"
+}
+
+# ---------- happy path ----------
+
 @test "applies example package successfully" {
   run "$TACK_SH" --target "$TARGET" example
   assert_success
@@ -39,8 +55,12 @@ teardown() {
 
 @test "plain file becomes a symlink in target" {
   "$TACK_SH" --target "$TARGET" example
-  assert_link_exists "$TARGET/plain.txt"
-  assert_equal "$(readlink -f "$TARGET/plain.txt")" "$TACK_ROOT/configs/example/plain.txt"
+  [ -L "$TARGET/plain.txt" ]
+  resolved=$(readlink "$TARGET/plain.txt")
+  case "$resolved" in
+    *configs/example/plain.txt) : ;;
+    *) printf 'unexpected link target: %s\n' "$resolved" >&2; return 1 ;;
+  esac
 }
 
 @test "tera file renders to marker-stripped target" {
@@ -49,13 +69,27 @@ teardown() {
   assert_file_not_exists "$TARGET/greeting.tera.yml"
 }
 
-@test "copy file copies to marker-stripped target" {
+@test "vars_from resolves against consumer root (TARGET)" {
+  # Override the seeded rc with a distinguishing value so we can prove the
+  # template read from TARGET and not from some package-relative fallback.
+  cat > "$TARGET/tackrc.yml" <<'EOF'
+vars:
+  who: consumer-root
+EOF
+  "$TACK_SH" --target "$TARGET" example
+  run cat "$TARGET/greeting.yml"
+  assert_output --partial "consumer-root"
+}
+
+@test "copy file copies to marker-stripped target and is not a symlink" {
   "$TACK_SH" --target "$TARGET" example
   assert_file_exists "$TARGET/Cargo.toml"
   assert_file_not_exists "$TARGET/Cargo.copy.toml"
+  run test -L "$TARGET/Cargo.toml"
+  assert_failure
 }
 
-@test "merge applies clippy lints to seeded Cargo.toml" {
+@test "concat appends clippy lints to seeded Cargo.toml" {
   "$TACK_SH" --target "$TARGET" example
   run cat "$TARGET/Cargo.toml"
   assert_output --partial "workspace.lints"
@@ -66,11 +100,156 @@ teardown() {
   assert_file_not_exists "$TARGET/tack-manifest.yml"
 }
 
+@test "tack.yml is not linked into target" {
+  stub="$TACK_ROOT/configs/example/tack.yml"
+  printf 'stub\n' > "$stub"
+  "$TACK_SH" --target "$TARGET" example
+  rm -f "$stub"
+  assert_file_not_exists "$TARGET/tack.yml"
+}
+
+# ---------- concat semantics ----------
+
+@test "concat is idempotent across repeat runs" {
+  "$TACK_SH" --target "$TARGET" example
+  first=$(wc -c < "$TARGET/Cargo.toml")
+  "$TACK_SH" --target "$TARGET" example
+  second=$(wc -c < "$TARGET/Cargo.toml")
+  assert_equal "$first" "$second"
+}
+
+@test "concat dies cleanly when target file is missing" {
+  # Build an isolated package with only a concat fragment, so no copy pass
+  # seeds Cargo.toml before concat runs.
+  ALT_ROOT="$(mktemp -d -t tack-alt-root.XXXXXX)"
+  mkdir -p "$ALT_ROOT/configs/bare"
+  cat > "$ALT_ROOT/configs/bare/clippy.concat.toml" <<'EOF'
+[workspace.lints.clippy]
+unwrap_used = "warn"
+EOF
+  cat > "$ALT_ROOT/configs/bare/tack-manifest.yml" <<'EOF'
+files:
+  clippy.concat.toml:
+    target: Cargo.toml
+EOF
+  EMPTY_TARGET="$(mktemp -d -t tack-empty.XXXXXX)"
+  TACK_ROOT="$ALT_ROOT" run "$TACK_SH" --target "$EMPTY_TARGET" bare
+  assert_failure
+  assert_output --partial "concat target missing"
+  rm -rf "$ALT_ROOT" "$EMPTY_TARGET"
+}
+
+# ---------- unknown suffix fallthrough ----------
+
+@test "unknown interior suffix falls through to link pass" {
+  f="$TACK_ROOT/configs/example/notes.bak.md"
+  printf 'note\n' > "$f"
+  "$TACK_SH" --target "$TARGET" example
+  rm -f "$f"
+  [ -L "$TARGET/notes.bak.md" ]
+}
+
+# ---------- dry-run ----------
+
 @test "dry-run makes no filesystem changes" {
   DRY_TARGET="$(mktemp -d -t tack-dry.XXXXXX)"
+  cat > "$DRY_TARGET/Cargo.toml" <<EOF
+[workspace.package]
+edition = "2021"
+EOF
+  cat > "$DRY_TARGET/tackrc.yml" <<'EOF'
+vars:
+  who: world
+EOF
+  before=$(sha256sum "$DRY_TARGET/Cargo.toml" | awk '{print $1}')
+
   run "$TACK_SH" --dry-run --target "$DRY_TARGET" example
   assert_success
+
   assert_file_not_exists "$DRY_TARGET/plain.txt"
   assert_file_not_exists "$DRY_TARGET/greeting.yml"
+  after=$(sha256sum "$DRY_TARGET/Cargo.toml" | awk '{print $1}')
+  assert_equal "$before" "$after"
+
   rm -rf "$DRY_TARGET"
+}
+
+@test "dry-run tolerates missing concat target without failing" {
+  DRY_TARGET="$(mktemp -d -t tack-dry-no-cargo.XXXXXX)"
+  run "$TACK_SH" --dry-run --target "$DRY_TARGET" example
+  assert_success
+  rm -rf "$DRY_TARGET"
+}
+
+# ---------- error paths ----------
+
+@test "unknown package name fails cleanly" {
+  run "$TACK_SH" --target "$TARGET" does-not-exist
+  assert_failure
+  assert_output --partial "no such package"
+}
+
+@test "unknown option fails cleanly" {
+  run "$TACK_SH" --nope example
+  assert_failure
+  assert_output --partial "unknown option"
+}
+
+@test "--help exits 0" {
+  run "$TACK_SH" --help
+  assert_success
+  assert_output --partial "Usage:"
+}
+
+@test "no packages prints usage and fails" {
+  run "$TACK_SH"
+  assert_failure
+  assert_output --partial "Usage:"
+}
+
+@test "missing tera binary produces actionable error" {
+  # Strip tera from PATH, then re-provide lnko (and yq if available) via a
+  # stub dir so we isolate the failure to tera.
+  stub_dir="$(mktemp -d)"
+  ln -s "$(command -v lnko)" "$stub_dir/lnko"
+  if command -v yq >/dev/null 2>&1; then
+    ln -s "$(command -v yq)" "$stub_dir/yq"
+  fi
+  new_path=$(path_without tera)
+  PATH="$stub_dir:$new_path" run "$TACK_SH" --target "$TARGET" example
+  assert_failure
+  assert_output --partial "tera not found"
+  rm -rf "$stub_dir"
+}
+
+@test "missing lnko binary produces actionable error" {
+  stub_dir="$(mktemp -d)"
+  ln -s "$(command -v tera)" "$stub_dir/tera"
+  if command -v yq >/dev/null 2>&1; then
+    ln -s "$(command -v yq)" "$stub_dir/yq"
+  fi
+  new_path=$(path_without lnko)
+  PATH="$stub_dir:$new_path" run "$TACK_SH" --target "$TARGET" example
+  assert_failure
+  assert_output --partial "lnko not found"
+  rm -rf "$stub_dir"
+}
+
+# ---------- paths with spaces ----------
+
+@test "target path with spaces is handled correctly" {
+  SPACED="$(mktemp -d -t 'tack smoke XXXX')"
+  cat > "$SPACED/Cargo.toml" <<EOF
+[workspace.package]
+edition = "2021"
+EOF
+  cat > "$SPACED/tackrc.yml" <<'EOF'
+vars:
+  who: world
+EOF
+  run "$TACK_SH" --target "$SPACED" example
+  assert_success
+  assert_file_exists "$SPACED/greeting.yml"
+  assert_file_exists "$SPACED/Cargo.toml"
+  rm -rf "$SPACED"
 }

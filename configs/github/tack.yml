@@ -1,0 +1,75 @@
+# # tack.yml — package manifest schema v0
+
+# # Schema version. Increment on breaking changes; tack.sh refuses
+# # unknown majors and warns on unknown minors.
+# version: 0
+
+# # Optional human-readable metadata. Ignored by tack.sh logic.
+# name: github          # defaults to the package directory name
+# description: GitHub Actions workflows and composite actions
+
+# # Link behavior. Everything here describes how the package's files
+# # land in the consumer relative to default behavior.
+# link:
+#   # Default link mode for paths in this package.
+#   # "fold"   = symlink the directory itself.
+#   # "unfold" = symlink each child individually, parent stays as a real dir.
+#   # If omitted, tack.sh's global default applies (currently: unfold for
+#   # the package root, fold for nested directories).
+#   mode: unfold
+
+#   # Per-path overrides. Each entry is either a string (path, default
+#   # behavior for that path) or an object with options.
+#   unfold:
+#     - actions
+#     - workflows
+#     # Object form for paths needing options:
+#     # - path: actions
+#     #   exclude: [setup]
+
+#   fold:
+#     # Paths to symlink as a single directory even if mode is unfold.
+#     # - some/subdir
+
+#   # Files or directories in the package that should NOT be linked
+#   # into the consumer at all. Useful for package-internal docs,
+#   # tests, build artifacts.
+#   ignore:
+#     - README.md
+#     - tests/
+
+# # Optional template configuration. Absent means no rendering;
+# # files ship as-is via symlink.
+# template:
+#   # Files matched here are rendered through tera and copied (not
+#   # symlinked) into the consumer. Glob patterns relative to the
+#   # package root.
+#   render:
+#     # - workflows/main.tera.yml
+
+#   # Source of template variables. Defaults to the workspace tackrc.
+#   data:
+#     from: tackrc        # "tackrc" | "manifest" | "both"
+#     # When "manifest" or "both", inline values:
+#     # values:
+#     #   github:
+#     #     setup_ref: main
+
+# # Optional dependencies on other tack packages. Tack.sh dispatches
+# # dependencies before this package.
+# requires:
+#   # - moon
+#   # - direnv
+
+# # Optional lifecycle hooks. Each is a script path relative to the
+# # package root, run with the consumer dir as cwd.
+# hooks:
+#   pre_link:    # before any symlinks are created
+#   post_link:   # after all symlinks are created
+#   pre_unlink:  # before symlinks are removed (on tack uninstall)
+#   post_unlink: # after symlinks are removed
+
+
+link:
+  unfold:
+    - actions

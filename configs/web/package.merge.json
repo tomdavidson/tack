@@ -1,5 +1,5 @@
 {
-  "name": "astro-bay",
+  "name": "",
   "version": "0.0.0",
   "private": true,
   "packageManager": "pnpm@10.32.1",
@@ -9,11 +9,6 @@
     "@astrojs/check": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "astro": "catalog:",
-    "eslint": "catalog:",
-    "fast-check": "catalog:",
-    "oxlint": "catalog:",
-    "oxlint-tsgolint": "catalog:",
-    "typescript": "catalog:",
     "vitest": "catalog:"
   },
   "scripts": {}

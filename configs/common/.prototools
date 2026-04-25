@@ -1,0 +1,16 @@
+dprint = "0.53"
+moon = "2"
+
+[plugins.tools]
+shfmt = "https://tomdavidson.github.io/proto/shfmt.toml"
+dprint = "https://tomdavidson.github.io/proto/dprint.toml"
+
+shellcheck = "0.11.0"
+watchexec = "2.5.0"
+
+
+[settings]
+auto-install = true
+auto-clean = true
+detect-strategy = "prefer-prototools"
+

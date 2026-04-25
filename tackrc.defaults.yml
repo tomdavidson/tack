@@ -1,0 +1,11 @@
+# <tack>/tackrc.defaults.yml
+# Defaults for every user-configurable tack setting.
+# Consumers override subsets in <consumer-root>/tackrc.yml.
+
+moon:
+  toolchains:
+    - javascript
+    # - rust
+
+post_hook:
+  - moon sync hooks
