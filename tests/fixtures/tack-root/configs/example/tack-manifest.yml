@@ -1,5 +1,12 @@
 # tack-manifest.yml for the example fixture package.
-# Declares render vars source and merge target.
+# Per-package context (not control). Declares parameters that cannot be
+# derived from filename and path: render vars source, concat target,
+# link.unfold dirs.
+
+link:
+  unfold:
+    - nested
+
 files:
   greeting.tera.yml:
     vars_from: tackrc.yml

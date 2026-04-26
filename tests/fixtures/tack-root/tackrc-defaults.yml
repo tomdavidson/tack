@@ -1,0 +1,9 @@
+# Fixture defaults for the tack test suite.
+# tack.sh deep-merges this with the consumer's tackrc.yml; consumer wins.
+
+vars:
+  who: default-who
+
+moon:
+  toolchains:
+    - javascript
