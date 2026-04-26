@@ -1,0 +1,21 @@
+# <tack>/tackrc-defaults.yml
+# Defaults for every user-configurable tack setting.
+# Consumers override subsets in <consumer-root>/tackrc.yml.
+# tack.sh deep-merges this file with the consumer's tackrc.yml; the result
+# is the single runtime controller for all of tack.
+
+moon:
+  toolchains:
+    - javascript
+    # - rust
+
+post_hook:
+  - moon sync hooks
+
+pkgs:
+  - configs/*
+  - scripts
+
+pkgs-exclude:
+  - configs/rust
+  
