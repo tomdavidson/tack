@@ -30,7 +30,7 @@ teardown() {
 write_pkg() {
   frag_name="$1"; frag_body="$2"; tgt_rel="$3"; tgt_body="$4"
   printf '%s' "$frag_body" > "$ALT_ROOT/configs/demo/$frag_name"
-  cat > "$ALT_ROOT/configs/demo/tack-manifest.yml" <<EOF
+  cat > "$ALT_ROOT/configs/demo/tack.yml" <<EOF
 files:
   $frag_name:
     target: $tgt_rel
@@ -80,28 +80,19 @@ x = 1
   [[ "$output" == *"target is not valid json"* ]]
 }
 
-@test "merge: missing target file errors with path" {
+@test "merge: missing target file is created from fragment" {
   printf '{"x":1}' > "$ALT_ROOT/configs/demo/a.merge.json"
-  cat > "$ALT_ROOT/configs/demo/tack-manifest.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
 files:
   a.merge.json:
-    target: missing.json
+    target: created.json
 EOF
+  [ ! -e "$CONSUMER/created.json" ]
   run_tack
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"merge target missing"* ]]
-  [[ "$output" == *"missing.json"* ]]
-}
-
-@test "merge: fragment without manifest entry fails" {
-  printf '{"x":1}' > "$ALT_ROOT/configs/demo/orphan.merge.json"
-  cat > "$ALT_ROOT/configs/demo/tack-manifest.yml" <<'EOF'
-files: {}
-EOF
-  run_tack
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"requires files"* ]]
-  [[ "$output" == *"orphan.merge.json"* ]]
+  [ "$status" -eq 0 ]
+  [ -f "$CONSUMER/created.json" ]
+  v=$(yq -p json -o json '.x' "$CONSUMER/created.json")
+  [ "$v" = "1" ]
 }
 
 # ----- JSON happy paths -----
@@ -215,7 +206,7 @@ a: 1
   printf '{"v":2}' > "$ALT_ROOT/configs/demo/a.merge.json"
   printf 'k: 2
 ' > "$ALT_ROOT/configs/demo/b.merge.yml"
-  cat > "$ALT_ROOT/configs/demo/tack-manifest.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
 files:
   a.merge.json: { target: pkg.json }
   b.merge.yml:  { target: pkg.yml  }

@@ -7,15 +7,12 @@
 moon:
   toolchains:
     - javascript
-    # - rust
-
-post_hook:
-  - moon sync hooks
+  workspace_base_source: local
+  workspace_base_ref: main
 
 pkgs:
   - configs/*
-  - scripts
 
-pkgs-exclude:
-  - configs/rust
-  
+overrides:
+  configs/rust:
+    exclude: ["**"]

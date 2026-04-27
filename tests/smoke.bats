@@ -95,16 +95,10 @@ EOF
   assert_output --partial "workspace.lints"
 }
 
-@test "tack-manifest.yml is not linked into target" {
-  "$TACK_SH" --target "$TARGET" configs/example
-  assert_file_not_exists "$TARGET/tack-manifest.yml"
-}
-
 @test "tack.yml is not linked into target" {
-  stub="$TACK_ROOT/configs/example/tack.yml"
-  printf 'stub\n' > "$stub"
+  # The example fixture already has a tack.yml. After applying, the
+  # target must not contain a tack.yml symlink.
   "$TACK_SH" --target "$TARGET" configs/example
-  rm -f "$stub"
   assert_file_not_exists "$TARGET/tack.yml"
 }
 
@@ -128,7 +122,7 @@ EOF
 [workspace.lints.clippy]
 unwrap_used = "warn"
 EOF
-  cat > "$ALT_ROOT/configs/bare/tack-manifest.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/bare/tack.yml" <<'EOF'
 files:
   clippy.concat.toml:
     target: Cargo.toml

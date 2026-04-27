@@ -1,0 +1,14 @@
+# tack.yml for the example fixture package.
+# Optional per-package context. Declares parameters that cannot be
+# derived from filename and path: render vars source, concat target
+# overrides, link.unfold dirs.
+
+link:
+  unfold:
+    - nested
+
+files:
+  greeting.tera.yml:
+    vars_from: tackrc.yml
+  clippy-cargo.concat.toml:
+    target: Cargo.toml

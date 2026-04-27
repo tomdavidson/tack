@@ -10,25 +10,38 @@
 #
 # Package selection (no CLI args):
 #   pkgs:           list of path globs relative to $TACK_ROOT (e.g. "configs/*", "scripts")
-#   pkgs_exclude:   list of path globs subtracted from the resolved pkgs list
+#   overrides:      map keyed by package path. overrides.<pkg>.exclude is a
+#                   list of shell-glob patterns. A package whose exclude
+#                   contains "**" is subtracted from the resolved pkgs list
+#                   (whole-package opt-out). Other patterns filter individual
+#                   files within the package.
 #   pkgs_metadata:  mapping keyed by package path; the matching subtree is
 #                   exposed to tera as `.pkg` per render.
 #
-# Per-package context (not control):
-#   <pkg>/tack-manifest.yml declares parameters that cannot be derived from
-#   filename and path: render vars source, concat target, merge target,
-#   link.unfold dirs.
+# Per-package context (optional):
+#   <pkg>/tack.yml is an optional context file. It declares parameters
+#   that cannot be derived from filename and path: render vars source,
+#   concat/merge target overrides, link.unfold dirs. If omitted, every
+#   target is derived by stripping the dispatch marker from the source
+#   basename and writing into the same relative path under TARGET.
 #
 # Dispatch:
-#   *.tera.*           render via tera
-#   *.copy.*           copy verbatim
-#   *.concat.*         append to manifest-declared target (signature-dedup)
-#   *.merge.json       deep-merge into manifest-declared target via yq
-#   *.merge.yml|.yaml  deep-merge into manifest-declared target via yq
+#   *.tera.*           render via tera (target = strip_marker(src))
+#   *.copy.*           copy verbatim (target = strip_marker(src))
+#   *.concat.*         append to target (default = strip_marker(src),
+#                      override via tack.yml files.<src>.target; signature-dedup)
+#   *.merge.json       deep-merge into target via yq (default = strip_marker(src),
+#                      override via tack.yml files.<src>.target)
+#   *.merge.yml|.yaml  deep-merge into target via yq (default = strip_marker(src),
+#                      override via tack.yml files.<src>.target)
 #   *.merge.toml       refused; use *.concat.toml instead
-#   everything else    symlink via lnko (except tack-manifest.yml and tack.yml)
+#   everything else    symlink via lnko (except tack.yml)
 
 set -euo pipefail
+
+# Recursive ** in globs and dotfile matching are required for
+# overrides.<pkg>.exclude patterns like "**" or ".prototools".
+shopt -s globstar dotglob nullglob extglob
 
 # Static fallback when not running from a git checkout (e.g. release tarball).
 # Bump on tagged release.
@@ -139,6 +152,31 @@ rc_list() {
   yq -r ".${key}[]?" "$MERGED_TACKRC" 2>/dev/null || true
 }
 
+# pkg_excludes PKG -- newline-separated shell-glob patterns from
+# overrides.<PKG>.exclude in the merged tackrc, or empty.
+# Patterns are evaluated relative to the package directory.
+# Supports ** for recursive match (globstar enabled at script top).
+pkg_excludes() {
+  pkg=$1
+  yq -r ".overrides[\"$pkg\"].exclude[]?" "$MERGED_TACKRC" 2>/dev/null || true
+}
+
+# path_excluded REL_PATH PATTERNS -- exit 0 if REL_PATH matches any
+# newline-separated shell-glob in PATTERNS. Patterns are matched against
+# the full package-relative path.
+path_excluded() {
+  rel=$1
+  patterns=$2
+  [ -n "$patterns" ] || return 1
+  printf '%s\n' "$patterns" | while IFS= read -r pat; do
+    [ -n "$pat" ] || continue
+    # shellcheck disable=SC2254
+    case "$rel" in
+      $pat) printf 'match\n'; break ;;
+    esac
+  done | grep -q match
+}
+
 # expand_glob PATTERN -- echoes matching directories under $TACK_ROOT, one
 # per line. Path-shaped globs are resolved relative to $TACK_ROOT.
 # Literals (no wildcards) that don't resolve to a directory return nothing.
@@ -189,7 +227,11 @@ in_list() {
 # literal pkg entry does not resolve to a directory.
 resolve_pkgs() {
   raw_pkgs=$(rc_list pkgs)
-  raw_excl=$(rc_list pkgs_exclude)
+  # Whole-package exclusion is expressed as overrides.<pkg>.exclude == ["**"].
+  # Any package key whose exclude array contains the literal "**" is added
+  # to the subtraction list. File-level patterns (anything other than "**")
+  # are handled later by iterate_files / link_package, not here.
+  raw_excl=$(yq -r '.overrides | to_entries[]? | select(.value.exclude[]? == "**") | .key' "$MERGED_TACKRC" 2>/dev/null || true)
 
   # Loops use while-read instead of `for pat in $raw_pkgs` so the unquoted
   # patterns (`configs/*`, `configs/exp-*`) are NOT pathname-expanded against
@@ -280,17 +322,23 @@ manifest_unfold() {
 }
 
 link_package() {
-  pkg_dir=$1; target=$2
+  pkg_dir=$1; target=$2; excludes=${3:-}
   log "link: $pkg_dir -> $target"
-  run lnko link \
+  set -- \
     --ignore '*.tera.*' \
     --ignore '*.copy.*' \
     --ignore '*.concat.*' \
     --ignore '*.merge.*' \
-    --ignore 'tack-manifest.yml' \
-    --ignore 'tack.yml' \
-    -t "$target" \
-    "$pkg_dir"
+    --ignore 'tack.yml'
+  if [ -n "$excludes" ]; then
+    while IFS= read -r pat; do
+      [ -n "$pat" ] || continue
+      set -- "$@" --ignore "$pat"
+    done <<EOF
+$excludes
+EOF
+  fi
+  run lnko link "$@" -t "$target" "$pkg_dir"
 }
 
 apply_unfold() {
@@ -330,7 +378,7 @@ render_file() {
     ctx="$CURRENT_PKG_CTX"
   fi
   [ -f "$ctx" ] || [ "$DRY_RUN" -eq 1 ] || die "vars_from not found: $ctx (from $src_rel)"
-  run tera --template "$src" --include-path "$TACK_ROOT" "$ctx" --out "$dest"
+  run tera --template "$src" --include-path "$(dirname "$src")" "$ctx" --out "$dest"
   if [ -n "$post" ]; then
     # shellcheck disable=SC2086
     run $post "$dest"
@@ -370,7 +418,17 @@ concat_file() {
   src=$1; pkg_dir=$2; manifest=$3; target=$4
   src_rel=$(rel_in_pkg "$src" "$pkg_dir")
   concat_target=$(manifest_get "$manifest" "$src_rel" target)
-  [ -n "$concat_target" ] || die "concat file $src_rel requires files[\"$src_rel\"].target in $manifest"
+  if [ -z "$concat_target" ]; then
+    # Default: strip the .concat. marker from the source basename and
+    # place the result in the same relative directory as the source.
+    base_default=$(strip_marker "$(basename "$src_rel")")
+    dir_default=$(dirname "$src_rel")
+    if [ "$dir_default" = "." ]; then
+      concat_target=$base_default
+    else
+      concat_target=$dir_default/$base_default
+    fi
+  fi
   dest="$target/$concat_target"
   log "concat: $src_rel -> $concat_target"
   if [ ! -f "$dest" ]; then
@@ -400,25 +458,48 @@ merge_file() {
   esac
 
   merge_target=$(manifest_get "$manifest" "$src_rel" target)
-  [ -n "$merge_target" ] || die "merge file $src_rel requires files[\"$src_rel\"].target in $manifest"
+  if [ -z "$merge_target" ]; then
+    base_default=$(strip_marker "$(basename "$src_rel")")
+    dir_default=$(dirname "$src_rel")
+    if [ "$dir_default" = "." ]; then
+      merge_target=$base_default
+    else
+      merge_target=$dir_default/$base_default
+    fi
+  fi
   dest="$target/$merge_target"
 
   log "merge: $src_rel -> $merge_target"
 
-  if [ ! -f "$dest" ]; then
-    [ "$DRY_RUN" -eq 1 ] || die "merge target missing: $dest"
-    return 0
-  fi
-
   if [ "$DRY_RUN" -eq 1 ]; then
-    printf '[dry-run] yq deep-merge %s into %s (%s)\n' "$src" "$dest" "$fmt"
+    if [ -f "$dest" ]; then
+      printf '[dry-run] yq deep-merge %s into %s (%s)\n' "$src" "$dest" "$fmt"
+    else
+      printf '[dry-run] yq create %s from %s (%s)\n' "$dest" "$src" "$fmt"
+    fi
     return 0
   fi
 
-  yq -p "$fmt" -o "$fmt" '.' "$src"  >/dev/null 2>&1 \
+  yq -p "$fmt" -o "$fmt" '.' "$src" >/dev/null 2>&1 \
     || die "merge fragment is not valid $fmt: $src"
-  yq -p "$fmt" -o "$fmt" '.' "$dest" >/dev/null 2>&1 \
-    || die "merge target is not valid $fmt: $dest"
+
+  # Missing target is treated as empty data: synthesize an empty seed
+  # in the right format and merge against it. This makes merge a
+  # create-or-update operation.
+  if [ ! -f "$dest" ]; then
+    mkdir -p "$(dirname "$dest")"
+    seed=$(mktemp)
+    tack_cleanup_add "$seed"
+    case "$fmt" in
+      json) printf '{}\n' > "$seed" ;;
+      yaml) printf '{}\n' > "$seed" ;;
+    esac
+    src_target="$seed"
+  else
+    yq -p "$fmt" -o "$fmt" '.' "$dest" >/dev/null 2>&1 \
+      || die "merge target is not valid $fmt: $dest"
+    src_target="$dest"
+  fi
 
   tmp=$(mktemp)
   tack_cleanup_add "$tmp"
@@ -426,7 +507,7 @@ merge_file() {
   if ! yq -p "$fmt" -o "$fmt" ea '
         . as $i ireduce ({}; . *+ $i)
         | (.. | select(tag == "!!seq")) |= unique
-      ' "$dest" "$src" > "$tmp"; then
+      ' "$src_target" "$src" > "$tmp"; then
     rm -f "$tmp"
     die "yq merge failed: $src into $dest"
   fi
@@ -439,6 +520,13 @@ iterate_files() {
   tack_cleanup_add "$tmp"
   find "$pkg_dir" -type f -name "$pattern" > "$tmp"
   while IFS= read -r f; do
+    if [ -n "${CURRENT_PKG_EXCLUDES:-}" ]; then
+      rel=${f#"$pkg_dir"/}
+      if path_excluded "$rel" "$CURRENT_PKG_EXCLUDES"; then
+        log "exclude: $rel"
+        continue
+      fi
+    fi
     "$handler" "$f" "$@"
   done < "$tmp"
   rm -f "$tmp"
@@ -449,18 +537,30 @@ apply_package() {
   pkg=$1
   pkg_dir="$TACK_ROOT/$pkg"
   [ -d "$pkg_dir" ] || die "no such package: $pkg"
-  manifest="$pkg_dir/tack-manifest.yml"
+  manifest="$pkg_dir/tack.yml"
 
   # Build a per-package tera context: merged tackrc with .pkg bound to
   # pkgs_metadata[<this pkg path>] (or {} if absent).
   CURRENT_PKG_CTX=$(pkg_metadata_ctx "$pkg")
 
+  # Per-package file-level exclude patterns from overrides.<pkg>.exclude.
+  # Shell-glob semantics, evaluated against package-relative paths.
+  # Whole-package opt-out (exclude: ["**"]) is handled earlier in
+  # resolve_pkgs and never reaches apply_package via the pkgs path.
+  # CLI-supplied packages bypass overrides entirely (documented precedence).
+  if [ "${CLI_SELECTION:-0}" -eq 1 ]; then
+    CURRENT_PKG_EXCLUDES=""
+  else
+    CURRENT_PKG_EXCLUDES=$(pkg_excludes "$pkg")
+  fi
+
   apply_unfold  "$pkg_dir" "$manifest" "$TARGET"
-  link_package  "$pkg_dir" "$TARGET"
+  link_package  "$pkg_dir" "$TARGET" "$CURRENT_PKG_EXCLUDES"
   iterate_files "$pkg_dir" '*.tera.*'   _h_render "$pkg_dir" "$manifest" "$TARGET"
   iterate_files "$pkg_dir" '*.copy.*'   _h_copy   "$pkg_dir" "$TARGET"
   iterate_files "$pkg_dir" '*.concat.*' _h_concat "$pkg_dir" "$manifest" "$TARGET"
   iterate_files "$pkg_dir" '*.merge.*'  _h_merge  "$pkg_dir" "$manifest" "$TARGET"
+  CURRENT_PKG_EXCLUDES=""
 }
 
 _h_render() { render_file "$1" "$2" "$3" "$4"; }
@@ -497,15 +597,17 @@ Options:
   -h, --help       Show this help
 
 Selection precedence:
-  1. If <package-path> args are given, they override pkgs and pkgs_exclude
+  1. If <package-path> args are given, they override pkgs and overrides
      entirely.
-  2. Otherwise: resolved pkgs minus resolved pkgs_exclude from the merged
-     tackrc. Empty selection is a hard error.
+  2. Otherwise: resolved pkgs minus packages whose
+     overrides.<pkg>.exclude contains "**". Empty selection is a hard error.
 
 Packages are paths relative to TACK_ROOT (e.g. configs/rust, scripts).
 With no package args, packages are taken from the merged tackrc:
   pkgs:           list of path globs (e.g. "configs/*", "scripts")
-  pkgs_exclude:   list of path globs subtracted from the resolved pkgs list
+  overrides:      map keyed by package path; overrides.<pkg>.exclude lists
+                  shell-glob patterns. exclude: ["**"] subtracts the whole
+                  package; other patterns filter individual files.
   pkgs_metadata:  mapping keyed by package path; the matching subtree is
                   exposed to tera as \`.pkg\` per render.
 
@@ -514,13 +616,13 @@ Control file:
   Required: tackrc-defaults.yml. Optional: consumer tackrc.yml.
 
 Dispatch by filename marker:
-  *.tera.*           render via tera
-  *.copy.*           copy verbatim
-  *.concat.*         append to manifest-declared target
-  *.merge.json       deep-merge into manifest-declared target via yq
-  *.merge.yml|.yaml  deep-merge into manifest-declared target via yq
+  *.tera.*           render via tera (default target: strip marker)
+  *.copy.*           copy verbatim (default target: strip marker)
+  *.concat.*         append to target (default: strip marker; override in tack.yml)
+  *.merge.json       deep-merge via yq (default: strip marker; override in tack.yml)
+  *.merge.yml|.yaml  deep-merge via yq (default: strip marker; override in tack.yml)
   *.merge.toml       refused; use *.concat.toml instead
-  (other)            symlink via lnko (skips tack-manifest.yml, tack.yml)
+  (other)            symlink via lnko (skips tack.yml)
 
 Environment:
   TACK_ROOT            Path to the tack repo (default: dir of tack.sh)
@@ -557,7 +659,9 @@ load_tackrc
 
 if [ -n "$cli_pkgs" ]; then
   pkgs_to_apply="$cli_pkgs"
+  CLI_SELECTION=1
 else
+  CLI_SELECTION=0
   TACK_ERR_FILE=$(mktemp -t tack-err.XXXXXX)
   export TACK_ERR_FILE
   resolved=$(resolve_pkgs)

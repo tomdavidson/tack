@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# tests/pkgs.bats - pkgs / pkgs_exclude / pkgs_metadata resolution and
+# tests/pkgs.bats - pkgs / overrides / pkgs_metadata resolution and
 # tera context injection. Each test builds an isolated ALT_ROOT so we
 # can shape configs/, scripts/, and tackrc-defaults.yml per case.
 
@@ -71,14 +71,15 @@ mk_unique_pkg() {
   [ -L "$CONSUMER/gamma.txt" ]
 }
 
-@test "pkgs_exclude: literal entry removes one package" {
+@test "overrides.<pkg>.exclude == ['**'] removes one package" {
   mk_unique_pkg configs/alpha alpha
   mk_unique_pkg configs/beta  beta
   mk_unique_pkg configs/gamma gamma
   write_defaults 'pkgs:
   - "configs/*"
-pkgs_exclude:
-  - configs/beta
+overrides:
+  configs/beta:
+    exclude: ["**"]
 '
   run_tack
   [ "$status" -eq 0 ]
@@ -87,14 +88,20 @@ pkgs_exclude:
   [ -L "$CONSUMER/gamma.txt" ]
 }
 
-@test "pkgs_exclude: glob entry removes matching packages" {
+@test "overrides: multiple ['**'] entries remove multiple packages" {
   mk_unique_pkg configs/keep        keep
   mk_unique_pkg configs/exp-foo     expfoo
   mk_unique_pkg configs/exp-bar     expbar
+  # overrides keys are literal pkg paths, not globs. To exclude a set,
+  # list each one explicitly. Pkg-path glob support in overrides keys
+  # is a separate feature, not implemented here.
   write_defaults 'pkgs:
   - "configs/*"
-pkgs_exclude:
-  - "configs/exp-*"
+overrides:
+  configs/exp-foo:
+    exclude: ["**"]
+  configs/exp-bar:
+    exclude: ["**"]
 '
   run_tack
   [ "$status" -eq 0 ]
@@ -134,13 +141,14 @@ pkgs_exclude:
 
 # ----- CLI override -----
 
-@test "CLI args override pkgs and pkgs_exclude entirely" {
+@test "CLI args override pkgs and overrides entirely" {
   mk_unique_pkg configs/alpha alpha
   mk_unique_pkg configs/beta  beta
   write_defaults 'pkgs:
   - configs/alpha
-pkgs_exclude:
-  - configs/beta
+overrides:
+  configs/beta:
+    exclude: ["**"]
 '
   run_tack configs/beta
   [ "$status" -eq 0 ]
