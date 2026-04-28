@@ -22,8 +22,8 @@ vcs:
       - "git diff --cached --name-only --diff-filter=ACMR | xargs git add -f"
     pre-push:
       - >
-          branch="$(git branch --show-current)";
-          moon_cmd=(moon run :lint :fmt-check :test);
+          branch="$(git branch --show-current)"; moon_cmd=(moon run :lint
+          :fmt-check :test);
 
           git diff --quiet && git diff --cached --quiet || {
             echo "Dirty working tree. Commit all changes before pushing.";
@@ -33,7 +33,7 @@ vcs:
           if [[ "$branch" != "main" ]]; then
             moon_cmd+=(--affected --base origin/main --head HEAD);
           else
-            if ! moon/scripts/auto-squash.sh; then
+            if ! .moon/scripts/auto-squash.sh; then
               echo "Auto-squash aborted. Aborting git push.";
               exit 1;
             fi
