@@ -1,5 +1,5 @@
-# node = "22"
-# pnpm = "10"
+node = "22"
+pnpm = "10"
 
 dprint = "0.53"
 lnko = "0.2"

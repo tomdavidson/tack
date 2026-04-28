@@ -1,0 +1,1 @@
+../../configs/moon/.moon/scripts/watch-file.ts

@@ -1,0 +1,186 @@
+# Universal .gitattributes for monorepos.
+# Keep entries broad. If a single component needs project-specific
+# attributes, add a local .gitattributes in that directory.
+#
+# GitHub picks rich-diff renderers (images, PDF, ipynb, CSV, geojson, stl,
+# mermaid in markdown) by file extension. There is no .gitattributes knob to
+# force rich diff on or off; the toggle is per-user-per-file in the diff UI.
+# This file controls line endings, binary marking, linguist stats, and which
+# files collapse by default in PR diffs.
+
+# ---- Default ----
+* text=auto eol=lf
+
+# ---- Source: force LF ----
+*.rs        text eol=lf
+*.toml      text eol=lf
+*.md        text eol=lf
+*.mdx       text eol=lf
+*.txt       text eol=lf
+*.json      text eol=lf
+*.jsonc     text eol=lf
+*.json5     text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.xml       text eol=lf
+*.html      text eol=lf
+*.htm       text eol=lf
+*.css       text eol=lf
+*.scss      text eol=lf
+*.sass      text eol=lf
+*.less      text eol=lf
+*.js        text eol=lf
+*.jsx       text eol=lf
+*.mjs       text eol=lf
+*.cjs       text eol=lf
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.mts       text eol=lf
+*.cts       text eol=lf
+*.vue       text eol=lf
+*.svelte    text eol=lf
+*.astro     text eol=lf
+*.py        text eol=lf
+*.rb        text eol=lf
+*.go        text eol=lf
+*.java      text eol=lf
+*.kt        text eol=lf
+*.kts       text eol=lf
+*.swift     text eol=lf
+*.c         text eol=lf
+*.h         text eol=lf
+*.cc        text eol=lf
+*.cpp       text eol=lf
+*.hpp       text eol=lf
+*.sh        text eol=lf
+*.bash      text eol=lf
+*.zsh       text eol=lf
+*.fish      text eol=lf
+*.sql       text eol=lf
+*.graphql   text eol=lf
+*.gql       text eol=lf
+*.proto     text eol=lf
+*.tf        text eol=lf
+*.tfvars    text eol=lf
+*.hcl       text eol=lf
+*.dockerfile  text eol=lf
+Dockerfile    text eol=lf
+Dockerfile.*  text eol=lf
+.dockerignore text eol=lf
+.gitignore    text eol=lf
+.gitattributes text eol=lf
+.editorconfig text eol=lf
+.prototools   text eol=lf
+.envrc        text eol=lf
+.env.example  text eol=lf
+Makefile      text eol=lf
+makefile      text eol=lf
+*.mk          text eol=lf
+
+# ---- Windows-specific: keep CRLF ----
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+*.psm1      text eol=crlf
+
+# ---- Binary ----
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.webp      binary
+*.avif      binary
+*.ico       binary
+*.bmp       binary
+*.tif       binary
+*.tiff      binary
+*.svg       text eol=lf
+*.pdf       binary
+*.mp3       binary
+*.mp4       binary
+*.mov       binary
+*.webm      binary
+*.ogg       binary
+*.wav       binary
+*.flac      binary
+*.zip       binary
+*.tar       binary
+*.gz        binary
+*.tgz       binary
+*.bz2       binary
+*.7z        binary
+*.rar       binary
+*.xz        binary
+*.zst       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.otf       binary
+*.eot       binary
+*.wasm      binary
+*.so        binary
+*.dylib     binary
+*.dll       binary
+*.exe       binary
+*.a         binary
+*.lib       binary
+*.o         binary
+*.obj       binary
+*.class     binary
+*.jar       binary
+*.pyc       binary
+*.db        binary
+*.sqlite    binary
+*.sqlite3   binary
+
+# ---- Lockfiles: text but exclude from diffs by default ----
+package-lock.json    text eol=lf -diff
+pnpm-lock.yaml       text eol=lf -diff
+yarn.lock            text eol=lf -diff
+Cargo.lock           text eol=lf -diff
+poetry.lock          text eol=lf -diff
+uv.lock              text eol=lf -diff
+go.sum               text eol=lf -diff
+Gemfile.lock         text eol=lf -diff
+composer.lock        text eol=lf -diff
+
+# ---- Linguist: language hints ----
+*.ipynb              linguist-language=Jupyter\ Notebook
+*.mdx                linguist-language=MDX
+*.tera.json          linguist-language=JSON
+*.tera.yml           linguist-language=YAML
+*.tera.yaml          linguist-language=YAML
+*.tera.toml          linguist-language=TOML
+
+# ---- Linguist: collapse generated/vendored from PR diffs and stats ----
+*.min.js             linguist-generated=true
+*.min.css            linguist-generated=true
+*.map                linguist-generated=true
+dist/**              linguist-generated=true
+build/**             linguist-generated=true
+out/**               linguist-generated=true
+target/**            linguist-generated=true
+coverage/**          linguist-generated=true
+**/__snapshots__/**  linguist-generated=true
+**/*.snap            linguist-generated=true
+**/generated/**      linguist-generated=true
+**/*.pb.go           linguist-generated=true
+**/*.pb.ts           linguist-generated=true
+**/*_pb2.py          linguist-generated=true
+
+vendor/**            linguist-vendored=true
+third_party/**       linguist-vendored=true
+third-party/**       linguist-vendored=true
+
+docs/**              linguist-documentation=true
+
+# ---- Export-ignore: omit from `git archive` tarballs ----
+.gitattributes       export-ignore
+.gitignore           export-ignore
+.github/             export-ignore
+.vscode/             export-ignore
+tests/               export-ignore
+test/                export-ignore
+**/__tests__/**      export-ignore
+**/*.test.*          export-ignore
+**/*.spec.*          export-ignore
