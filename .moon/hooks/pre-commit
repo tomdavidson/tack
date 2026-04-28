@@ -9,5 +9,5 @@ done
 # https://moonrepo.dev/docs/guides/vcs-hooks
 
 moon run :lint-ox-fix :fmt --affected --status=staged
-git diff --cached --name-only --diff-filter=ACMR | xargs git add
+git diff --cached --name-only --diff-filter=ACMR | xargs git add -f
 

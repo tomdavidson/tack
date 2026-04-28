@@ -177,16 +177,16 @@ files:
 For each file in a selected package, `tack` chooses a behavior based on the
 filename:
 
-| Pattern                         | Behavior                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------- |
-| `*.tera.*`                      | Render with `tera`, strip the `.tera` marker for the target name                |
-| `*.copy.*`                      | Copy verbatim, strip the `.copy` marker                                         |
-| `*.concat.*`                    | Append to manifest-declared `target`; signature-dedup so re-runs are idempotent |
-| `*.merge.json`                  | Deep-merge into manifest-declared `target` via `yq`                             |
-| `*.merge.yml` / `*.merge.yaml`  | Same, YAML                                                                      |
-| `*.merge.toml`                  | **Refused.** Use `*.concat.toml` (see ADR-0002)                                 |
-| `tack-manifest.yml`, `tack.yml` | Skipped (control files)                                                         |
-| anything else                   | Symlinked into the target via `lnko`                                            |
+| Pattern                        | Behavior                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| `*.tera.*`                     | Render with `tera`, strip the `.tera` marker for the target name                |
+| `*.copy.*`                     | Copy verbatim, strip the `.copy` marker                                         |
+| `*.concat.*`                   | Append to manifest-declared `target`; signature-dedup so re-runs are idempotent |
+| `*.merge.json`                 | Deep-merge into manifest-declared `target` via `yq`                             |
+| `*.merge.yml` / `*.merge.yaml` | Same, YAML                                                                      |
+| `*.merge.toml`                 | **Refused.** Use `*.concat.toml` (see ADR-0002)                                 |
+| `tack.yml`                     | Skipped (control files)                                                         |
+| anything else                  | Symlinked into the target via `lnko`                                            |
 
 **Idempotency note:** linking and merging are safe to re-run. Concat is
 deduplicated by a two-line signature, so re-running won't double-append the

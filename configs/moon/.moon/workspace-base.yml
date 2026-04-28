@@ -3,7 +3,8 @@ $schema: "https://moonrepo.dev/schemas/workspace.json"
 projects:
   globs:
     - "packages/*"
-    - "configs/*"
+    - "apps/*"
+    - "website"
   sources:
     root: "."
 

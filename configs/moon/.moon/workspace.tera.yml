@@ -1,5 +1,3 @@
-$schema: "https://moonrepo.dev/schemas/workspace.json"
-
 extends:
 {%- if moon.workspace_base_source == "remote" %}
   - "https://raw.githubusercontent.com/tomdavidson/tack/{{ moon.workspace_base_ref | default(value='main') }}/configs/moon/.moon/workspace-base.yml"
