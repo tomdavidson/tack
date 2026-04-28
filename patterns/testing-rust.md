@@ -4,15 +4,15 @@
 
 ## Tools
 
-| Purpose | Crate | Notes |
-|---------|-------|-------|
-| Runner | `cargo-nextest` | Parallel, filtered, per-test overrides. Replaces `cargo test` for running. |
-| Property | `proptest` + `proptest-derive` | Preferred over quickcheck. `proptest-derive` for `#[derive(Arbitrary)]` on domain types. |
-| Snapshot | `insta` | Only for large generated output |
-| Mocking | `mockall` | Only for four allowed cases in [Testing](testing.md) |
-| Async | `tokio::test` | For async tests |
-| Fuzz | `cargo-fuzz` | Parsers, validators, deserializers |
-| Integration | `testcontainers` | Real deps when absolutely needed |
+| Purpose     | Crate                          | Notes                                                                                    |
+| ----------- | ------------------------------ | ---------------------------------------------------------------------------------------- |
+| Runner      | `cargo-nextest`                | Parallel, filtered, per-test overrides. Replaces `cargo test` for running.               |
+| Property    | `proptest` + `proptest-derive` | Preferred over quickcheck. `proptest-derive` for `#[derive(Arbitrary)]` on domain types. |
+| Snapshot    | `insta`                        | Only for large generated output                                                          |
+| Mocking     | `mockall`                      | Only for four allowed cases in [Testing](testing.md)                                     |
+| Async       | `tokio::test`                  | For async tests                                                                          |
+| Fuzz        | `cargo-fuzz`                   | Parsers, validators, deserializers                                                       |
+| Integration | `testcontainers`               | Real deps when absolutely needed                                                         |
 
 ## Fast vs Slow Split
 
@@ -28,12 +28,12 @@ proptest = "1"
 proptest-derive = "0.5"
 ```
 
-| Mode | Command | What runs |
-|------|---------|-----------|
-| Full | `cargo nextest run` | All tests including property tests |
+| Mode        | Command                            | What runs                                     |
+| ----------- | ---------------------------------- | --------------------------------------------- |
+| Full        | `cargo nextest run`                | All tests including property tests            |
 | TDD / Watch | `cargo nextest run --features tdd` | Only fast unit tests (property tests ignored) |
-| Pre-push | `cargo nextest run` | Full suite |
-| CI | `cargo nextest run` | Full suite |
+| Pre-push    | `cargo nextest run`                | Full suite                                    |
+| CI          | `cargo nextest run`                | Full suite                                    |
 
 Mark slow tests (property tests, heavy strategies) with the conditional ignore attribute:
 
@@ -171,14 +171,19 @@ pub struct FakeOrderRepo {
 
 impl FakeOrderRepo {
     pub fn new() -> Self {
-        Self { store: Mutex::new(HashMap::new()) }
+        Self {
+            store: Mutex::new(HashMap::new()),
+        }
     }
 }
 
 #[async_trait::async_trait]
 impl OrderRepo for FakeOrderRepo {
     async fn save(&self, order: &Order) -> Result<(), RepoError> {
-        self.store.lock().unwrap().insert(order.id.clone(), order.clone());
+        self.store
+            .lock()
+            .unwrap()
+            .insert(order.id.clone(), order.clone());
         Ok(())
     }
 
@@ -253,7 +258,8 @@ mod tests {
 
     // Unit tests
     #[test]
-    fn basic_test() { /* ... */ }
+    fn basic_test() { /* ... */
+    }
 
     // Property tests sit at same level as unit tests
     proptest! {
@@ -334,8 +340,8 @@ max_shrink_iters = 1000
 Derive `Arbitrary` on domain types to auto-generate strategies without manual `prop_map` boilerplate.
 
 ```rust
-use proptest_derive::Arbitrary;
 use proptest::prelude::*;
+use proptest_derive::Arbitrary;
 
 #[derive(Debug, Clone, Arbitrary)]
 pub struct Money {
@@ -356,12 +362,12 @@ proptest! {
 
 Use `proptest-derive` when the type maps cleanly to constrained primitives with independent fields. Use manual strategies when generation logic is more complex.
 
-| Situation | Approach |
-|-----------|----------|
-| Fields are independent, constrained primitives | `#[derive(Arbitrary)]` with `#[proptest(strategy = "...")]` |
-| Fields are interdependent (mode determines which fields are valid) | Manual strategy with `prop_map` |
-| Natural input is a string, not a struct (parsers) | Regex strategy fed through the public function |
-| Need custom distributions or weighted generation | Manual strategy |
+| Situation                                                          | Approach                                                    |
+| ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| Fields are independent, constrained primitives                     | `#[derive(Arbitrary)]` with `#[proptest(strategy = "...")]` |
+| Fields are interdependent (mode determines which fields are valid) | Manual strategy with `prop_map`                             |
+| Natural input is a string, not a struct (parsers)                  | Regex strategy fed through the public function              |
+| Need custom distributions or weighted generation                   | Manual strategy                                             |
 
 ## Custom Strategies
 
@@ -375,23 +381,24 @@ pub fn money_strategy() -> impl Strategy<Value = Money> {
 }
 
 pub fn order_item_strategy() -> impl Strategy<Value = OrderItem> {
-    (
-        "[a-zA-Z0-9]{1,20}",
-        1usize..100,
-        money_strategy(),
-    ).prop_map(|(sku, qty, price)| OrderItem { sku, quantity: qty, price })
+    ("[a-zA-Z0-9]{1,20}", 1usize..100, money_strategy()).prop_map(|(sku, qty, price)| OrderItem {
+        sku,
+        quantity: qty,
+        price,
+    })
 }
 
 pub fn order_strategy() -> impl Strategy<Value = Order> {
     (
         "[a-f0-9]{8}",
         prop::collection::vec(order_item_strategy(), 1..10),
-    ).prop_map(|(id, items)| Order {
-        id: OrderId::new(&id),
-        customer_id: CustomerId::new("test-cust"),
-        items,
-        status: OrderStatus::Draft,
-    })
+    )
+        .prop_map(|(id, items)| Order {
+            id: OrderId::new(&id),
+            customer_id: CustomerId::new("test-cust"),
+            items,
+            status: OrderStatus::Draft,
+        })
 }
 ```
 
@@ -458,12 +465,16 @@ pub trait Clock: Send + Sync {
 
 pub struct SystemClock;
 impl Clock for SystemClock {
-    fn now(&self) -> DateTime<Utc> { Utc::now() }
+    fn now(&self) -> DateTime<Utc> {
+        Utc::now()
+    }
 }
 
 pub struct FixedClock(pub DateTime<Utc>);
 impl Clock for FixedClock {
-    fn now(&self) -> DateTime<Utc> { self.0 }
+    fn now(&self) -> DateTime<Utc> {
+        self.0
+    }
 }
 
 pub fn is_expired(clock: &dyn Clock, order: &Order) -> bool {
@@ -571,19 +582,19 @@ Never poll or sleep-wait. If you need to wait for async work, await it directly.
 
 ## Anti-Patterns
 
-| Don't | Do Instead |
-|-------|------------|
-| `unwrap()` in library code | `?` or typed error |
-| `Box<dyn Trait>` when `impl Trait` works | `impl Trait` in return position |
-| `_ =>` catch-all hiding variants | Enumerate all match arms |
-| Clone to avoid borrow checker | Fix ownership structure |
-| Testcontainers in unit tests | In-memory fakes |
-| Sleep/poll waits in tests | Await directly |
-| Shared mutable test state | Each test owns its data |
-| Snapshot for domain objects | `assert_eq!` with derived `PartialEq` |
-| `cargo test` for running | `cargo nextest run` for parallel execution |
-| Property tests slowing watch mode | `#[cfg_attr(feature = "tdd", ignore)]` |
-| Delete proptest regression files | Keep them committed permanently |
+| Don't                                    | Do Instead                                 |
+| ---------------------------------------- | ------------------------------------------ |
+| `unwrap()` in library code               | `?` or typed error                         |
+| `Box<dyn Trait>` when `impl Trait` works | `impl Trait` in return position            |
+| `_ =>` catch-all hiding variants         | Enumerate all match arms                   |
+| Clone to avoid borrow checker            | Fix ownership structure                    |
+| Testcontainers in unit tests             | In-memory fakes                            |
+| Sleep/poll waits in tests                | Await directly                             |
+| Shared mutable test state                | Each test owns its data                    |
+| Snapshot for domain objects              | `assert_eq!` with derived `PartialEq`      |
+| `cargo test` for running                 | `cargo nextest run` for parallel execution |
+| Property tests slowing watch mode        | `#[cfg_attr(feature = "tdd", ignore)]`     |
+| Delete proptest regression files         | Keep them committed permanently            |
 
 ## Checklist
 

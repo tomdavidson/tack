@@ -2,7 +2,7 @@
 
 Clean code that's readable, testable, and maintainable—built on strategic FP.
 
-Good OOP requires mass pattern knowledge to avoid pitfalls. Strategic FP yields similar benefits—separation of concerns, testability, maintainability—with less ceremony. 
+Good OOP requires mass pattern knowledge to avoid pitfalls. Strategic FP yields similar benefits—separation of concerns, testability, maintainability—with less ceremony.
 
 Pragmatic over dogmatic. The goal is **better code**, not paradigm or purity points.
 
@@ -182,22 +182,22 @@ users.filter(u => u.active).map(u => u.email)
 
 ## Standing Rules
 
-| Rule | Meaning |
-|------|---------|
-| Boy Scout | Leave code cleaner than you found it |
-| KISS | Reduce complexity wherever possible |
-| DRY | Single source of truth—extract when duplicated |
-| Root Cause | Fix sources, not symptoms |
-| Consistency | Follow existing conventions in codebase |
+| Rule        | Meaning                                        |
+| ----------- | ---------------------------------------------- |
+| Boy Scout   | Leave code cleaner than you found it           |
+| KISS        | Reduce complexity wherever possible            |
+| DRY         | Single source of truth—extract when duplicated |
+| Root Cause  | Fix sources, not symptoms                      |
+| Consistency | Follow existing conventions in codebase        |
 
 ## When to Break Rules
 
-| Situation | Pragmatic Choice |
-|-----------|------------------|
-| Framework requires class | Thin shell, delegate to pure functions |
-| Mutation is 10x faster | Mutate locally, document why |
-| Error handling adds noise | Skip Result for infallible ops |
-| Deep pipeline hurts readability | Break into named steps |
+| Situation                       | Pragmatic Choice                       |
+| ------------------------------- | -------------------------------------- |
+| Framework requires class        | Thin shell, delegate to pure functions |
+| Mutation is 10x faster          | Mutate locally, document why           |
+| Error handling adds noise       | Skip Result for infallible ops         |
+| Deep pipeline hurts readability | Break into named steps                 |
 
 The goal is **better code**, not points.
 

@@ -10,8 +10,6 @@ fileGroups:
     - "tests/**/*"
 
 tasks:
-
-
   cargo:
     command: "cargo"
     env: &env
@@ -91,5 +89,3 @@ tasks:
     inputs:
       - "@group(cargo)"
     env: *env
-
-

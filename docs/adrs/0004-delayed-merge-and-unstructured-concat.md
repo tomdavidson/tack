@@ -23,7 +23,7 @@ Two complementary primitives, neither of which parses the destination file's str
 
 1. Delayed merge (deferred to the consumer's toolchain). tack does not perform semantic merges itself. Packages that need structured contribution emit a sibling file (e.g., clippy-lints.toml) and rely on the destination format's own include/import mechanism, or on a post-apply step the consumer runs (cargo, make, etc.). The 'merge' happens when the consumer's tool loads the destination, not when tack runs. tack's job ends at placing the file.
 
-2. Unstructured concat. Files marked *.concat.* are appended to a manifest-declared target verbatim. tack treats the destination as an opaque byte stream with no parsing. It detects prior application by matching the first two non-comment, non-blank lines of the source (the 'signature') against consecutive lines in the destination; if present, skip. Otherwise it appends a newline then cats the source onto the destination.
+2. Unstructured concat. Files marked _.concat._ are appended to a manifest-declared target verbatim. tack treats the destination as an opaque byte stream with no parsing. It detects prior application by matching the first two non-comment, non-blank lines of the source (the 'signature') against consecutive lines in the destination; if present, skip. Otherwise it appends a newline then cats the source onto the destination.
 
 Manifest shape:
 
@@ -38,18 +38,21 @@ The enforced list is advisory metadata for humans and future linters; tack does 
 ## Consequences
 
 Positive:
+
 - No format parser dependency beyond yq for tack's own manifest.
 - Comments, key order, and consumer edits above the appended block are preserved.
 - Idempotent via signature detection; safe to re-run.
 - Works for any append-friendly format (TOML tables, multi-doc YAML, shell rc files, gitignore, editorconfig sections).
 
 Negative:
+
 - Concat assumes the destination format tolerates appended content at EOF. TOML tables and multi-doc YAML work; JSON does not, and arbitrary mid-file insertion is unsupported.
 - Signature detection is line-based and brittle to reformatting. A consumer who reflows the appended block will trigger a duplicate append on next run.
 - Delayed merge pushes responsibility onto the consumer's toolchain; packages must choose formats and destinations whose loaders support include/compose semantics, or accept that their contribution is literal append.
 - No conflict detection against competing concat sources targeting the same destination; last-writer-wins in apply order.
 
 Alternatives considered:
+
 - Structured merge via a pluggable merger registry keyed by extension. Rejected: scope creep, loses fidelity, couples tack to N format libraries.
 - Patch/diff application. Rejected: requires the consumer's file to match an expected base, defeating contribution to consumer-owned files.
 - Template the destination. Rejected: tack would own the full file, contradicting consumer ownership.

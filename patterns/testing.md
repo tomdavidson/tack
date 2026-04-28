@@ -4,15 +4,15 @@ Complements [Tom's Clean Code](toms-clean-code.md) and [Tom's Clean Architecture
 
 ## When to Write Which Test
 
-| Trigger | Test Type |
-|---------|-----------|
-| New feature/user story | Acceptance test |
-| Function has conditional logic or business rule | Unit test |
-| Function has invariant over large input space | Property test |
-| Stateful logic (pagination, filters, queues) | Model-based test |
-| Port interface with fake + real impl | Contract test |
-| IO adapter (DB, HTTP, filesystem) | Integration test |
-| Parser, validator, deserializer | Fuzz test |
+| Trigger                                         | Test Type        |
+| ----------------------------------------------- | ---------------- |
+| New feature/user story                          | Acceptance test  |
+| Function has conditional logic or business rule | Unit test        |
+| Function has invariant over large input space   | Property test    |
+| Stateful logic (pagination, filters, queues)    | Model-based test |
+| Port interface with fake + real impl            | Contract test    |
+| IO adapter (DB, HTTP, filesystem)               | Integration test |
+| Parser, validator, deserializer                 | Fuzz test        |
 
 **Skip tests for:** trivial mappings, pass-through glue, code with no conditionals already covered by acceptance test.
 
@@ -95,6 +95,7 @@ Language-specific naming conventions belong in their respective docs. The univer
 ## Test Structure
 
 ### Acceptance Test
+
 ```
 describe('[Feature]', () => {
   it('should [user-visible outcome]', () => {
@@ -104,9 +105,11 @@ describe('[Feature]', () => {
   });
 });
 ```
+
 One per feature. Uses fakes for fast runs, real deps for slow runs.
 
 ### Unit Test
+
 ```
 describe('[function]', () => {
   it('should [expected] when [condition]', () => {
@@ -114,9 +117,11 @@ describe('[function]', () => {
   });
 });
 ```
+
 One assertion per test. No IO, no shared state.
 
 ### Property Test
+
 ```
 describe('[function]', () => {
   it('should [invariant statement] for any [input description]', () => {
@@ -124,9 +129,11 @@ describe('[function]', () => {
   });
 });
 ```
+
 Invariants: roundtrip, idempotent, commutative, preserved-after-transform.
 
 ### Model-Based Test
+
 ```
 describe('[StatefulSystem]', () => {
   it('should maintain consistent state under random operations', () => {
@@ -136,17 +143,21 @@ describe('[StatefulSystem]', () => {
   });
 });
 ```
+
 Use for stateful logic: pagination, filters, sort, selection, queues. Each command defines `check` (is this valid?) and `run` (execute + assert). Mark as slow.
 
 ### Contract Test
+
 ```
 describe('[PortName] contract', () => {
   shared tests run against [FakeImpl, RealImpl]
 });
 ```
+
 Guarantees fake matches real behavior.
 
 ### Integration Test
+
 ```
 describe('[Adapter]', () => {
   it('should [operation] [scenario]', () => {
@@ -182,6 +193,7 @@ Never constrain generated inputs (max length, min/max value) unless the algorith
 **Stub:** Simple dependency, no behavior verification needed.
 
 **Mock:** Almost never. Only when:
+
 1. Injected time/randomness/UUID
 2. Fire-and-forget side effect with no queryable state
 3. Vendor SDK with prohibitive fake cost
@@ -190,6 +202,7 @@ Never constrain generated inputs (max length, min/max value) unless the algorith
 ## Why Fakes Over Mocks
 
 Mocks verify implementation, not behavior:
+
 - Couple tests to internal structure
 - Pass when code is broken, fail when code is correct
 - Require maintenance on refactor
@@ -201,11 +214,11 @@ Fakes verify behavior through execution. Contract tests ensure fakes match real.
 
 ## HTTP Dependencies
 
-| Dependency | Approach |
-|------------|----------|
-| Internal service (own both sides) | Contract test (e.g., Pact) |
-| Internal service (others own) | Fake from their contract/schema |
-| External API | Adapter + typed fake |
+| Dependency                        | Approach                        |
+| --------------------------------- | ------------------------------- |
+| Internal service (own both sides) | Contract test (e.g., Pact)      |
+| Internal service (others own)     | Fake from their contract/schema |
+| External API                      | Adapter + typed fake            |
 
 Wrap HTTP in adapter interface. Fake the adapter, not the HTTP client.
 
@@ -229,6 +242,7 @@ it('should find saved user', () => {
 ## Async Tests
 
 Never poll or sleep-wait. If you need to wait:
+
 - **Event-based:** Return a future/promise that resolves on completion
 - **State-based:** Expose observable/callback
 - **Retry needed:** Indicates design flaw, fix the coupling
@@ -248,10 +262,12 @@ Use `// Arrange`, `// Act`, `// Assert` comments in tests where the boundaries b
 ## Snapshots
 
 Use only for:
+
 - Large generated output where manual assertion impractical
 - Regression detection on stable structures
 
 Never for:
+
 - Domain objects (use equality)
 - API responses (assert specific fields)
 - "I don't know what to assert"
@@ -259,6 +275,7 @@ Never for:
 ## E2E Tests
 
 Minimal or none. E2E tests:
+
 - Slow, flaky, expensive to maintain
 - Test too much, failures hard to diagnose
 - Duplicate coverage from unit + contract + integration
@@ -269,6 +286,7 @@ If org requires: limit to 1-2 critical smoke tests post-deploy. Never in watch m
 ## Flaky Tests
 
 Flaky test = broken test. Response:
+
 1. Quarantine immediately (skip or separate suite)
 2. Fix root cause (shared state, timing, external dep)
 3. Never retry-until-pass as solution
@@ -285,21 +303,21 @@ Place builders in shared test utilities. Reuse across tests.
 
 ## Anti-Patterns
 
-| Don't | Do Instead |
-|-------|------------|
-| Mock the database | Container or in-memory |
-| Mock domain logic | Fakes with contract tests |
-| Mock HTTP client directly | Adapter + fake |
-| Assert call counts | Assert return value or state |
-| Shared test seeds | Each test owns its data |
-| Sleep/poll waits | Event-based completion |
-| Snapshot domain objects | Equality assertions |
-| Giant integration test | Acceptance + targeted units |
-| Retry flaky tests | Fix root cause |
-| Slow tests in watch mode | Separate to slow runner |
-| Constrain generators without algorithm need | Use defaults; reduce size hints if slow |
-| Separate files by test type | Organize by layer, skip slow tests inline |
-| Formal layers in a trivial project | Keep it flat until complexity demands structure |
+| Don't                                       | Do Instead                                      |
+| ------------------------------------------- | ----------------------------------------------- |
+| Mock the database                           | Container or in-memory                          |
+| Mock domain logic                           | Fakes with contract tests                       |
+| Mock HTTP client directly                   | Adapter + fake                                  |
+| Assert call counts                          | Assert return value or state                    |
+| Shared test seeds                           | Each test owns its data                         |
+| Sleep/poll waits                            | Event-based completion                          |
+| Snapshot domain objects                     | Equality assertions                             |
+| Giant integration test                      | Acceptance + targeted units                     |
+| Retry flaky tests                           | Fix root cause                                  |
+| Slow tests in watch mode                    | Separate to slow runner                         |
+| Constrain generators without algorithm need | Use defaults; reduce size hints if slow         |
+| Separate files by test type                 | Organize by layer, skip slow tests inline       |
+| Formal layers in a trivial project          | Keep it flat until complexity demands structure |
 
 ## Checklist
 

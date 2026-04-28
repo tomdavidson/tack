@@ -1,7 +1,6 @@
 # <TACK_ROOT>/tackrc.yml
 # Tack dogfooding itself: tack's own repo-root tackrc.
 
-
 overrides:
   configs/common:
     exclude:
@@ -10,7 +9,7 @@ overrides:
     exclude:
       - .prototools
   configs/web:
-    exclude: [ "**" ]
+    exclude: ["**"]
   configs/moon:
     exclude:
       - moon.yml

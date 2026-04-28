@@ -2,7 +2,7 @@
 
 Clean architecture that separates domain from infrastructure, built on DDD boundaries and dependency inversion.
 
-DDD tells you *what* to model and where boundaries are. Clean Architecture tells you *how* to structure dependencies so the domain stays pure.
+DDD tells you _what_ to model and where boundaries are. Clean Architecture tells you _how_ to structure dependencies so the domain stays pure.
 
 Error handling philosophy (errors as values, `Result<T, E>`, railway composition) is owned by [Tom's Clean Code](toms-clean-code.md). This document covers structural layering and boundaries.
 
@@ -46,22 +46,22 @@ Shared vocabulary within one bounded context. Code identifiers use these terms e
 
 ### Subdomain Types
 
-| Type | Description | Investment |
-|------|-------------|------------|
-| Core | Competitive advantage, complex | High, model carefully |
-| Supporting | Necessary, not differentiating | Medium, keep simple |
-| Generic | Commodity (auth, email, payments) | Low, buy or copy |
+| Type       | Description                       | Investment            |
+| ---------- | --------------------------------- | --------------------- |
+| Core       | Competitive advantage, complex    | High, model carefully |
+| Supporting | Necessary, not differentiating    | Medium, keep simple   |
+| Generic    | Commodity (auth, email, payments) | Low, buy or copy      |
 
 Apply DDD tactical patterns in Core. Use simple CRUD elsewhere.
 
 ### Context Relationships
 
-| Pattern | When |
-|---------|------|
-| Shared Kernel | Two contexts share subset of model |
-| Customer-Supplier | Upstream serves downstream's needs |
-| Conformist | Downstream adopts upstream's model as-is |
-| Anti-Corruption Layer | Translate foreign models at boundary |
+| Pattern               | When                                     |
+| --------------------- | ---------------------------------------- |
+| Shared Kernel         | Two contexts share subset of model       |
+| Customer-Supplier     | Upstream serves downstream's needs       |
+| Conformist            | Downstream adopts upstream's model as-is |
+| Anti-Corruption Layer | Translate foreign models at boundary     |
 
 Default to ACL. Conformist when upstream is stable and well-designed.
 
@@ -104,6 +104,7 @@ const addItem = (order: Order, item: OrderItem): Result<Order, OrderError> =>
 ```
 
 **Aggregate Rules**:
+
 1. Protect invariants, always consistent after operation
 2. Design small, root + minimal owned data
 3. Reference other aggregates by ID only
@@ -313,23 +314,23 @@ impl PlaceOrderError {
 
 ### Anti-Patterns
 
-| Smell | Problem |
-|-------|---------|
-| Domain error contains HTTP status | Dependency rule violation |
-| `catch(e) { res.status(500) }` | Swallows error detail, no exhaustiveness |
-| Stringly-typed errors | Loses compiler-checked exhaustiveness |
-| Error mapping in middleware | Scattered, hard to audit |
-| Wrapping domain errors in generic `AppError(String)` | Loses variant information |
+| Smell                                                | Problem                                  |
+| ---------------------------------------------------- | ---------------------------------------- |
+| Domain error contains HTTP status                    | Dependency rule violation                |
+| `catch(e) { res.status(500) }`                       | Swallows error detail, no exhaustiveness |
+| Stringly-typed errors                                | Loses compiler-checked exhaustiveness    |
+| Error mapping in middleware                          | Scattered, hard to audit                 |
+| Wrapping domain errors in generic `AppError(String)` | Loses variant information                |
 
 ## File Naming Convention
 
 Layer identity is encoded in the file suffix. The suffix determines which lint rules apply (see oxlintrc.json and eslint.config.mjs).
 
-| Suffix | Layer | Contains |
-|--------|-------|----------|
-| `.domain.ts` | Domain | Types, value objects, entities, invariants, pure functions |
-| `.app.ts` | Application | Use cases, orchestration, port interfaces |
-| `.infra.ts` | Infrastructure | Adapters, repos, IO, HTTP handlers, CLI |
+| Suffix       | Layer          | Contains                                                   |
+| ------------ | -------------- | ---------------------------------------------------------- |
+| `.domain.ts` | Domain         | Types, value objects, entities, invariants, pure functions |
+| `.app.ts`    | Application    | Use cases, orchestration, port interfaces                  |
+| `.infra.ts`  | Infrastructure | Adapters, repos, IO, HTTP handlers, CLI                    |
 
 Files without a layer suffix (e.g., `main.ts`, `shared/types.ts`) are not subject to layer-specific lint rules.
 
@@ -377,25 +378,25 @@ Composition root (`main.ts`): Wire all dependencies explicitly here. No framewor
 
 ## Anti-Patterns
 
-| Smell | Problem |
-|-------|---------|
-| Domain imports ORM | Dependency rule violation |
-| Use case calls HTTP directly | Missing port abstraction |
-| God aggregate | Won't scale, slow transactions |
-| Cross-aggregate transaction | Hidden coupling, use events |
-| Shared "common" model across contexts | Forced coupling, language collision |
-| Logic in wrong layer | Anemic domain + fat controllers, keep rules in domain |
-| File missing layer suffix | Lint rules won't enforce layer constraints |
+| Smell                                 | Problem                                               |
+| ------------------------------------- | ----------------------------------------------------- |
+| Domain imports ORM                    | Dependency rule violation                             |
+| Use case calls HTTP directly          | Missing port abstraction                              |
+| God aggregate                         | Won't scale, slow transactions                        |
+| Cross-aggregate transaction           | Hidden coupling, use events                           |
+| Shared "common" model across contexts | Forced coupling, language collision                   |
+| Logic in wrong layer                  | Anemic domain + fat controllers, keep rules in domain |
+| File missing layer suffix             | Lint rules won't enforce layer constraints            |
 
 ## When to Break Rules
 
-| Situation | Pragmatic Choice |
-|-----------|------------------|
-| Simple CRUD, no invariants | Skip aggregates, direct repo access |
-| Single context, small team | Skip formal context mapping |
-| Prototype / spike | Skip layers, refactor when validated |
-| Performance critical path | Allow domain to know persistence shape |
-| Generic subdomain | Use simple service + repo, no DDD |
+| Situation                  | Pragmatic Choice                       |
+| -------------------------- | -------------------------------------- |
+| Simple CRUD, no invariants | Skip aggregates, direct repo access    |
+| Single context, small team | Skip formal context mapping            |
+| Prototype / spike          | Skip layers, refactor when validated   |
+| Performance critical path  | Allow domain to know persistence shape |
+| Generic subdomain          | Use simple service + repo, no DDD      |
 
 Apply DDD depth proportional to domain complexity. CRUD doesn't need aggregates.
 

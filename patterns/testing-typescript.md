@@ -4,12 +4,12 @@
 
 ## Tools
 
-| Purpose | Tool | Notes |
-|---------|------|-------|
-| Runner | bun test / deno test / node --test | Builtin. No config. Start here. |
-| Runner | Vitest | Watch filtering, coverage, `test.skipIf`. |
-| Property | `@fast-check/vitest` (preferred) or `fast-check` | Property-based and model-based testing. |
-| HTTP Contract | Pact | Only when owning both sides. |
+| Purpose       | Tool                                             | Notes                                     |
+| ------------- | ------------------------------------------------ | ----------------------------------------- |
+| Runner        | bun test / deno test / node --test               | Builtin. No config. Start here.           |
+| Runner        | Vitest                                           | Watch filtering, coverage, `test.skipIf`. |
+| Property      | `@fast-check/vitest` (preferred) or `fast-check` | Property-based and model-based testing.   |
+| HTTP Contract | Pact                                             | Only when owning both sides.              |
 
 ## Progression: Builtin to Vitest
 
@@ -38,24 +38,22 @@ The `TDD` env var is the cleanest mechanism. Bury it in `package.json` scripts s
 }
 ```
 
-| Mode | Command | What runs |
-|------|---------|-----------|
-| Full | `npm test` | All: unit, property, integration |
+| Mode        | Command            | What runs                            |
+| ----------- | ------------------ | ------------------------------------ |
+| Full        | `npm test`         | All: unit, property, integration     |
 | TDD / Watch | `npm run test:tdd` | Fast tests only (slow tests skipped) |
-| CI | `npm test` | Full suite |
-| E2E | separate workflow | Playwright, etc. |
-| Fuzz | separate workflow | Reserved |
+| CI          | `npm test`         | Full suite                           |
+| E2E         | separate workflow  | Playwright, etc.                     |
+| Fuzz        | separate workflow  | Reserved                             |
 
 Mark slow tests with `it.skipIf`:
 
 ```ts
-const tdd = !!process.env.TDD;
+const tdd = !!process.env.TDD
 
 it.skipIf(tdd)('should roundtrip without losing data', () => {
-  fc.assert(fc.property(moneyArb, (m) =>
-    parseMoney(serializeMoney(m))._unsafeUnwrap().equals(m)
-  ));
-});
+  fc.assert(fc.property(moneyArb, m => parseMoney(serializeMoney(m))._unsafeUnwrap().equals(m)))
+})
 ```
 
 Fast tests use plain `it()` with no extra annotation. Fast tests never touch IO.
@@ -94,17 +92,17 @@ Tests that span multiple features or the full application. Top-level `test/` dir
 
 All tests use `.spec.ts`. Tests are organized by layer, not by test type. The `.spec.ts` suffix replaces the layer suffix, never stacks on it. The file stem makes the relationship clear:
 
-| Source file | Test file |
-|---|---|
-| `money.domain.ts` | `money.spec.ts` |
-| `pricing.app.ts` | `pricing.spec.ts` |
+| Source file         | Test file          |
+| ------------------- | ------------------ |
+| `money.domain.ts`   | `money.spec.ts`    |
+| `pricing.app.ts`    | `pricing.spec.ts`  |
 | `postgres.infra.ts` | `postgres.spec.ts` |
 
-| Location | Contents | Runs in TDD watch? |
-|----------|----------|---------------------|
-| `module.spec.ts` (co-located) | Layer 1 unit + property tests | Yes (slow via `it.skipIf`) |
-| `feature/tests/*.spec.ts` | Layer 2 cross-module + property tests | Yes (slow via `it.skipIf`) |
-| `test/*.spec.ts` | Layer 3 integration + cross-feature property tests | Yes (slow via `it.skipIf`) |
+| Location                      | Contents                                           | Runs in TDD watch?         |
+| ----------------------------- | -------------------------------------------------- | -------------------------- |
+| `module.spec.ts` (co-located) | Layer 1 unit + property tests                      | Yes (slow via `it.skipIf`) |
+| `feature/tests/*.spec.ts`     | Layer 2 cross-module + property tests              | Yes (slow via `it.skipIf`) |
+| `test/*.spec.ts`              | Layer 3 integration + cross-feature property tests | Yes (slow via `it.skipIf`) |
 
 No `.prop.spec.ts`, `.integration.spec.ts`, or other suffixes. A spec file contains all test types relevant to its layer scope. Slow tests within any file are individually skipped in TDD mode via `it.skipIf(tdd)`.
 
@@ -112,82 +110,78 @@ No `.prop.spec.ts`, `.integration.spec.ts`, or other suffixes. A spec file conta
 
 ```ts
 // vitest.config.ts
-import { defineConfig } from "vitest/config";
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
     // no includeSource needed — all tests are in .spec.ts files
   },
-});
+})
 ```
 
 ## Layer 1 Example
 
 ```ts
 // src/orders/money.domain.ts
-export type Money = { cents: number };
+export type Money = { cents: number }
 
-export const fromCents = (n: number): Money => ({ cents: n });
+export const fromCents = (n: number): Money => ({ cents: n })
 
-export const add = (a: Money, b: Money): Money =>
-  fromCents(a.cents + b.cents);
+export const add = (a: Money, b: Money): Money => fromCents(a.cents + b.cents)
 
-export const serialize = (m: Money): string => String(m.cents);
+export const serialize = (m: Money): string => String(m.cents)
 
 export const parse = (s: string): Result<Money, ParseError> => {
-  const n = Number(s);
-  return Number.isInteger(n) ? ok(fromCents(n)) : err("invalid_format");
-};
+  const n = Number(s)
+  return Number.isInteger(n) ? ok(fromCents(n)) : err('invalid_format')
+}
 ```
 
 ```ts
 // src/orders/money.spec.ts
-import { describe, expect } from 'vitest';
-import { it, fc } from '@fast-check/vitest';
-import { fromCents, add, parse, serialize } from './money.domain.ts';
+import { fc, it } from '@fast-check/vitest'
+import { describe, expect } from 'vitest'
+import { add, fromCents, parse, serialize } from './money.domain.ts'
 
-const tdd = !!process.env.TDD;
+const tdd = !!process.env.TDD
 
 describe('fromCents', () => {
   it('should create Money from positive cents', () => {
-    expect(fromCents(100)).toEqual({ cents: 100 });
-  });
-});
+    expect(fromCents(100)).toEqual({ cents: 100 })
+  })
+})
 
 describe('add', () => {
   it('should sum two positive values correctly', () => {
-    expect(add(fromCents(100), fromCents(200))).toEqual({ cents: 300 });
-  });
+    expect(add(fromCents(100), fromCents(200))).toEqual({ cents: 300 })
+  })
 
   it.skipIf(tdd)('should be commutative', () => {
-    fc.assert(fc.property(
-      fc.integer(), fc.integer(),
-      (a, b) => add(fromCents(a), fromCents(b)).cents === add(fromCents(b), fromCents(a)).cents
-    ));
-  });
-});
+    fc.assert(
+      fc.property(fc.integer(), fc.integer(), (a, b) =>
+        add(fromCents(a), fromCents(b)).cents === add(fromCents(b), fromCents(a)).cents),
+    )
+  })
+})
 
 describe('parse', () => {
   it('should return Money for a valid integer string', () => {
-    const result = parse("42");
-    expect(result.isOk()).toBe(true);
-    expect(result._unsafeUnwrap()).toEqual({ cents: 42 });
-  });
+    const result = parse('42')
+    expect(result.isOk()).toBe(true)
+    expect(result._unsafeUnwrap()).toEqual({ cents: 42 })
+  })
 
   it('should return Err for non-numeric string', () => {
-    expect(parse("abc").isErr()).toBe(true);
-  });
+    expect(parse('abc').isErr()).toBe(true)
+  })
 
   it.skipIf(tdd)('should roundtrip with serialize for any integer', () => {
-    fc.assert(fc.property(
-      fc.integer(),
-      (n) => {
-        const result = parse(serialize(fromCents(n)));
-        return result.isOk() && result._unsafeUnwrap().cents === n;
-      }
-    ));
-  });
-});
+    fc.assert(fc.property(fc.integer(), n => {
+      const result = parse(serialize(fromCents(n)))
+      return result.isOk() && result._unsafeUnwrap().cents === n
+    }))
+  })
+})
 ```
 
 ## Builtin Runner Pattern
@@ -196,21 +190,21 @@ Without Vitest, co-locate a `.spec.ts` file next to the source. Use builtin asse
 
 ```ts
 // src/orders/money.spec.ts
-import { strict as assert } from "node:assert";
-import { test, describe } from "node:test";
-import { fromCents, add, parse } from "./money.domain.ts";
+import { strict as assert } from 'node:assert'
+import { describe, test } from 'node:test'
+import { add, fromCents, parse } from './money.domain.ts'
 
 describe('fromCents', () => {
   test('should create Money from positive cents', () => {
-    assert.deepStrictEqual(fromCents(100), { cents: 100 });
-  });
-});
+    assert.deepStrictEqual(fromCents(100), { cents: 100 })
+  })
+})
 
 describe('add', () => {
   test('should sum two positive values correctly', () => {
-    assert.deepStrictEqual(add(fromCents(100), fromCents(200)), { cents: 300 });
-  });
-});
+    assert.deepStrictEqual(add(fromCents(100), fromCents(200)), { cents: 300 })
+  })
+})
 ```
 
 ## Result Assertions
@@ -220,25 +214,25 @@ Assert the rail before unwrapping. Works for `Result` and `ResultAsync` (just `a
 ```ts
 // test/helpers.ts
 export const expectOk = <T, E>(result: Result<T, E>): T => {
-  expect(result.isOk()).toBe(true);
-  return result._unsafeUnwrap();
-};
+  expect(result.isOk()).toBe(true)
+  return result._unsafeUnwrap()
+}
 
 export const expectErr = <T, E>(result: Result<T, E>): E => {
-  expect(result.isErr()).toBe(true);
-  return result._unsafeUnwrapErr();
-};
+  expect(result.isErr()).toBe(true)
+  return result._unsafeUnwrapErr()
+}
 ```
 
 When using a builtin runner without `expect`:
 
 ```ts
-import { strict as assert } from "node:assert";
+import { strict as assert } from 'node:assert'
 
 const assertOk = <T, E>(result: Result<T, E>): T => {
-  assert.ok(result.isOk(), "expected Ok, got Err");
-  return result._unsafeUnwrap();
-};
+  assert.ok(result.isOk(), 'expected Ok, got Err')
+  return result._unsafeUnwrap()
+}
 ```
 
 ## Typed Fakes
@@ -247,17 +241,20 @@ Fakes satisfy the port interface. The compiler enforces the contract.
 
 ```ts
 type OrderRepo = {
-  save: (order: Order) => Promise<Result<void, RepoError>>;
-  findById: (id: OrderId) => Promise<Option<Order>>;
-};
+  save: (order: Order) => Promise<Result<void, RepoError>>
+  findById: (id: OrderId) => Promise<Option<Order>>
+}
 
 const createFakeOrderRepo = (): OrderRepo => {
-  const store = new Map<OrderId, Order>();
+  const store = new Map<OrderId, Order>()
   return {
-    save: async (order) => { store.set(order.id, order); return ok(undefined); },
-    findById: async (id) => store.has(id) ? some(store.get(id)!) : none,
-  };
-};
+    save: async order => {
+      store.set(order.id, order)
+      return ok(undefined)
+    },
+    findById: async id => store.has(id) ? some(store.get(id)!) : none,
+  }
+}
 ```
 
 ## Contract Suite
@@ -265,36 +262,36 @@ const createFakeOrderRepo = (): OrderRepo => {
 ```ts
 export const orderRepoContract = (
   name: string,
-  setup: () => Promise<{ repo: OrderRepo; teardown: () => Promise<void> }>
+  setup: () => Promise<{ repo: OrderRepo; teardown: () => Promise<void> }>,
 ) => {
   describe(`OrderRepo: ${name}`, () => {
-    let repo: OrderRepo, teardown: () => Promise<void>;
-    beforeEach(async () => ({ repo, teardown } = await setup()));
-    afterEach(async () => await teardown());
+    let repo: OrderRepo, teardown: () => Promise<void>
+    beforeEach(async () => ({ repo, teardown } = await setup()))
+    afterEach(async () => await teardown())
 
     it('should return saved entity on findById', async () => {
-      const order = buildOrder();
-      expectOk(await repo.save(order));
-      expect((await repo.findById(order.id))._unsafeUnwrap()).toEqual(order);
-    });
+      const order = buildOrder()
+      expectOk(await repo.save(order))
+      expect((await repo.findById(order.id))._unsafeUnwrap()).toEqual(order)
+    })
 
     it('should return none for missing id', async () => {
-      expect((await repo.findById("nonexistent" as OrderId)).isNone()).toBe(true);
-    });
-  });
-};
+      expect((await repo.findById('nonexistent' as OrderId)).isNone()).toBe(true)
+    })
+  })
+}
 
 // Layer 2: fast, in-memory
-orderRepoContract("Fake", async () => ({
-  repo: createFakeOrderRepo(),
-  teardown: async () => {},
-}));
+orderRepoContract('Fake', async () => ({ repo: createFakeOrderRepo(), teardown: async () => {} }))
 
 // Layer 3: slow, real DB
-orderRepoContract("Postgres", async () => ({
-  repo: createPostgresOrderRepo(testDb),
-  teardown: () => testDb.truncate("orders"),
-}));
+orderRepoContract(
+  'Postgres',
+  async () => ({
+    repo: createPostgresOrderRepo(testDb),
+    teardown: () => testDb.truncate('orders'),
+  }),
+)
 ```
 
 ## Property Testing (fast-check)
@@ -308,16 +305,16 @@ Prefer `@fast-check/vitest` over raw `fc.assert(fc.property(...))`. It provides 
 **`g()` helper** for filling unused fields with random data without a full property test:
 
 ```ts
-import { describe, expect } from 'vitest';
-import { it, fc } from '@fast-check/vitest';
+import { fc, it } from '@fast-check/vitest'
+import { describe, expect } from 'vitest'
 
 describe('computeAge', () => {
   it('should always compute a non-negative age', ({ g }) => {
-    vi.setSystemTime(g(fc.date, { min: new Date('2010-02-04'), noInvalidDate: true }));
-    const user = { name: g(fc.string), birthday: '2010-02-03' };
-    expect(computeAge(user)).toBeGreaterThanOrEqual(0);
-  });
-});
+    vi.setSystemTime(g(fc.date, { min: new Date('2010-02-04'), noInvalidDate: true }))
+    const user = { name: g(fc.string), birthday: '2010-02-03' }
+    expect(computeAge(user)).toBeGreaterThanOrEqual(0)
+  })
+})
 ```
 
 **`it.prop` syntax** for property tests that integrates into `describe`/`it`:
@@ -326,9 +323,9 @@ describe('computeAge', () => {
 it.prop([fc.string(), fc.string(), fc.string()])(
   'should detect substring in concatenation',
   (a, b, c) => {
-    expect(isSubstring(a + b + c, b)).toBe(true);
-  }
-);
+    expect(isSubstring(a + b + c, b)).toBe(true)
+  },
+)
 ```
 
 When `@fast-check/vitest` is not installed, use raw `fc.assert(fc.property(...))`. When the predicate is async, use `fc.asyncProperty` and `await fc.assert(...)`.
@@ -341,32 +338,32 @@ TypeScript types are erased at runtime, so arbitraries cannot be auto-derived fr
 
 ```ts
 // test/arbitraries.ts
-import fc from "fast-check";
+import fc from 'fast-check'
 
-export const moneyArb = fc.integer().map(fromCents);
+export const moneyArb = fc.integer().map(fromCents)
 
 export const orderItemArb = fc.record({
   sku: fc.string({ minLength: 1 }),
   quantity: fc.integer({ min: 1 }),
   price: moneyArb,
-});
+})
 
 export const orderArb = fc.record({
-  id: fc.hexaString({ minLength: 8, maxLength: 8 }).map((s) => s as OrderId),
-  customerId: fc.constant("cust-1" as CustomerId),
+  id: fc.hexaString({ minLength: 8, maxLength: 8 }).map(s => s as OrderId),
+  customerId: fc.constant('cust-1' as CustomerId),
   items: fc.array(orderItemArb, { minLength: 1 }),
-  status: fc.constant({ type: "draft" } as const),
-});
+  status: fc.constant({ type: 'draft' } as const),
+})
 ```
 
 **Derived from runtime schemas** (when the project already uses Zod, Valibot, TypeBox, or TypeSpec):
 
 ```ts
-import { ZodFastCheck } from "zod-fast-check";
-import { MoneySchema, OrderItemSchema } from "../src/schemas.ts";
+import { ZodFastCheck } from 'zod-fast-check'
+import { MoneySchema, OrderItemSchema } from '../src/schemas.ts'
 
-export const moneyArb = ZodFastCheck().inputOf(MoneySchema);
-export const orderItemArb = ZodFastCheck().inputOf(OrderItemSchema);
+export const moneyArb = ZodFastCheck().inputOf(MoneySchema)
+export const orderItemArb = ZodFastCheck().inputOf(OrderItemSchema)
 ```
 
 Do not add a schema library solely for test arbitraries. If the project already validates with Zod/Valibot/TypeBox, use its schemas. Otherwise, `fc.record()` is the right tool.
@@ -413,15 +410,17 @@ Each command implements `check(model)` (is this action valid in the current stat
 ```ts
 class NextPage implements fc.Command<PaginationModel, Paginator> {
   check(m: Readonly<PaginationModel>) {
-    return m.currentPage < totalPages(m);
+    return m.currentPage < totalPages(m)
   }
   run(m: PaginationModel, real: Paginator) {
-    m.currentPage++;
-    real.nextPage();
-    expect(real.currentItems()).toEqual(currentItems(m));
-    expect(real.currentPage).toBe(m.currentPage);
+    m.currentPage++
+    real.nextPage()
+    expect(real.currentItems()).toEqual(currentItems(m))
+    expect(real.currentPage).toBe(m.currentPage)
   }
-  toString() { return 'NextPage'; }
+  toString() {
+    return 'NextPage'
+  }
 }
 
 describe('Paginator', () => {
@@ -431,14 +430,14 @@ describe('Paginator', () => {
         fc.array(fc.string(), { minLength: 1 }),
         fc.commands([fc.constant(new NextPage()), fc.constant(new PrevPage())]),
         (items, cmds) => {
-          const model: PaginationModel = { items, pageSize: 10, currentPage: 1 };
-          const real = createPaginator(items, 10);
-          fc.modelRun(() => ({ model, real }), cmds);
-        }
-      )
-    );
-  });
-});
+          const model: PaginationModel = { items, pageSize: 10, currentPage: 1 }
+          const real = createPaginator(items, 10)
+          fc.modelRun(() => ({ model, real }), cmds)
+        },
+      ),
+    )
+  })
+})
 ```
 
 Model-based tests are slow. Mark with `it.skipIf(tdd)`.
@@ -450,27 +449,25 @@ Use `fc.scheduler()` to test async code that depends on resolution ordering. The
 ```ts
 describe('queue', () => {
   it.skipIf(tdd)('should resolve in call order regardless of completion order', async () => {
-    await fc.assert(
-      fc.asyncProperty(fc.scheduler(), async (s) => {
-        // Arrange
-        const seenAnswers: number[] = [];
-        const call = vi.fn().mockImplementation((v) => Promise.resolve(v));
+    await fc.assert(fc.asyncProperty(fc.scheduler(), async s => {
+      // Arrange
+      const seenAnswers: number[] = []
+      const call = vi.fn().mockImplementation(v => Promise.resolve(v))
 
-        // Act
-        const queued = queue(s.scheduleFunction(call));
-        await s.waitFor(
-          Promise.all([
-            queued(1).then((v) => seenAnswers.push(v)),
-            queued(2).then((v) => seenAnswers.push(v)),
-          ])
-        );
+      // Act
+      const queued = queue(s.scheduleFunction(call))
+      await s.waitFor(
+        Promise.all([
+          queued(1).then(v => seenAnswers.push(v)),
+          queued(2).then(v => seenAnswers.push(v)),
+        ]),
+      )
 
-        // Assert
-        expect(seenAnswers).toEqual([1, 2]);
-      })
-    );
-  });
-});
+      // Assert
+      expect(seenAnswers).toEqual([1, 2])
+    }))
+  })
+})
 ```
 
 Use `fc.scheduler()` for debounce logic, parallel API calls, queued operations, and any code that accepts async functions as input.
@@ -480,10 +477,7 @@ Use `fc.scheduler()` for debounce logic, parallel API calls, queued operations, 
 When fast-check finds a failing input, it reports a `seed` and `path`. Use these to replay:
 
 ```ts
-fc.assert(fc.property(moneyArb, (m) => { /* ... */ }), {
-  seed: 1234567890,
-  path: "0:1:2",
-});
+fc.assert(fc.property(moneyArb, m => {/* ... */}), { seed: 1234567890, path: '0:1:2' })
 ```
 
 Record failing seeds as named regression tests alongside the property test that found them:
@@ -491,9 +485,9 @@ Record failing seeds as named regression tests alongside the property test that 
 ```ts
 // Regression: fast-check seed 1234567890, path "0:1:2"
 it('should handle max value edge case from shrunk failure', () => {
-  const m = fromCents(999999);
-  expect(parse(serialize(m))._unsafeUnwrap()).toEqual(m);
-});
+  const m = fromCents(999999)
+  expect(parse(serialize(m))._unsafeUnwrap()).toEqual(m)
+})
 ```
 
 ### Configuration
@@ -502,22 +496,22 @@ Set default `numRuns` for the project. CI can increase it.
 
 ```ts
 // test/setup.ts
-fc.configureGlobal({ numRuns: 100 });
+fc.configureGlobal({ numRuns: 100 })
 ```
 
 ## Injecting Dependencies
 
 ```ts
-type Clock = { now: () => Date };
-const fixedClock = (d: Date): Clock => ({ now: () => d });
+type Clock = { now: () => Date }
+const fixedClock = (d: Date): Clock => ({ now: () => d })
 
 describe('isExpired', () => {
   it('should return true for a past date', () => {
-    const clock = fixedClock(new Date("2025-01-01"));
-    const order = buildOrder({ expiresAt: new Date("2024-12-31") });
-    expect(isExpired(clock)(order)).toBe(true);
-  });
-});
+    const clock = fixedClock(new Date('2025-01-01'))
+    const order = buildOrder({ expiresAt: new Date('2024-12-31') })
+    expect(isExpired(clock)(order)).toBe(true)
+  })
+})
 ```
 
 ## Builders
@@ -525,19 +519,19 @@ describe('isExpired', () => {
 ```ts
 // test/builders.ts
 export const buildOrder = (overrides: Partial<Order> = {}): Order => ({
-  id: "order-1" as OrderId,
-  customerId: "cust-1" as CustomerId,
+  id: 'order-1' as OrderId,
+  customerId: 'cust-1' as CustomerId,
   items: [buildOrderItem()],
-  status: { type: "draft" },
+  status: { type: 'draft' },
   ...overrides,
-});
+})
 
 export const buildOrderItem = (overrides: Partial<OrderItem> = {}): OrderItem => ({
-  sku: "SKU-001",
+  sku: 'SKU-001',
   quantity: 1,
   price: fromCents(1000),
   ...overrides,
-});
+})
 ```
 
 ## Directory Examples
@@ -598,23 +592,23 @@ test/
 
 ## Anti-Patterns
 
-| Don't | Do Instead |
-|-------|------------|
-| `result._unsafeUnwrap()` without rail check | `expectOk(result)` / `expectErr(result)` |
-| `as any` type escape | Properly typed test data |
-| Untyped fake `{ find: async () => user }` | Fake satisfying full port type |
-| Async without await in test | Always `await` async calls |
-| Layer 1 tests for functions with imports | Move to Layer 2 |
-| `__tests__/` directories | Co-locate tests next to source |
-| Separate files by test type (`.prop.spec.ts`) | Organize by layer, skip slow tests inline |
-| Adding Zod/Valibot just for arbitraries | `fc.record()` manually |
-| Testing re-exports or pass-through | Layer 1 tests only test the file's own pure functions |
-| Formal layers in a 3-file project | Keep it flat until complexity demands structure |
-| Shared mutable test state | Each test owns its data |
-| Source file >~150 LOC | Split into focused files |
-| Stacking suffixes (`main.infra.spec.ts`) | `.spec.ts` replaces layer suffix: `main.spec.ts` |
-| `maxLength` on arbitrary without algorithm need | Use defaults; `size: '-1'` if generation too slow |
-| Hardcoded unused field values in test data | `g(fc.string)` via `@fast-check/vitest` |
+| Don't                                           | Do Instead                                            |
+| ----------------------------------------------- | ----------------------------------------------------- |
+| `result._unsafeUnwrap()` without rail check     | `expectOk(result)` / `expectErr(result)`              |
+| `as any` type escape                            | Properly typed test data                              |
+| Untyped fake `{ find: async () => user }`       | Fake satisfying full port type                        |
+| Async without await in test                     | Always `await` async calls                            |
+| Layer 1 tests for functions with imports        | Move to Layer 2                                       |
+| `__tests__/` directories                        | Co-locate tests next to source                        |
+| Separate files by test type (`.prop.spec.ts`)   | Organize by layer, skip slow tests inline             |
+| Adding Zod/Valibot just for arbitraries         | `fc.record()` manually                                |
+| Testing re-exports or pass-through              | Layer 1 tests only test the file's own pure functions |
+| Formal layers in a 3-file project               | Keep it flat until complexity demands structure       |
+| Shared mutable test state                       | Each test owns its data                               |
+| Source file >~150 LOC                           | Split into focused files                              |
+| Stacking suffixes (`main.infra.spec.ts`)        | `.spec.ts` replaces layer suffix: `main.spec.ts`      |
+| `maxLength` on arbitrary without algorithm need | Use defaults; `size: '-1'` if generation too slow     |
+| Hardcoded unused field values in test data      | `g(fc.string)` via `@fast-check/vitest`               |
 
 ## Checklist
 

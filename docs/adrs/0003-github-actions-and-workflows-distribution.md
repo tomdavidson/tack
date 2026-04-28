@@ -103,6 +103,7 @@ The `submodules: true` requirement is the consumer's responsibility to set on th
 ## Consequences
 
 Positive:
+
 - One source of truth per asset. No symlink gymnastics, no runner symlink-stripping exposure, no Windows symlink configuration issue.
 - Mode switching between URL and submodule works for both actions and workflows via tera rendering. Submodule-mode consumers can co-dev actions by editing files in `.tack/` directly; filesystem edits take effect on the next CI run.
 - Tack's layout stays flat: one top-level `configs/` directory holds all distributed assets, consistent with ADR-0002's consumption model.
@@ -110,6 +111,7 @@ Positive:
 - tack.sh owns mode logic centrally. Templates contain no conditional expressions; they just look up strings.
 
 Negative:
+
 - URL path is `tomdavidson/tack/configs/github/actions/<name>@<ref>` rather than a shorter alternative. Accepted. If this ever matters, it is a reversible decision.
 - Reusable workflows cannot be co-developed via filesystem symlink. Consumers edit tera templates in `.tack/configs/github/workflows/` and re-run `tack.sh` to see changes in their `.github/workflows/`. One extra step versus action co-dev. Constraint comes from GitHub's workflow resolver, not from tack.
 - Submodule-mode consumers must set `submodules: true` on `actions/checkout`. Documented in the consumer README and baked into tack-provided workflow templates. Consumers authoring workflows from scratch own this step.
@@ -117,6 +119,7 @@ Negative:
 - Every action referenced in a template must exist under `configs/github/actions/<name>/` at render time, or the dict lookup will render as empty and the workflow will fail in CI with a cryptic `uses:` error. tack.sh should surface a clear error when a template references an action name not present in the context.
 
 Evidence:
+
 - Composite actions can live outside `.github/`; path is arbitrary as long as `action.yml` exists there. GitHub community discussion 116540 and standalone action repo conventions confirm this.
 - Reusable workflows must be at literal `.github/workflows/*.yml`; subdirectories and symlinks are not resolved. GitHub community discussion 109744 (open feature request) and vscode-github-actions discussion 207 confirm this.
 - Runner archive extraction converts symlinks to copies of their targets, so URL references to symlinked paths are unsupported. actions/runner issue 3234 and nektos/act issue 2334 document the behavior. Not relevant to this ADR's final decision but relevant to why the dual-distribution draft was dropped.
@@ -124,6 +127,7 @@ Evidence:
 - tera CLI does not support registering custom functions. register_function is a library API taking a Rust closure; the standalone binary exposes only variable context and built-in filters. Zola issue 2493 (2024) is the open feature request; the tera maintainer's response confirms the limitation. This rules out the function-based approach and motivates the context-dict mechanism.
 
 Open items:
+
 - Decide how tack.sh discovers available actions to populate `tack.actions`. Candidates: glob `configs/github/actions/*/action.yml`, or require `tack-manifest.yml` in the github package to enumerate them explicitly. Glob is lower-friction; explicit enumeration catches typos earlier. Defer to implementation.
 - Decide whether tack-provided workflow templates should hard-fail or warn when a consumer's `actions/checkout` is missing `submodules: true` in submodule mode. Runtime failure is loud and obvious; compile-time warning via tack.sh render would be nicer. Defer.
 - Decide whether `tack.actions` should flatten (keys are action names) or nest (keys are category/package paths). Flat works for one package (github); nested would generalize to a hypothetical future where multiple packages contribute actions. Start flat, revisit if needed.

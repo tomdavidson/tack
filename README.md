@@ -10,12 +10,12 @@ in six months) can re-derive how it works without reading `tack.sh`.
 ## 1. Mental model
 
 ```
-  tack repo (this repo, often a submodule)        consumer repo
-  --------------------------------------          -------------------
-  tack.sh                                          tackrc.yml (optional)
-  tackrc-defaults.yml      ---- merge ---->        ...your project...
-  configs/<pkg>/...                                <files appear here
-  scripts/...                                       via link/render/copy>
+tack repo (this repo, often a submodule)        consumer repo
+--------------------------------------          -------------------
+tack.sh                                          tackrc.yml (optional)
+tackrc-defaults.yml      ---- merge ---->        ...your project...
+configs/<pkg>/...                                <files appear here
+scripts/...                                       via link/render/copy>
 ```
 
 - `tack.sh` lives in **the tack repo**.
@@ -120,30 +120,30 @@ The **defaults** file (`<tack>/tackrc-defaults.yml`) is required. The
 **consumer** file (`sumer>/tackrc.yml`) is optional and is deep-merged on
 top. Top-level keys tack reads:
 
-| Key | Type | Purpose |
-| --- | --- | --- |
-| `pkgs` | list of path-globs | Packages to apply, relative to tack repo root. Globs like `configs/*` are expanded against `$TACK_ROOT`. |
-| `pkgs_exclude` | list of path-globs | Subtracted from resolved `pkgs`. |
-| `pkgs_metadata` | map keyed by package path | Per-package data exposed to tera as `pkg` during render. |
-| `vars` (and any other keys) | arbitrary | Available in tera templates by their dotted path. |
+| Key                         | Type                      | Purpose                                                                                                  |
+| --------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `pkgs`                      | list of path-globs        | Packages to apply, relative to tack repo root. Globs like `configs/*` are expanded against `$TACK_ROOT`. |
+| `pkgs_exclude`              | list of path-globs        | Subtracted from resolved `pkgs`.                                                                         |
+| `pkgs_metadata`             | map keyed by package path | Per-package data exposed to tera as `pkg` during render.                                                 |
+| `vars` (and any other keys) | arbitrary                 | Available in tera templates by their dotted path.                                                        |
 
 **Glob rules:**
 
 - A literal entry (no `*`, `?`, `yaml
-pkgs:
+  pkgs:
   - configs/*
   - scripts
-pkgs_exclude:
+    pkgs_exclude:
   - configs/experimental-*
-pkgs_metadata:
-  configs/rust:
+    pkgs_metadata:
+    configs/rust:
     toolchains: [stable, nightly]
-vars:
-  user:
+    vars:
+    user:
     name: Tom
     email: tom@example.com
-```
 
+````
 ## 6. Per-package context: `tack-manifest.yml`
 
 A package may contain a `tack-manifest.yml` declaring what cannot be derived
@@ -161,7 +161,7 @@ files:
     target: pyproject.toml              # required for *.concat.* and *.merge.*
   patch.merge.json:
     target: package.json
-```
+````
 
 **`vars_from` resolution shorthands:**
 
@@ -177,16 +177,16 @@ files:
 For each file in a selected package, `tack` chooses a behavior based on the
 filename:
 
-| Pattern | Behavior |
-| --- | --- |
-| `*.tera.*` | Render with `tera`, strip the `.tera` marker for the target name |
-| `*.copy.*` | Copy verbatim, strip the `.copy` marker |
-| `*.concat.*` | Append to manifest-declared `target`; signature-dedup so re-runs are idempotent |
-| `*.merge.json` | Deep-merge into manifest-declared `target` via `yq` |
-| `*.merge.yml` / `*.merge.yaml` | Same, YAML |
-| `*.merge.toml` | **Refused.** Use `*.concat.toml` (see ADR-0002) |
-| `tack-manifest.yml`, `tack.yml` | Skipped (control files) |
-| anything else | Symlinked into the target via `lnko` |
+| Pattern                         | Behavior                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------- |
+| `*.tera.*`                      | Render with `tera`, strip the `.tera` marker for the target name                |
+| `*.copy.*`                      | Copy verbatim, strip the `.copy` marker                                         |
+| `*.concat.*`                    | Append to manifest-declared `target`; signature-dedup so re-runs are idempotent |
+| `*.merge.json`                  | Deep-merge into manifest-declared `target` via `yq`                             |
+| `*.merge.yml` / `*.merge.yaml`  | Same, YAML                                                                      |
+| `*.merge.toml`                  | **Refused.** Use `*.concat.toml` (see ADR-0002)                                 |
+| `tack-manifest.yml`, `tack.yml` | Skipped (control files)                                                         |
+| anything else                   | Symlinked into the target via `lnko`                                            |
 
 **Idempotency note:** linking and merging are safe to re-run. Concat is
 deduplicated by a two-line signature, so re-running won't double-append the

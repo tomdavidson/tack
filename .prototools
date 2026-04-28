@@ -4,7 +4,7 @@
 dprint = "0.53"
 lnko = "0.2"
 yq = "4.53.2"
-moon = "2"
+moon = "2.2.3"
 tera = "0.5.0"
 shellcheck = "0.11.0"
 

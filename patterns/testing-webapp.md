@@ -10,27 +10,24 @@ BAD: Test pagination logic by rendering a full Astro page and counting links.
 GOOD: Extract paginate(items, pageSize, currentPage) into a .domain.ts file.
 Layer 1 tests the pure function. Layer 2 tests the component calls it correctly.
 
-
-A component test should verify that the component *wires* domain logic to markup correctly, not re-verify the domain logic itself. If a test requires complex setup to exercise a component, that complexity likely belongs in extracted functions tested at Layer 1.
-
+A component test should verify that the component _wires_ domain logic to markup correctly, not re-verify the domain logic itself. If a test requires complex setup to exercise a component, that complexity likely belongs in extracted functions tested at Layer 1.
 
 ## Tools
 
 All tools from [TypeScript Testing](./testing-typescript.md) apply. This table covers web-app-specific additions only.
 
-| Purpose                        | Tool                              | Layer   |
-|--------------------------------|-----------------------------------|---------|
-| Component HTML assertions      | Vitest + Astro Container API      | 2       |
-| Component browser rendering    | `@vitest/browser-playwright`      | 2       |
-| Network interception (Node)    | MSW `setupServer`                 | 2       |
-| Schema-derived arbitraries     | `zod-fast-check` (Astro uses Zod) | 1, 2   |
-| Static type checking (.astro)  | `astro check`                     | CI gate |
-| Full-app browser behavior      | Playwright                        | 3       |
+| Purpose                       | Tool                              | Layer   |
+| ----------------------------- | --------------------------------- | ------- |
+| Component HTML assertions     | Vitest + Astro Container API      | 2       |
+| Component browser rendering   | `@vitest/browser-playwright`      | 2       |
+| Network interception (Node)   | MSW `setupServer`                 | 2       |
+| Schema-derived arbitraries    | `zod-fast-check` (Astro uses Zod) | 1, 2    |
+| Static type checking (.astro) | `astro check`                     | CI gate |
+| Full-app browser behavior     | Playwright                        | 3       |
 
 ### Rejected Tools
 
 **`@testing-library/*`**: Playwright's locator API (`getByRole`, `getByLabel`, `getByText`) provides the same accessible, user-centric querying. `@vitest/browser-playwright` uses Playwright locators directly. Testing-library occupies a jsdom middle ground that this stack skips entirely. Every layer uses either raw HTML strings or a real browser.
-
 
 ## Component Testing: Vitest + Astro Container API
 
@@ -56,52 +53,46 @@ The Astro Container API renders `.astro` components to HTML strings in Node.js w
 ```typescript
 // src/tests/components.spec.ts — Layer 2
 // @vitest-environment node
-import { experimental_AstroContainer as AstroContainer } from 'astro/container';
-import { describe, expect, beforeAll } from 'vitest';
-import { it } from '@fast-check/vitest';
-import ArticleCard from '../components/ArticleCard.astro';
-import { buildEntry } from '../test/builders.ts';
+import { it } from '@fast-check/vitest'
+import { experimental_AstroContainer as AstroContainer } from 'astro/container'
+import { beforeAll, describe, expect } from 'vitest'
+import ArticleCard from '../components/ArticleCard.astro'
+import { buildEntry } from '../test/builders.ts'
 
-let container: Awaited<ReturnType<typeof AstroContainer.create>>;
+let container: Awaited<ReturnType<typeof AstroContainer.create>>
 
 beforeAll(async () => {
-  container = await AstroContainer.create();
-});
+  container = await AstroContainer.create()
+})
 
 describe('ArticleCard', () => {
   it('should render title from entry prop', async () => {
-    const entry = buildEntry({ title: 'How Courts Work' });
-    const html = await container.renderToString(ArticleCard, {
-      props: { entry },
-    });
-    expect(html).toContain('How Courts Work');
-  });
+    const entry = buildEntry({ title: 'How Courts Work' })
+    const html = await container.renderToString(ArticleCard, { props: { entry } })
+    expect(html).toContain('How Courts Work')
+  })
 
   it('should omit date element when date is undefined', async () => {
-    const entry = buildEntry({ date: undefined });
-    const html = await container.renderToString(ArticleCard, {
-      props: { entry },
-    });
-    expect(html).not.toContain('<time');
-  });
+    const entry = buildEntry({ date: undefined })
+    const html = await container.renderToString(ArticleCard, { props: { entry } })
+    expect(html).not.toContain('<time')
+  })
 
   it('should render slot content in the footer', async () => {
-    const entry = buildEntry();
+    const entry = buildEntry()
     const html = await container.renderToString(ArticleCard, {
       props: { entry },
       slots: { footer: '<p class="custom-footer">More info</p>' },
-    });
-    expect(html).toContain('custom-footer');
-  });
+    })
+    expect(html).toContain('custom-footer')
+  })
 
   it('should preserve ch-card class hook on root element', async () => {
-    const entry = buildEntry();
-    const html = await container.renderToString(ArticleCard, {
-      props: { entry },
-    });
-    expect(html).toContain('ch-card');
-  });
-});
+    const entry = buildEntry()
+    const html = await container.renderToString(ArticleCard, { props: { entry } })
+    expect(html).toContain('ch-card')
+  })
+})
 ```
 
 ### Framework Islands (React, Svelte, Vue, Solid)
@@ -109,11 +100,11 @@ describe('ArticleCard', () => {
 Pass `renderers` to the container for island SSR output:
 
 ```typescript
-import react from '@astrojs/react/server.js';
+import react from '@astrojs/react/server.js'
 
 const container = await AstroContainer.create({
   renderers: [{ name: '@astrojs/react', ssr: react }],
-});
+})
 ```
 
 This renders SSR HTML only. It does **not** hydrate the component. Client-side behavior cannot be tested here.
@@ -125,16 +116,11 @@ Components that import virtual modules (e.g., `import config from 'my-plugin/con
 ```typescript
 // vitest.config.ts
 export default defineConfig({
-  test: {
-    alias: {
-      'my-plugin/config': './src/test/stubs/config.ts',
-    },
-  },
-});
+  test: { alias: { 'my-plugin/config': './src/test/stubs/config.ts' } },
+})
 ```
 
 Testing that the real virtual module wires correctly belongs at Layer 3.
-
 
 ## Component Browser Testing: @vitest/browser-playwright
 
@@ -156,21 +142,20 @@ When the Container API cannot cover the test, `@vitest/browser-playwright` rende
 
 ```typescript
 // src/tests/counter.browser.spec.ts — Layer 2 (browser)
-import { describe, expect } from 'vitest';
-import { render } from 'vitest-browser-react';
-import Counter from '../components/Counter';
+import { describe, expect } from 'vitest'
+import { render } from 'vitest-browser-react'
+import Counter from '../components/Counter'
 
 describe('Counter', () => {
   it('should increment count on click', async () => {
-    const screen = render(<Counter initial={0} />);
-    await screen.getByRole('button', { name: 'Increment' }).click();
-    await expect.element(screen.getByText('1')).toBeVisible();
-  });
-});
+    const screen = render(<Counter initial={0} />)
+    await screen.getByRole('button', { name: 'Increment' }).click()
+    await expect.element(screen.getByText('1')).toBeVisible()
+  })
+})
 ```
 
 Uses Playwright's locator API directly. No `@testing-library/*` needed.
-
 
 ## MSW: When Typed Fakes Cannot Reach
 
@@ -194,46 +179,37 @@ MSW (`setupServer`) intercepts HTTP at the Node.js network layer. Runs at Layer 
 ```typescript
 // src/tests/api-components.spec.ts — Layer 2
 // @vitest-environment node
-import { setupServer } from 'msw/node';
-import { http, HttpResponse } from 'msw';
-import { experimental_AstroContainer as AstroContainer } from 'astro/container';
-import { describe, expect, beforeAll, afterEach, afterAll } from 'vitest';
-import WeatherWidget from '../components/WeatherWidget.astro';
+import { experimental_AstroContainer as AstroContainer } from 'astro/container'
+import { http, HttpResponse } from 'msw'
+import { setupServer } from 'msw/node'
+import { afterAll, afterEach, beforeAll, describe, expect } from 'vitest'
+import WeatherWidget from '../components/WeatherWidget.astro'
 
-const server = setupServer();
+const server = setupServer()
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+afterEach(() => server.resetHandlers())
+afterAll(() => server.close())
 
 describe('WeatherWidget', () => {
   it('should render temperature from API response', async () => {
     server.use(
       http.get('https://api.weather.example/current', () =>
-        HttpResponse.json({ temp: 72, unit: 'F' })
-      )
-    );
-    const container = await AstroContainer.create();
-    const html = await container.renderToString(WeatherWidget, {
-      props: { city: 'Lindon' },
-    });
-    expect(html).toContain('72');
-    expect(html).toContain('°F');
-  });
+        HttpResponse.json({ temp: 72, unit: 'F' })),
+    )
+    const container = await AstroContainer.create()
+    const html = await container.renderToString(WeatherWidget, { props: { city: 'Lindon' } })
+    expect(html).toContain('72')
+    expect(html).toContain('°F')
+  })
 
   it('should render fallback on API error', async () => {
-    server.use(
-      http.get('https://api.weather.example/current', () =>
-        HttpResponse.error()
-      )
-    );
-    const container = await AstroContainer.create();
-    const html = await container.renderToString(WeatherWidget, {
-      props: { city: 'Lindon' },
-    });
-    expect(html).toContain('Weather unavailable');
-  });
-});
+    server.use(http.get('https://api.weather.example/current', () => HttpResponse.error()))
+    const container = await AstroContainer.create()
+    const html = await container.renderToString(WeatherWidget, { props: { city: 'Lindon' } })
+    expect(html).toContain('Weather unavailable')
+  })
+})
 ```
 
 ### Fuzzing MSW Responses
@@ -241,30 +217,23 @@ describe('WeatherWidget', () => {
 Instead of hardcoding mock responses, use fast-check arbitraries (see [TypeScript Testing](./testing-typescript.md)) to fuzz-test component resilience to unexpected data:
 
 ```typescript
-import { describe, expect } from 'vitest';
-import { it, fc } from '@fast-check/vitest';
+import { fc, it } from '@fast-check/vitest'
+import { describe, expect } from 'vitest'
 
 const weatherResponseArb = fc.record({
   temp: fc.integer({ min: -60, max: 140 }),
   unit: fc.constantFrom('F', 'C'),
-});
+})
 
 describe('WeatherWidget', () => {
-  it.prop([weatherResponseArb])('should never crash on valid API shapes', async (data) => {
-    server.use(
-      http.get('https://api.weather.example/current', () =>
-        HttpResponse.json(data)
-      )
-    );
-    const container = await AstroContainer.create();
-    const html = await container.renderToString(WeatherWidget, {
-      props: { city: 'test' },
-    });
-    expect(html).toContain('<div');
-  });
-});
+  it.prop([weatherResponseArb])('should never crash on valid API shapes', async data => {
+    server.use(http.get('https://api.weather.example/current', () => HttpResponse.json(data)))
+    const container = await AstroContainer.create()
+    const html = await container.renderToString(WeatherWidget, { props: { city: 'test' } })
+    expect(html).toContain('<div')
+  })
+})
 ```
-
 
 ## Playwright: Conservative, Last-Resort Browser Testing
 
@@ -308,19 +277,18 @@ text
 
 ```typescript
 // playwright.config.ts
-import { defineConfig } from '@playwright/test';
+import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: './test/e2e',
   webServer: {
-    command: 'pnpm astro build --root test/fixtures/basic-site && pnpm astro preview --root test/fixtures/basic-site',
+    command:
+      'pnpm astro build --root test/fixtures/basic-site && pnpm astro preview --root test/fixtures/basic-site',
     port: 4321,
     reuseExistingServer: !process.env.CI,
   },
-  use: {
-    baseURL: 'http://localhost:4321',
-  },
-});
+  use: { baseURL: 'http://localhost:4321' },
+})
 ```
 
 ### Network Mocking in Playwright
@@ -334,40 +302,40 @@ Extend Playwright's `test` fixture to catch framework hydration mismatches.
 
 ```typescript
 // test/e2e/base.ts
-import { test as base, expect, type ConsoleMessage } from '@playwright/test';
+import { type ConsoleMessage, expect, test as base } from '@playwright/test'
 
 const HYDRATION_PATTERNS = [
   /hydration failed/i,
   /hydration mismatch/i,
   /hydration completed but contains mismatches/i,
-];
+]
 
 export const test = base.extend<{ hydrationErrors: string[] }>({
   hydrationErrors: async ({ page }, use) => {
-    const errors: string[] = [];
+    const errors: string[] = []
     page.on('console', (msg: ConsoleMessage) => {
-      const text = msg.text();
-      if (HYDRATION_PATTERNS.some(p => p.test(text))) errors.push(text);
-    });
-    await use(errors);
+      const text = msg.text()
+      if (HYDRATION_PATTERNS.some(p => p.test(text))) errors.push(text)
+    })
+    await use(errors)
   },
-});
+})
 
-export { expect };
+export { expect }
 ```
 
 ```typescript
 // test/e2e/hydration.spec.ts
-import { test, expect } from './base.ts';
+import { expect, test } from './base.ts'
 
 test.describe('ReactCounter island', () => {
   test('should hydrate and respond to clicks without errors', async ({ page, hydrationErrors }) => {
-    await page.goto('/page-with-react-island');
-    await page.getByRole('button', { name: 'Increment' }).click();
-    await expect(page.getByText('1')).toBeVisible();
-    expect(hydrationErrors).toEqual([]);
-  });
-});
+    await page.goto('/page-with-react-island')
+    await page.getByRole('button', { name: 'Increment' }).click()
+    await expect(page.getByText('1')).toBeVisible()
+    expect(hydrationErrors).toEqual([])
+  })
+})
 ```
 
 ### Workflow
@@ -386,7 +354,6 @@ Playwright runs in a separate CI job, never in TDD watch mode.
 }
 ```
 
-
 ## Astro-Specific Concerns
 
 ### Content Collections API
@@ -400,21 +367,21 @@ Astro's Content Collections (`getCollection`, `getEntry`) provide typed, validat
 When Content Collections use Zod schemas, derive arbitraries with `zod-fast-check` per [TypeScript Testing](./testing-typescript.md):
 
 ```typescript
-import { ZodFastCheck } from 'zod-fast-check';
-import { entrySchema } from '../schema.ts';
+import { ZodFastCheck } from 'zod-fast-check'
+import { entrySchema } from '../schema.ts'
 
-export const entryArb = ZodFastCheck.inputOf(entrySchema);
+export const entryArb = ZodFastCheck.inputOf(entrySchema)
 ```
 
 ### Islands (Client Directives)
 
-| Directive        | Container API (Layer 2)           | @vitest/browser-playwright (Layer 2) | Playwright E2E (Layer 3)           |
-|------------------|-----------------------------------|--------------------------------------|------------------------------------|
-| `client:load`    | Renders SSR HTML only             | Renders + hydrates                   | Full app context                   |
-| `client:visible` | Renders SSR HTML only             | Cannot trigger scroll context        | Verifies scroll-triggered hydration|
-| `client:idle`    | Renders SSR HTML only             | Cannot trigger idle context          | Verifies idle-triggered hydration  |
-| `client:only`    | Renders nothing (no SSR)          | Renders + hydrates (isolated)        | Full app context                   |
-| No directive     | Renders full static HTML          | Not needed                           | Not needed                         |
+| Directive        | Container API (Layer 2)  | @vitest/browser-playwright (Layer 2) | Playwright E2E (Layer 3)            |
+| ---------------- | ------------------------ | ------------------------------------ | ----------------------------------- |
+| `client:load`    | Renders SSR HTML only    | Renders + hydrates                   | Full app context                    |
+| `client:visible` | Renders SSR HTML only    | Cannot trigger scroll context        | Verifies scroll-triggered hydration |
+| `client:idle`    | Renders SSR HTML only    | Cannot trigger idle context          | Verifies idle-triggered hydration   |
+| `client:only`    | Renders nothing (no SSR) | Renders + hydrates (isolated)        | Full app context                    |
+| No directive     | Renders full static HTML | Not needed                           | Not needed                          |
 
 `client:visible` and `client:idle` depend on full-page context that isolated rendering cannot provide. These are Playwright-exclusive.
 
@@ -440,7 +407,6 @@ Runs the Astro compiler's type checker across `.astro` files. Catches type error
 
 Extract the action's business logic into pure functions tested at Layer 1. The Action handler becomes a thin shell: parse input, call pure function, return response. Test wiring at Layer 3 by posting to the action endpoint from Playwright.
 
-
 ## Escalation Hierarchy
 
 Never use a heavier tool when a lighter one suffices. Each level down is an order of magnitude slower.
@@ -459,22 +425,21 @@ text
 
 At every level, ask: can this be tested one level up? If yes, move it up.
 
-
 ## Anti-Patterns
 
-| Don't                                                    | Do Instead                                                            |
-|----------------------------------------------------------|-----------------------------------------------------------------------|
-| Test pagination math by rendering a full page            | Extract `paginate()` pure function, test at Layer 1                   |
-| Use Playwright to check if a component renders a title   | Container API at Layer 2                                              |
-| Use MSW when the function accepts a dependency parameter | Typed Fake                                                            |
-| Use Playwright to test API error handling                | MSW + Container API at Layer 2                                        |
-| Hand-roll `fc.record()` when Zod schema exists           | `zod-fast-check` derives arbitraries from the schema                  |
-| Test domain logic through a component                    | Extract to `.domain.ts`, test at Layer 1                              |
-| Run Playwright in TDD watch mode                         | Separate CI job only                                                  |
-| Skip `astro check` because `tsc` passes                 | Run both: `tsc` for `.ts`, `astro check` for `.astro`                |
-| Test `client:visible` with isolated component rendering  | Playwright only (requires scroll context)                             |
-| Mock `getCollection` in unit tests                       | Pass collection data as function params, test pure functions          |
-| Use `@testing-library/*`                                 | Playwright locators via `@vitest/browser-playwright` or Playwright    |
+| Don't                                                    | Do Instead                                                         |
+| -------------------------------------------------------- | ------------------------------------------------------------------ |
+| Test pagination math by rendering a full page            | Extract `paginate()` pure function, test at Layer 1                |
+| Use Playwright to check if a component renders a title   | Container API at Layer 2                                           |
+| Use MSW when the function accepts a dependency parameter | Typed Fake                                                         |
+| Use Playwright to test API error handling                | MSW + Container API at Layer 2                                     |
+| Hand-roll `fc.record()` when Zod schema exists           | `zod-fast-check` derives arbitraries from the schema               |
+| Test domain logic through a component                    | Extract to `.domain.ts`, test at Layer 1                           |
+| Run Playwright in TDD watch mode                         | Separate CI job only                                               |
+| Skip `astro check` because `tsc` passes                  | Run both: `tsc` for `.ts`, `astro check` for `.astro`              |
+| Test `client:visible` with isolated component rendering  | Playwright only (requires scroll context)                          |
+| Mock `getCollection` in unit tests                       | Pass collection data as function params, test pure functions       |
+| Use `@testing-library/*`                                 | Playwright locators via `@vitest/browser-playwright` or Playwright |
 
 ## Checklist
 
@@ -494,4 +459,3 @@ At every level, ask: can this be tested one level up? If yes, move it up.
 - [ ] `test:e2e` script separate from `test` script
 - [ ] No Playwright in TDD watch mode
 - [ ] Escalation hierarchy followed at every test decision
-

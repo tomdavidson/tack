@@ -119,7 +119,10 @@ MERGED_TACKRC=""
 CURRENT_PKG_CTX=""
 
 log() { printf '[tack] %s\n' "$*" >&2; }
-die() { printf '[tack] error: %s\n' "$*" >&2; exit 1; }
+die() {
+  printf '[tack] error: %s\n' "$*" >&2
+  exit 1
+}
 
 run() {
   if [ "$DRY_RUN" -eq 1 ]; then
@@ -132,17 +135,17 @@ run() {
 }
 
 require_bin() {
-  command -v "$1" >/dev/null 2>&1 || die "$1 not found on PATH ($2)"
+  command -v "$1" > /dev/null 2>&1 || die "$1 not found on PATH ($2)"
 }
 
 require_core_deps() {
   require_bin lnko "install from https://github.com/tomdavidson/lnko releases"
   require_bin tera "install with: cargo install tera-cli"
-  require_bin yq   "install Go yq from https://github.com/mikefarah/yq"
+  require_bin yq "install Go yq from https://github.com/mikefarah/yq"
 }
 
 strip_marker() { printf '%s\n' "$1" | sed -E 's/\.(tera|copy|concat|merge)\./\./'; }
-rel_in_pkg()   { printf '%s\n' "${1#"$2"/}"; }
+rel_in_pkg() { printf '%s\n' "${1#"$2"/}"; }
 
 load_tackrc() {
   defaults="$TACK_ROOT/tackrc-defaults.yml"
@@ -163,7 +166,7 @@ load_tackrc() {
 # merged tackrc, or empty if the key is missing/empty.
 rc_list() {
   key=$1
-  yq -r ".${key}[]?" "$MERGED_TACKRC" 2>/dev/null || true
+  yq -r ".${key}[]?" "$MERGED_TACKRC" 2> /dev/null || true
 }
 
 # pkg_excludes PKG -- newline-separated shell-glob patterns from
@@ -172,7 +175,7 @@ rc_list() {
 # Supports ** for recursive match (globstar enabled at script top).
 pkg_excludes() {
   pkg=$1
-  yq -r ".overrides[\"$pkg\"].exclude[]?" "$MERGED_TACKRC" 2>/dev/null || true
+  yq -r ".overrides[\"$pkg\"].exclude[]?" "$MERGED_TACKRC" 2> /dev/null || true
 }
 
 # glob_match PATTERN STRING -- exit 0 if STRING matches PATTERN as a shell
@@ -186,7 +189,7 @@ glob_match() {
   # shellcheck disable=SC2254
   case "$s" in
     $pat) return 0 ;;
-    *)    return 1 ;;
+    *) return 1 ;;
   esac
 }
 
@@ -230,7 +233,7 @@ expand_glob() {
 
 has_glob_chars() {
   case "$1" in
-    *'*'*|*'?'*|*'['*) return 0 ;;
+    *'*'* | *'?'* | *'['*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -264,7 +267,7 @@ resolve_pkgs() {
   # Any package key whose exclude array contains the literal "**" is added
   # to the subtraction list. File-level patterns (anything other than "**")
   # are handled later by iterate_files / link_package, not here.
-  raw_excl=$(yq -r '.overrides | to_entries[]? | select((.value.exclude // []) | contains(["**"])) | .key' "$MERGED_TACKRC" 2>/dev/null || true)
+  raw_excl=$(yq -r '.overrides | to_entries[]? | select((.value.exclude // []) | contains(["**"])) | .key' "$MERGED_TACKRC" 2> /dev/null || true)
 
   # Loops use while-read instead of `for pat in $raw_pkgs` so the unquoted
   # patterns (`configs/*`, `configs/exp-*`) are NOT pathname-expanded against
@@ -287,7 +290,7 @@ resolve_pkgs() {
     fi
     selected="${selected}${matches}
 "
-  done <<EOF
+  done << EOF
 $raw_pkgs
 EOF
 
@@ -308,7 +311,7 @@ EOF
       m=$(pat_match_any "$pat" "$selected")
       [ -n "$m" ] && excl_expanded="${excl_expanded}${m}
 "
-    done <<EOF
+    done << EOF
 $raw_excl
 EOF
     if [ -n "$excl_expanded" ]; then
@@ -319,7 +322,7 @@ EOF
         in_list "$p" "$excl_expanded" && continue
         filtered="${filtered}${p}
 "
-      done <<EOF
+      done << EOF
 $selected
 EOF
       selected=$filtered
@@ -343,8 +346,13 @@ pkg_metadata_ctx() {
 }
 
 manifest_get() {
-  manifest=$1; src_rel=$2; field=$3
-  [ -f "$manifest" ] || { printf ''; return 0; }
+  manifest=$1
+  src_rel=$2
+  field=$3
+  [ -f "$manifest" ] || {
+    printf ''
+    return 0
+  }
   yq -r ".files[\"$src_rel\"].$field // \"\"" "$manifest"
 }
 
@@ -358,7 +366,7 @@ emit_mode_rules() {
   src=$1
   [ -f "$src" ] || return 0
   # shellcheck disable=SC2016
-  yq -r '.mode[]? | to_entries | .[0] | ((select(.value | tag == "!!str") | .key + "\t" + .value), (select(.value | tag == "!!seq") | .key as $k | .value[] | $k + "\t" + .))' "$src" 2>/dev/null || true
+  yq -r '.mode[]? | to_entries | .[0] | ((select(.value | tag == "!!str") | .key + "\t" + .value), (select(.value | tag == "!!seq") | .key as $k | .value[] | $k + "\t" + .))' "$src" 2> /dev/null || true
 }
 
 manifest_mode_rules() {
@@ -368,7 +376,7 @@ manifest_mode_rules() {
 consumer_mode_rules() {
   pkg=$1
   [ -f "$MERGED_TACKRC" ] || return 0
-  yq -r "(.overrides[\"$pkg\"].mode // [])[]? | to_entries | .[0] | ((select(.value | tag == \"!!str\") | .key + \"\\t\" + .value), (select(.value | tag == \"!!seq\") | .key as \$k | .value[] | \$k + \"\\t\" + .))" "$MERGED_TACKRC" 2>/dev/null || true
+  yq -r "(.overrides[\"$pkg\"].mode // [])[]? | to_entries | .[0] | ((select(.value | tag == \"!!str\") | .key + \"\\t\" + .value), (select(.value | tag == \"!!seq\") | .key as \$k | .value[] | \$k + \"\\t\" + .))" "$MERGED_TACKRC" 2> /dev/null || true
 }
 
 match_mode_rules() {
@@ -388,17 +396,28 @@ match_mode_rules() {
 resolve_mode() {
   rel=$1
   m=$(match_mode_rules "$rel" "${CURRENT_PKG_CONSUMER_MODE:-}")
-  if [ -n "$m" ]; then printf '%s' "$m"; return 0; fi
+  if [ -n "$m" ]; then
+    printf '%s' "$m"
+    return 0
+  fi
   m=$(match_mode_rules "$rel" "${CURRENT_PKG_MODE:-}")
-  if [ -n "$m" ]; then printf '%s' "$m"; return 0; fi
+  if [ -n "$m" ]; then
+    printf '%s' "$m"
+    return 0
+  fi
   case "$(basename "$rel")" in
-    *.copy.*) printf 'copy'; return 0 ;;
+    *.copy.*)
+      printf 'copy'
+      return 0
+      ;;
   esac
   printf 'link'
 }
 
 copy_pkg_file() {
-  src=$1; pkg_dir=$2; target=$3
+  src=$1
+  pkg_dir=$2
+  target=$3
   src_rel=$(rel_in_pkg "$src" "$pkg_dir")
   base=$(basename "$src_rel")
   case "$base" in
@@ -413,9 +432,13 @@ copy_pkg_file() {
 }
 
 apply_link_or_copy() {
-  pkg_dir=$1; target=$2; excludes=${3:-}
-  link_list=$(mktemp); tack_cleanup_add "$link_list"
-  copy_list=$(mktemp); tack_cleanup_add "$copy_list"
+  pkg_dir=$1
+  target=$2
+  excludes=${3:-}
+  link_list=$(mktemp)
+  tack_cleanup_add "$link_list"
+  copy_list=$(mktemp)
+  tack_cleanup_add "$copy_list"
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     rel=${f#"$pkg_dir"/}
@@ -423,7 +446,7 @@ apply_link_or_copy() {
       tack.yml) continue ;;
     esac
     case "$rel" in
-      *.tera.*|*.concat.*|*.merge.*) continue ;;
+      *.tera.* | *.concat.* | *.merge.*) continue ;;
     esac
     if [ -n "$excludes" ] && path_excluded "$rel" "$excludes"; then
       log "exclude: $rel"
@@ -433,7 +456,7 @@ apply_link_or_copy() {
     case "$mode" in
       copy) printf '%s\n' "$rel" >> "$copy_list" ;;
       link) printf '%s\n' "$rel" >> "$link_list" ;;
-      *)    die "resolve_mode unexpected value: $mode (rel=$rel)" ;;
+      *) die "resolve_mode unexpected value: $mode (rel=$rel)" ;;
     esac
   done < <(find "$pkg_dir" -type f)
 
@@ -455,7 +478,7 @@ apply_link_or_copy() {
       while IFS= read -r pat; do
         [ -n "$pat" ] || continue
         set -- "$@" --ignore "$pat"
-      done <<EOF
+      done << EOF
 $excludes
 EOF
     fi
@@ -466,7 +489,9 @@ EOF
 }
 
 apply_unfold() {
-  pkg_dir=$1; manifest=$2; target=$3
+  pkg_dir=$1
+  manifest=$2
+  target=$3
   manifest_unfold "$manifest" | while IFS= read -r d; do
     [ -n "$d" ] || continue
     log "unfold: $d"
@@ -475,19 +500,23 @@ apply_unfold() {
 }
 
 resolve_vars_from() {
-  raw=$1; src_rel=$2
+  raw=$1
+  src_rel=$2
   case "$raw" in
-    tackrc.yml|@consumer/tackrc.yml) printf '%s' "$MERGED_TACKRC" ;;
-    /*)             printf '%s' "$raw" ;;
-    \~/*)           printf '%s' "$HOME/${raw#\~/}" ;;
-    '@tack/'*)      printf '%s' "$TACK_ROOT/${raw#@tack/}" ;;
-    '@consumer/'*)  printf '%s' "$TACK_CONSUMER_ROOT/${raw#@consumer/}" ;;
-    *)              printf '%s' "$TACK_CONSUMER_ROOT/$raw" ;;
+    tackrc.yml | @consumer/tackrc.yml) printf '%s' "$MERGED_TACKRC" ;;
+    /*) printf '%s' "$raw" ;;
+    \~/*) printf '%s' "$HOME/${raw#\~/}" ;;
+    '@tack/'*) printf '%s' "$TACK_ROOT/${raw#@tack/}" ;;
+    '@consumer/'*) printf '%s' "$TACK_CONSUMER_ROOT/${raw#@consumer/}" ;;
+    *) printf '%s' "$TACK_CONSUMER_ROOT/$raw" ;;
   esac
 }
 
 render_file() {
-  src=$1; pkg_dir=$2; manifest=$3; target=$4
+  src=$1
+  pkg_dir=$2
+  manifest=$3
+  target=$4
   src_rel=$(rel_in_pkg "$src" "$pkg_dir")
   target_rel=$(dirname "$src_rel")/$(strip_marker "$(basename "$src")")
   target_rel=${target_rel#./}
@@ -514,7 +543,9 @@ render_file() {
 }
 
 copy_file() {
-  src=$1; pkg_dir=$2; target=$3
+  src=$1
+  pkg_dir=$2
+  target=$3
   src_rel=$(rel_in_pkg "$src" "$pkg_dir")
   target_rel=$(dirname "$src_rel")/$(strip_marker "$(basename "$src")")
   target_rel=${target_rel#./}
@@ -525,12 +556,13 @@ copy_file() {
 }
 
 concat_append() {
-  src=$1; dest=$2
+  src=$1
+  dest=$2
   line1=$(grep -v -E '^[[:space:]]*(#|$)' "$src" | sed -n '1p')
   line2=$(grep -v -E '^[[:space:]]*(#|$)' "$src" | sed -n '2p')
   [ -n "$line1" ] || die "concat source has no non-comment content: $src"
-  if [ -n "$line2" ] && \
-     awk -v a="$line1" -v b="$line2" '
+  if [ -n "$line2" ] &&
+    awk -v a="$line1" -v b="$line2" '
        prev == a && $0 == b { found=1; exit }
        { prev=$0 }
        END { exit !found }
@@ -543,7 +575,10 @@ concat_append() {
 }
 
 concat_file() {
-  src=$1; pkg_dir=$2; manifest=$3; target=$4
+  src=$1
+  pkg_dir=$2
+  manifest=$3
+  target=$4
   src_rel=$(rel_in_pkg "$src" "$pkg_dir")
   concat_target=$(manifest_get "$manifest" "$src_rel" target)
   if [ -z "$concat_target" ]; then
@@ -571,12 +606,15 @@ concat_file() {
 }
 
 merge_file() {
-  src=$1; pkg_dir=$2; manifest=$3; target=$4
+  src=$1
+  pkg_dir=$2
+  manifest=$3
+  target=$4
   src_rel=$(rel_in_pkg "$src" "$pkg_dir")
   ext=${src##*.}
   case "$ext" in
-    json)     fmt=json ;;
-    yml|yaml) fmt=yaml ;;
+    json) fmt=json ;;
+    yml | yaml) fmt=yaml ;;
     toml)
       die "$src_rel: *.merge.toml not supported. Use *.concat.toml for textual append. See ADR-0002."
       ;;
@@ -608,8 +646,8 @@ merge_file() {
     return 0
   fi
 
-  yq -p "$fmt" -o "$fmt" '.' "$src" >/dev/null 2>&1 \
-    || die "merge fragment is not valid $fmt: $src"
+  yq -p "$fmt" -o "$fmt" '.' "$src" > /dev/null 2>&1 ||
+    die "merge fragment is not valid $fmt: $src"
 
   # Missing target is treated as empty data: synthesize an empty seed
   # in the right format and merge against it. This makes merge a
@@ -624,8 +662,8 @@ merge_file() {
     esac
     src_target="$seed"
   else
-    yq -p "$fmt" -o "$fmt" '.' "$dest" >/dev/null 2>&1 \
-      || die "merge target is not valid $fmt: $dest"
+    yq -p "$fmt" -o "$fmt" '.' "$dest" > /dev/null 2>&1 ||
+      die "merge target is not valid $fmt: $dest"
     src_target="$dest"
   fi
 
@@ -643,7 +681,10 @@ merge_file() {
 }
 
 iterate_files() {
-  pkg_dir=$1; pattern=$2; handler=$3; shift 3
+  pkg_dir=$1
+  pattern=$2
+  handler=$3
+  shift 3
   tmp=$(mktemp)
   tack_cleanup_add "$tmp"
   find "$pkg_dir" -type f -name "$pattern" > "$tmp"
@@ -689,11 +730,11 @@ apply_package() {
     CURRENT_PKG_CONSUMER_MODE=$(consumer_mode_rules "$pkg" || true)
   fi
 
-  apply_unfold       "$pkg_dir" "$manifest" "$TARGET"
+  apply_unfold "$pkg_dir" "$manifest" "$TARGET"
   apply_link_or_copy "$pkg_dir" "$TARGET" "$CURRENT_PKG_EXCLUDES"
-  iterate_files "$pkg_dir" '*.tera.*'   _h_render "$pkg_dir" "$manifest" "$TARGET"
+  iterate_files "$pkg_dir" '*.tera.*' _h_render "$pkg_dir" "$manifest" "$TARGET"
   iterate_files "$pkg_dir" '*.concat.*' _h_concat "$pkg_dir" "$manifest" "$TARGET"
-  iterate_files "$pkg_dir" '*.merge.*'  _h_merge  "$pkg_dir" "$manifest" "$TARGET"
+  iterate_files "$pkg_dir" '*.merge.*' _h_merge "$pkg_dir" "$manifest" "$TARGET"
   CURRENT_PKG_EXCLUDES=""
   CURRENT_PKG_MODE=""
   CURRENT_PKG_CONSUMER_MODE=""
@@ -701,13 +742,13 @@ apply_package() {
 
 _h_render() { render_file "$1" "$2" "$3" "$4"; }
 _h_concat() { concat_file "$1" "$2" "$3" "$4"; }
-_h_merge()  { merge_file  "$1" "$2" "$3" "$4"; }
+_h_merge() { merge_file "$1" "$2" "$3" "$4"; }
 
 print_version() {
-  if command -v git >/dev/null 2>&1 && \
-     git -C "$TACK_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
-    desc=$(git -C "$TACK_ROOT" describe --tags --always --dirty 2>/dev/null || true)
-    branch=$(git -C "$TACK_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+  if command -v git > /dev/null 2>&1 &&
+    git -C "$TACK_ROOT" rev-parse --git-dir > /dev/null 2>&1; then
+    desc=$(git -C "$TACK_ROOT" describe --tags --always --dirty 2> /dev/null || true)
+    branch=$(git -C "$TACK_ROOT" rev-parse --abbrev-ref HEAD 2> /dev/null || true)
     if [ -n "$desc" ] && [ -n "$branch" ] && [ "$branch" != "HEAD" ]; then
       printf 'tack %s (%s)\n' "$desc" "$branch"
       return 0
@@ -721,7 +762,7 @@ print_version() {
 }
 
 usage() {
-  cat <<EOF
+  cat << EOF
 Usage: ./tack.sh [options] [--] [<package-path>...]
 
 Options:
@@ -783,13 +824,26 @@ EOF
 cli_pkgs=""
 while [ $# -gt 0 ]; do
   case $1 in
-    --dry-run)     DRY_RUN=1 ;;
-    --target)      shift; [ $# -gt 0 ] || die "--target requires a DIR"; TARGET=$1 ;;
-    -V|--version)  print_version; exit 0 ;;
-    -h|--help)     usage; exit 0 ;;
-    --)            shift; break ;;
-    -*)            die "unknown option: $1" ;;
-    *)             cli_pkgs="$cli_pkgs $1" ;;
+    --dry-run) DRY_RUN=1 ;;
+    --target)
+      shift
+      [ $# -gt 0 ] || die "--target requires a DIR"
+      TARGET=$1
+      ;;
+    -V | --version)
+      print_version
+      exit 0
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*) die "unknown option: $1" ;;
+    *) cli_pkgs="$cli_pkgs $1" ;;
   esac
   shift
 done

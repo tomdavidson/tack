@@ -27,9 +27,7 @@ function findConsumerRoot(start = process.cwd()) {
       if (e.code !== 'ENOENT') throw e
       const parent = dirname(dir)
       if (parent === dir) {
-        throw new Error(
-          `eslint.config.mjs: no package.json found walking up from ${start}`,
-        )
+        throw new Error(`eslint.config.mjs: no package.json found walking up from ${start}`)
       }
       dir = parent
     }
@@ -37,16 +35,12 @@ function findConsumerRoot(start = process.cwd()) {
 }
 
 const { root: tsconfigRootDir, pkg } = findConsumerRoot()
-const isAstro = Boolean(
-  pkg.dependencies?.astro || pkg.devDependencies?.astro,
-)
+const isAstro = Boolean(pkg.dependencies?.astro || pkg.devDependencies?.astro)
 
 const configs = [...tsConfig({ tsconfigRootDir })]
 
 if (isAstro) {
-  const { default: astroConfig } = await import(
-    '@astro-bay/eslint-config-astro'
-  )
+  const { default: astroConfig } = await import('@astro-bay/eslint-config-astro')
   configs.push(...astroConfig({ tsconfigRootDir }))
 }
 

@@ -36,17 +36,23 @@
     "commands": [
       {
         "command": "rustfmt --edition 2024",
-        "exts": ["rs"]
+        "exts": [
+          "rs"
+        ]
       },
       {
         "command": "shfmt -i {{indent_width}} -s -ci -sr",
-        "exts": ["sh", "bash"]
+        "exts": [
+          "sh",
+          "bash"
+        ]
       }
     ]
   },
   "excludes": [
     "**/*-lock.json",
     "**/*-lock.yaml",
+    "**/*.tera.*",
     "dist",
     "coverage",
     "node_modules",

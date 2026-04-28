@@ -44,11 +44,11 @@ text
 
 ### Layers
 
-| Layer | Suffix / Glob | Purpose | Rule Posture |
-|---|---|---|---|
-| Domain | `*.domain.ts`, `**/domain/**` | Types, discriminated unions, invariants, pure logic | Strictest: all FP errors, `readonly` required, no IO imports |
-| App | `*.app.ts`, `**/app/**` | Use cases, orchestration, port interfaces | Strict: all FP errors, `readonly` warn |
-| Infra | `*.infra.ts`, `**/infra/**`, `src/cli/**` | Repos, adapters, IO, CLI, composition (`main.infra.ts`) | Relaxed: FP warns/off, classes with suffixes allowed |
+| Layer  | Suffix / Glob                             | Purpose                                                 | Rule Posture                                                 |
+| ------ | ----------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------ |
+| Domain | `*.domain.ts`, `**/domain/**`             | Types, discriminated unions, invariants, pure logic     | Strictest: all FP errors, `readonly` required, no IO imports |
+| App    | `*.app.ts`, `**/app/**`                   | Use cases, orchestration, port interfaces               | Strict: all FP errors, `readonly` warn                       |
+| Infra  | `*.infra.ts`, `**/infra/**`, `src/cli/**` | Repos, adapters, IO, CLI, composition (`main.infra.ts`) | Relaxed: FP warns/off, classes with suffixes allowed         |
 
 Tests (`*.spec.ts`, `*.test.ts`) are a file type, not an architectural layer. oxlint relaxes
 all FP, complexity, and type-safety rules for test globs.
@@ -182,9 +182,7 @@ if (posts.isErr()) return posts
 return formatResponse(posts.value)
 
 // GOOD — railway composition
-const result = await fetchUser(id)
-  .andThen(user => fetchPosts(user.id))
-  .map(formatResponse)
+const result = await fetchUser(id).andThen(user => fetchPosts(user.id)).map(formatResponse)
 
 // GOOD — parallel fetch, pure logic
 const [user, posts] = await Promise.all([fetchUser(id), fetchPosts(id)])
@@ -274,10 +272,9 @@ const handlers: Record<Status, (v: Value) => Value> = { ... } as const
 
 ```ts
 // Growing union
-const message = match(error)
-  .with({ type: 'FileNotFound' }, e => `Missing: ${e.path}`)
-  .with({ type: 'CycleDetected' }, e => `Cycle: ${e.chain}`)
-  .with({ type: 'ContextParseError' }, e => `Bad context: ${e.message}`)
+const message = match(error).with({ type: 'FileNotFound' }, e => `Missing: ${e.path}`).with({
+  type: 'CycleDetected',
+}, e => `Cycle: ${e.chain}`).with({ type: 'ContextParseError' }, e => `Bad context: ${e.message}`)
   .exhaustive()
 
 // Stable union
@@ -353,8 +350,7 @@ const mod: unknown = await import('some:optional-peer').catch(() => {})
 Inline pipe for simple cases, no FP library:
 
 ```ts
-const pipe = <T>(value: T, ...fns: Array<(a: T) => T>): T =>
-  fns.reduce((acc, fn) => fn(acc), value)
+const pipe = <T>(value: T, ...fns: Array<(a: T) => T>): T => fns.reduce((acc, fn) => fn(acc), value)
 ```
 
 ## Classes
@@ -377,25 +373,27 @@ classes are allowed only with suffix: Controller, Adapter, Module, Client, Provi
 
 ## Libraries
 
-| Status | Library | Use Case |
-|--------|---------|----------|
-| ✅ Required | `neverthrow` | Result/Option |
-| ✅ Approved | `ts-pattern` | Matching and complex unions |
-| ✅ Approved | `date-fns` | Date math and format |
-| ✅ Approved | `Remeda` | Multiple helpers simplify |
-| ✅ Approved | `Kysely` | Complex SQL |
-| ❌ Banned | ORMs, `fp-ts`, `Ramda`, DI containers | |
+| Status      | Library                               | Use Case                    |
+| ----------- | ------------------------------------- | --------------------------- |
+| ✅ Required | `neverthrow`                          | Result/Option               |
+| ✅ Approved | `ts-pattern`                          | Matching and complex unions |
+| ✅ Approved | `date-fns`                            | Date math and format        |
+| ✅ Approved | `Remeda`                              | Multiple helpers simplify   |
+| ✅ Approved | `Kysely`                              | Complex SQL                 |
+| ❌ Banned   | ORMs, `fp-ts`, `Ramda`, DI containers |                             |
 
 Inline first. Add a dependency only when it materially improves readability or safety.
 
 ## Layer Relaxations
 
 Infrastructure files (`repo.ts`, `io.ts`, `adapter.ts`, `src/cli/**`):
+
 - `let` and loops: warn. Still prefer `const` and declarative iteration.
 - `try`/`catch`, `throw`: permitted (for wrapping externals into Result).
 - Expression statements, `void` returns, mutable data: permitted.
 
 Test files (`*.spec.ts`, `*.test.ts`, `src/test/**`):
+
 - All FP, complexity, and type-safety strictness is lifted.
 
 ## Inline Override Guidance

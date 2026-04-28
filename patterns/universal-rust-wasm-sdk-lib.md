@@ -73,8 +73,11 @@ The engine crate is a pure Rust library. All business logic, domain types, and c
 # {name}-engine/Cargo.toml
 [features]
 default = []
-std = []       # Enables std-dependent code paths. Wrappers and native Rust consumers enable this.
-serde = ["dep:serde", "dep:serde_json"]  # Enables Serialize on output DTOs for consumers that want JSON.
+std = [] # Enables std-dependent code paths. Wrappers and native Rust consumers enable this.
+serde = [
+  "dep:serde",
+  "dep:serde_json",
+] # Enables Serialize on output DTOs for consumers that want JSON.
 
 [dependencies]
 thiserror = { version = "2", default-features = false }
@@ -94,16 +97,17 @@ The engine returns typed Rust data. No serialization at this layer. The public A
 extern crate alloc;
 
 mod domain;
-mod parse;        // or whatever the engine does
+mod parse; // or whatever the engine does
 
 // Public API: typed Rust structs and functions
-pub use domain::{Command, Argument, ArgumentMode, /* ... */};
-pub use parse::{parse, ParseError};
+pub use domain::{Argument, ArgumentMode /* ... */, Command};
+pub use parse::{ParseError, parse};
 ```
 
 ```rust
 // Engine returns typed Result, not strings
-pub fn parse(input: &str) -> Result<Vec<Command>, ParseError> { /* ... */ }
+pub fn parse(input: &str) -> Result<Vec<Command>, ParseError> { /* ... */
+}
 ```
 
 Native Rust consumers get zero-cost typed access. WASM wrappers handle serialization at the boundary. This is the correct layer for typed returns per Tom's Clean Architecture: the domain returns domain types, infrastructure handles format conversion.
@@ -114,7 +118,10 @@ Native Rust consumers get zero-cost typed access. WASM wrappers handle serializa
 #[derive(Debug, thiserror::Error)]
 pub enum ParseError {
     #[error("invalid syntax at position {position}: {message}")]
-    InvalidSyntax { position: usize, message: alloc::string::String },
+    InvalidSyntax {
+        position: usize,
+        message: alloc::string::String,
+    },
 
     #[error("unexpected end of input")]
     UnexpectedEof,
@@ -132,9 +139,9 @@ When the `serde` feature is enabled, a `serialize` module provides DTO types wit
 // Only compiled when `serde` feature is active
 #[cfg(feature = "serde")]
 pub mod json {
+    use crate::domain;
     use alloc::vec::Vec;
     use serde::Serialize;
-    use crate::domain;
 
     #[derive(Serialize)]
     pub struct CommandDto {
@@ -143,10 +150,13 @@ pub mod json {
     }
 
     impl From<&domain::Command> for CommandDto {
-        fn from(cmd: &domain::Command) -> Self { /* field mapping */ }
+        fn from(cmd: &domain::Command) -> Self { /* field mapping */
+        }
     }
 
-    pub fn to_json(commands: &[domain::Command]) -> Result<alloc::string::String, serde_json::Error> {
+    pub fn to_json(
+        commands: &[domain::Command],
+    ) -> Result<alloc::string::String, serde_json::Error> {
         let dtos: Vec<CommandDto> = commands.iter().map(Into::into).collect();
         serde_json::to_string(&dtos)
     }
@@ -302,12 +312,12 @@ Target: `wasm32-wasip2` (Rust tier-2 target). Output: a WebAssembly Component im
 
 Each non-JS language embeds a component-aware WASM runtime (Wasmtime, Wasmer) and binds to the WIT interface. The WIT types map to native language types:
 
-| Language | Runtime | Binding |
-|----------|---------|---------|
-| Go | wasmtime-go | Generated from WIT |
-| Python | wasmtime-py | Generated from WIT |
-| C# | wasmtime-dotnet | Generated from WIT |
-| Zig | [OPEN: evaluate wasmtime-zig or direct embedding] | TBD |
+| Language | Runtime                                           | Binding            |
+| -------- | ------------------------------------------------- | ------------------ |
+| Go       | wasmtime-go                                       | Generated from WIT |
+| Python   | wasmtime-py                                       | Generated from WIT |
+| C#       | wasmtime-dotnet                                   | Generated from WIT |
+| Zig      | [OPEN: evaluate wasmtime-zig or direct embedding] | TBD                |
 
 All host libraries receive native typed data from the WIT interface. No JSON parsing required.
 
@@ -317,11 +327,11 @@ Per-language idiomatic wrappers that consumers actually install.
 
 ### Tier Classification
 
-| Tier | Languages | Meaning |
-|------|-----------|---------|
-| 1 | JS/TS (browser), JS/TS (Node/Bun/Deno), Python, Go | First-class. Tested in CI. Breaking changes require migration path. |
-| 2 | C#, Zig | Supported. Tested in CI. Community contributions welcomed. |
-| 3 | Everything else | Community-maintained. PRs welcomed. Not tested in main CI. |
+| Tier | Languages                                          | Meaning                                                             |
+| ---- | -------------------------------------------------- | ------------------------------------------------------------------- |
+| 1    | JS/TS (browser), JS/TS (Node/Bun/Deno), Python, Go | First-class. Tested in CI. Breaking changes require migration path. |
+| 2    | C#, Zig                                            | Supported. Tested in CI. Community contributions welcomed.          |
+| 3    | Everything else                                    | Community-maintained. PRs welcomed. Not tested in main CI.          |
 
 ### JS SDK
 
@@ -379,12 +389,12 @@ The SDK documents which engine version it embeds. Consumers can check `{sdk}.eng
 
 ### Layer Mapping
 
-| Layer | Error Type | Approach |
-|-------|-----------|----------|
-| Engine (domain) | `ParseError` enum | `thiserror`, typed, exhaustive |
-| Component wrapper | WIT `result<T, parse-error>` | Map engine error variants to WIT variants 1:1 |
-| JS wrapper | JSON-encoded error string | Convert `ParseError` to `{"error": {"type", "message", ...}}` |
-| SDK (per-language) | Language-native error type | Parse WIT error or JSON error into idiomatic form |
+| Layer              | Error Type                   | Approach                                                      |
+| ------------------ | ---------------------------- | ------------------------------------------------------------- |
+| Engine (domain)    | `ParseError` enum            | `thiserror`, typed, exhaustive                                |
+| Component wrapper  | WIT `result<T, parse-error>` | Map engine error variants to WIT variants 1:1                 |
+| JS wrapper         | JSON-encoded error string    | Convert `ParseError` to `{"error": {"type", "message", ...}}` |
+| SDK (per-language) | Language-native error type   | Parse WIT error or JSON error into idiomatic form             |
 
 Follows the error layering from Tom's Clean Architecture and Tom's Clean Code.
 
@@ -503,13 +513,13 @@ When the engine's public API changes in a way that affects the WIT interface, bo
 
 Pin specific versions of moving-target tools. Update deliberately, not accidentally.
 
-| Tool | Pin Strategy |
-|------|-------------|
-| `wasm-bindgen` | Exact version in Cargo.toml |
-| `wasm-bindgen-cli` | Match Cargo.toml version exactly |
-| `cargo-component` | Exact version in CI and local toolchain |
-| `wit-bindgen` | Exact version in Cargo.toml |
-| `wasmtime` (host runtimes) | Exact version per SDK |
+| Tool                       | Pin Strategy                            |
+| -------------------------- | --------------------------------------- |
+| `wasm-bindgen`             | Exact version in Cargo.toml             |
+| `wasm-bindgen-cli`         | Match Cargo.toml version exactly        |
+| `cargo-component`          | Exact version in CI and local toolchain |
+| `wit-bindgen`              | Exact version in Cargo.toml             |
+| `wasmtime` (host runtimes) | Exact version per SDK                   |
 
 ### WASI Toolchain Changes
 
@@ -521,23 +531,23 @@ The project standardizes on `wasm32-wasip2`. If the WASI/component toolchain evo
 
 The workspace produces three artifact types from two WASM targets plus native:
 
-| Artifact | Target | Tool | Purpose |
-|----------|--------|------|---------|
-| Engine tests | native | `cargo nextest run` | All tests, property tests, fuzz |
-| JS WASM | `wasm32-unknown-unknown` | `cargo build` + `wasm-bindgen` | JS runtime distribution |
-| Component WASM | `wasm32-wasip2` | `cargo component build` | Non-JS runtime distribution |
+| Artifact       | Target                   | Tool                           | Purpose                         |
+| -------------- | ------------------------ | ------------------------------ | ------------------------------- |
+| Engine tests   | native                   | `cargo nextest run`            | All tests, property tests, fuzz |
+| JS WASM        | `wasm32-unknown-unknown` | `cargo build` + `wasm-bindgen` | JS runtime distribution         |
+| Component WASM | `wasm32-wasip2`          | `cargo component build`        | Non-JS runtime distribution     |
 
 CI orchestration is handled by Moonrepo tasks. GitHub Actions is a thin executor that runs Moon commands. See project-specific Moonrepo configuration for task definitions.
 
 ### Publishing Pipeline
 
-| Artifact | Registry | Trigger |
-|----------|----------|---------|
-| `{name}-engine` | crates.io | Git tag on engine version bump |
-| JS WASM `.wasm` + glue | npm (via `sdks/js/`) | Git tag on JS SDK version bump |
-| Component `.wasm` | GitHub Release asset | Git tag on engine version bump |
-| Python SDK | PyPI (via `sdks/python/`) | Git tag on Python SDK version bump |
-| Go SDK | Go module proxy (via `sdks/go/`) | Git tag on Go SDK version bump |
+| Artifact               | Registry                         | Trigger                            |
+| ---------------------- | -------------------------------- | ---------------------------------- |
+| `{name}-engine`        | crates.io                        | Git tag on engine version bump     |
+| JS WASM `.wasm` + glue | npm (via `sdks/js/`)             | Git tag on JS SDK version bump     |
+| Component `.wasm`      | GitHub Release asset             | Git tag on engine version bump     |
+| Python SDK             | PyPI (via `sdks/python/`)        | Git tag on Python SDK version bump |
+| Go SDK                 | Go module proxy (via `sdks/go/`) | Git tag on Go SDK version bump     |
 
 The component `.wasm` artifact on GitHub Releases is the canonical distribution for non-JS SDKs. SDKs either bundle the artifact at build time or fetch it at install time.
 
@@ -552,18 +562,18 @@ The component `.wasm` artifact on GitHub Releases is the canonical distribution 
 
 ## Anti-Patterns
 
-| Don't | Do Instead |
-|-------|-----------|
-| Parsing/business logic in wrapper crates | All logic in `{name}-engine` |
-| `serde` derives on domain types | DTO conversion in `serialize` module behind feature flag |
-| `unwrap()`/`panic!()` in wrapper crates | Serialize errors to JSON or WIT error variants |
-| Shared mutable state in engine | Pure functions, deterministic |
-| Host-specific code in engine | Engine is host-agnostic, `no_std` |
-| Per-language engine forks | Single Rust engine, WASM distribution |
-| JSON strings over WIT interface | WIT native types; JSON only for wasm-bindgen path |
-| `wasm-pack` for builds | `wasm-bindgen` CLI directly |
-| Testing engine logic from SDK tests | SDKs test their own glue; engine tests own logic |
-| Monolithic WASM with runtime deps | Thin wrappers, engine has zero runtime deps |
+| Don't                                    | Do Instead                                               |
+| ---------------------------------------- | -------------------------------------------------------- |
+| Parsing/business logic in wrapper crates | All logic in `{name}-engine`                             |
+| `serde` derives on domain types          | DTO conversion in `serialize` module behind feature flag |
+| `unwrap()`/`panic!()` in wrapper crates  | Serialize errors to JSON or WIT error variants           |
+| Shared mutable state in engine           | Pure functions, deterministic                            |
+| Host-specific code in engine             | Engine is host-agnostic, `no_std`                        |
+| Per-language engine forks                | Single Rust engine, WASM distribution                    |
+| JSON strings over WIT interface          | WIT native types; JSON only for wasm-bindgen path        |
+| `wasm-pack` for builds                   | `wasm-bindgen` CLI directly                              |
+| Testing engine logic from SDK tests      | SDKs test their own glue; engine tests own logic         |
+| Monolithic WASM with runtime deps        | Thin wrappers, engine has zero runtime deps              |
 
 ## Open Questions
 

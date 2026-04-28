@@ -58,12 +58,12 @@ tack's own tooling.
 The interior marker between dots in a package file's basename tells `tack.sh`
 how to install the file.
 
-| Pattern | Mode | Behavior |
-|---|---|---|
-| `*.tera.*` | render | tera renders to a consumer-owned file with the marker stripped |
-| `*.copy.*` | copy | verbatim copy to a consumer-owned file with the marker stripped |
-| `*.merge.*` | merge | tomlq deep-merges the fragment into a target declared in the package's tack-manifest.yml |
-| (no marker) | link | lnko symlink from consumer path into the submodule |
+| Pattern     | Mode   | Behavior                                                                                 |
+| ----------- | ------ | ---------------------------------------------------------------------------------------- |
+| `*.tera.*`  | render | tera renders to a consumer-owned file with the marker stripped                           |
+| `*.copy.*`  | copy   | verbatim copy to a consumer-owned file with the marker stripped                          |
+| `*.merge.*` | merge  | tomlq deep-merges the fragment into a target declared in the package's tack-manifest.yml |
+| (no marker) | link   | lnko symlink from consumer path into the submodule                                       |
 
 Markers are always interior segments preserving the target extension so editor
 syntax highlighting works on the source: `dprint.tera.json` renders to
@@ -94,8 +94,8 @@ files:
 ```yaml
 # configs/moon/tack-manifest.yml
 exclude:
-  - tasks/          # consumed via moon's native extends:
-  - templates/      # moon handles its own templates
+  - tasks/ # consumed via moon's native extends:
+  - templates/ # moon handles its own templates
   - partials/
   - hooks/
   - scripts/
@@ -142,7 +142,7 @@ packages:
     mode: url
     ref: v1.0.0
   moon:
-    mode: submodule      # co-dev: edit-in-place contributes upstream
+    mode: submodule # co-dev: edit-in-place contributes upstream
   github:
     mode: url
   rust:
@@ -167,12 +167,12 @@ per-file. Mixed mode within a package is not supported.
 
 ### Dependencies
 
-| Tool | Purpose |
-|---|---|
-| git | Submodule management |
-| lnko | Link pass (prebuilt binary from GitHub releases) |
-| tera CLI | Render pass |
-| tomlq / yq | Merge pass |
+| Tool       | Purpose                                          |
+| ---------- | ------------------------------------------------ |
+| git        | Submodule management                             |
+| lnko       | Link pass (prebuilt binary from GitHub releases) |
+| tera CLI   | Render pass                                      |
+| tomlq / yq | Merge pass                                       |
 
 moon, proto, and any language toolchain are consumer concerns, not tack.sh
 dependencies.

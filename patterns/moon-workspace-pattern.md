@@ -1,7 +1,7 @@
 # Moon Workspace Pattern
 
 > Pattern for using [Moon](https://moonrepo.dev) as the standard workspace orchestrator, task runner, toolchain manager, and CI coordinator. Applies to monorepos and single-project repos alike.
-> 
+>
 > **Official Documentation:** [https://moonrepo.dev/docs](https://moonrepo.dev/docs)
 
 ## When to Use
@@ -15,6 +15,7 @@ Use Moon even in single-project repos. The overhead is one `.moon/` directory. T
 Moon configuration files are strictly validated YAML. The underlying JSON schemas use `additionalProperties: false`, meaning any typo, unknown key, or deprecated field will cause immediate failures.
 
 To maintain integrity and usability across the team:
+
 1. **Always use `$schema` comments**: Inject the official schema URL at the top of every config file. Your editor will automatically validate your YAML and provide autocomplete.
 2. **Do not vendor schema JSON files**: Do not commit `workspace.json`, `tasks.json`, etc., to your repo. Rely on the remote schema URLs so they stay perfectly aligned with Moon's current specifications.
 3. **Validate early**: Rely on your IDE's YAML validation, and ensure `moon check` runs in CI.
@@ -82,6 +83,7 @@ rust:
 ```
 
 Rules:
+
 - Pin full versions (`22.12.0`), not partials (`22`) or aliases (`latest`).
 - Update versions via PR with CI validation instead of ad-hoc on dev machines.
 - Use `MOON_TOOLCHAIN_FORCE_GLOBALS=true` in pre-configured environments (Docker images, locked-down CI) where tools are already installed.
@@ -177,8 +179,8 @@ Use `deps` to express ordering. Moon builds a dependency graph and runs tasks in
 build:
   command: "cargo build --release"
   deps:
-    - "~:lint"          # same project
-    - "~:test"          # same project
+    - "~:lint" # same project
+    - "~:test" # same project
     - "shared-lib:build" # another project
 ```
 
@@ -225,6 +227,7 @@ Place templates in a dedicated directory, for example:
 ```
 
 Each template has:
+
 - `template.yml`: metadata and variables.
 - `files/`: Tera (`.tera`) templates.
 
@@ -247,11 +250,13 @@ variables:
 ```
 
 Render with:
+
 ```bash
 moon generate ts-app my-new-app
 ```
 
 Guidelines:
+
 - Use templates to enforce standard layout and configs (moon.yml, tsconfig, lint config, basic README).
 - Keep templates declarative. No application-specific logic.
 - Prefer a small number of well-maintained templates over many one-offs.
@@ -284,6 +289,7 @@ vcs:
 ```
 
 Policy:
+
 - **Lint** and **format check** run on affected projects only.
 - **Typecheck** runs on affected projects only.
 - **Unit tests**:
@@ -291,6 +297,7 @@ Policy:
   - Otherwise, the test task runs all unit tests for affected projects (project-level), even if the runner itself cannot select individual tests.
 
 The pattern is:
+
 1. Filter by affected **projects** via Moon (`--affected`).
 2. Inside each affected project, use test runner support for affected tests if available.
 3. Otherwise, run that project’s unit test task in full.
@@ -329,7 +336,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # needed for Git diff
+          fetch-depth: 0 # needed for Git diff
       - uses: moonrepo/setup-toolchain@v2
       - run: moon ci :lint :typecheck :test
 
@@ -345,6 +352,7 @@ jobs:
 ```
 
 `moon ci`:
+
 1. Determines changed files by comparing HEAD against base branch.
 2. Identifies affected projects and their dependent projects.
 3. Builds a dependency graph of all required tasks.
@@ -372,6 +380,7 @@ jobs:
 Moon caches task outputs based on input hashing. If inputs have not changed, the task is skipped and results are restored from cache.
 
 Inputs include:
+
 - File contents (matched by `inputs` globs).
 - Environment variables (configured per task).
 - Tool versions from toolchain.
@@ -430,18 +439,18 @@ No migration of task syntax, CI config, or hook setup required.
 
 ## Anti-Patterns
 
-| Smell | Problem | Instead |
-|-------|---------|---------|
-| Omitting `$schema` in YAML headers | Silent configuration drift and typos | Add `$schema` headers to all configs |
-| Committing `*.json` schemas | Stale schemas causing validation mismatches | Use remote `https://moonrepo...` schemas |
-| Alias versions (`latest`, `lts`) in toolchain | Non-deterministic builds | Pin full semver (`22.12.0`) |
-| Duplicate task definitions across projects | DRY violation | Inherited tasks in `.moon/tasks/` |
-| Any pre-commit hooks that run tools | Slows down frequent commits and experiments | Use only pre-push hook |
-| Slow tasks in Git hooks | Blocks pushes | Fast lint/format/tests only; heavy tasks in CI |
-| Integration tests in hooks | Long-running, flaky pushes | CI only (`moon ci`) |
-| Manual tool installation docs | Drift across machines | Moon toolchain manages it |
-| Separate Makefile/Justfile alongside Moon | Two task models to maintain | Consolidate into Moon |
-| Skipping `fetch-depth: 0` in CI checkout | Inaccurate affected detection | Always fetch full history for `moon ci` |
+| Smell                                         | Problem                                     | Instead                                        |
+| --------------------------------------------- | ------------------------------------------- | ---------------------------------------------- |
+| Omitting `$schema` in YAML headers            | Silent configuration drift and typos        | Add `$schema` headers to all configs           |
+| Committing `*.json` schemas                   | Stale schemas causing validation mismatches | Use remote `https://moonrepo...` schemas       |
+| Alias versions (`latest`, `lts`) in toolchain | Non-deterministic builds                    | Pin full semver (`22.12.0`)                    |
+| Duplicate task definitions across projects    | DRY violation                               | Inherited tasks in `.moon/tasks/`              |
+| Any pre-commit hooks that run tools           | Slows down frequent commits and experiments | Use only pre-push hook                         |
+| Slow tasks in Git hooks                       | Blocks pushes                               | Fast lint/format/tests only; heavy tasks in CI |
+| Integration tests in hooks                    | Long-running, flaky pushes                  | CI only (`moon ci`)                            |
+| Manual tool installation docs                 | Drift across machines                       | Moon toolchain manages it                      |
+| Separate Makefile/Justfile alongside Moon     | Two task models to maintain                 | Consolidate into Moon                          |
+| Skipping `fetch-depth: 0` in CI checkout      | Inaccurate affected detection               | Always fetch full history for `moon ci`        |
 
 ## Checklist
 
@@ -470,48 +479,53 @@ No migration of task syntax, CI config, or hook setup required.
 To maintain a scalable, DRY monorepo, split your task definitions into two distinct tiers: **Implicit Workflows** and **Explicit Outcomes**.
 
 ### 1. Implicit Workflows (Global Task Inheritance)
+
 The standard developer tasks (building, linting, testing, formatting) should be defined in `.moon/tasks/*.yml` files. Moon will automatically apply these tasks across the workspace using the `inheritedBy` attribute based on a project's `language` or `type`.
 
 **Rule of Thumb:** If 90% of the projects of a certain language need the task, it belongs in global inheritance. Individual project `moon.yml` files should remain virtually empty for standard workflows.
 
 ### 2. Explicit Outcomes (Outcome-Based Partials)
+
 Highly specialized, complex, or heavy pipelines (such as generating `.deb` files, publishing OCI containers, or pushing to `crates.io`) should not be globally inherited. Instead, isolate them in a `.moon/partials/` directory.
 
 Design these partials around the **outcome** rather than the technical implementation (e.g., `publish-cli.yml` rather than `dist-oci.yml`).
 
 Example `.moon/partials/publish-cli.yml`:
+
 ```yaml
 tasks:
   release-native:
-    command: 'cargo dist build'
+    command: "cargo dist build"
   release-system:
-    command: 'cargo packager --formats deb,rpm,msi'
-    deps: ['release-native']
+    command: "cargo packager --formats deb,rpm,msi"
+    deps: ["release-native"]
   release-oci:
-    command: 'zbuild containerize'
-    deps: ['release-system']
+    command: "zbuild containerize"
+    deps: ["release-system"]
   publish:
-    command: 'noop'
-    deps: 
-      - 'release-native'
-      - 'release-system'
-      - 'release-oci'
+    command: "noop"
+    deps:
+      - "release-native"
+      - "release-system"
+      - "release-oci"
 ```
 
 ### 3. Generator Templates and `extends`
+
 Do not use Tera's `{% include %}` syntax to inject partials directly into generated configurations. This hardcodes the tasks and breaks future maintainability.
 
 Instead, your Tera templates should dynamically generate a `moon.yml` that uses Moon's native `extends` keyword. This allows the newly generated project to opt-in to the shared partial while retaining a single source of truth.
 
 Example `.moon/templates/cli/moon.yml.tera`:
+
 ```yaml
-language: 'rust'
-type: 'application'
-tags: ['cli']
+language: "rust"
+type: "application"
+tags: ["cli"]
 
 # Opt-in to the CLI publishing lifecycle
 extends:
-  - '../../.moon/partials/publish-cli.yml'
+  - "../../.moon/partials/publish-cli.yml"
 
 tasks: {}
 ```
