@@ -21,11 +21,20 @@ vcs:
       - "moon run :lint-ox-fix :fmt --affected --status=staged"
       - "git diff --cached --name-only --diff-filter=ACMR | xargs git add -f"
     pre-push:
-      - "git diff --quiet && git diff --cached --quiet || (echo 'Dirty working
-        tree. Commit all changes before pushing.' && exit 1)"
-      - "moon run :lint --affected"
-      - "moon run :fmt-check --affected"
-      - "moon run :test --affected"
+      - >
+          branch="$(git branch --show-current)" moon_cmd=(moon run :lint
+          :fmt-check :test)
+
+          git diff --quiet && git diff --cached --quiet || {
+            echo "Dirty working tree. Commit all changes before pushing."
+            exit 1
+          }
+
+          if [[ "$branch" != "main" ]]; then
+            moon_cmd+=(--affected --base origin/main --head HEAD)
+          fi
+
+          "${moon_cmd[@]}"
 
 hasher:
   optimization: "accuracy"
