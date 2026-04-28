@@ -1,5 +1,5 @@
 {
-  "name": "@astro-bay/eslint-config-astro",
+  "name": "@tack/eslint-config-astro",
   "version": "0.1.0",
   "description": "ESLint flat config for Astro files. Treats .astro as the infrastructure/view layer with FP relaxations, structural limits, unicorn, and node rules.",
   "type": "module",

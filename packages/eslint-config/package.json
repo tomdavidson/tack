@@ -1,5 +1,5 @@
 {
-  "name": "@astro-bay/eslint-config",
+  "name": "@tack/eslint-config",
   "version": "0.1.0",
   "description": "ESLint flat config for TypeScript with clean architecture boundaries, FP enforcement, oxlint, and oxlint dedup.",
   "type": "module",
