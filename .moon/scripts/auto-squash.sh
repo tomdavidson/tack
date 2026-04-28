@@ -1,0 +1,1 @@
+../../configs/moon/.moon/scripts/auto-squash.sh

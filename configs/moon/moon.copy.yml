@@ -18,8 +18,10 @@ tasks:
   fmt:
     script: "dprint fmt"
     inputs:
-      - "/**/*.{js,jsx,ts,tsx,mjs,cjs,json,jsonc,md,yml,yaml,css,scss,html,astr\
-        o}"
+      - "/**/*.{js,jsx,ts,tsx,mjs,cjs}"
+      - "/**/*.{json,jsonc,yml,yaml,toml}"
+      - "/**/*.{css,scss,html,astro}"
+      - ".prototool"
       - "/dprint.json"
     options:
       runInCI: false
@@ -35,3 +37,16 @@ tasks:
     options:
       runFromWorkspaceRoot: true
       affectedFiles: true
+
+  lint-sh:
+    script: shellcheck **/*.sh
+    inputs:
+      - "**/*.sh"
+    options:
+      runFromWorkspaceRoot: true
+      affectedFiles: args
+
+  lint:
+    command: "noop"
+    deps:
+      - "~:lint-sh"
