@@ -1,7 +1,7 @@
 dprint = "0.53"
 moon = "2"
 
-[plugins.tools]
+[plugins]
 shfmt = "https://tomdavidson.github.io/proto/shfmt.toml"
 dprint = "https://tomdavidson.github.io/proto/dprint.toml"
 

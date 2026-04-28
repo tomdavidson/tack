@@ -12,6 +12,7 @@ moon:
 
 pkgs:
   - configs/*
+  - scripts
 
 overrides:
   configs/rust:

@@ -10,6 +10,5 @@ overrides:
       - .prototools
   configs/web:
     exclude: ["**"]
-  configs/moon:
-    exclude:
-      - moon.yml
+  scripts:
+    exclude: ["**"]

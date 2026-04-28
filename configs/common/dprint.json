@@ -27,7 +27,12 @@
   },
   "json": {},
   "markdown": {},
-  "toml": {},
+  "toml": {
+    "associations": [
+      ".prototools",
+      "**/*.toml"
+    ]
+  },
   "yaml": {},
   "markup": {},
   "malva": {},
