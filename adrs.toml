@@ -1,4 +1,1 @@
-adr_dir = "docs/adrs"
-mode = "ng"
-
-[templates]
+configs/common/adrs.toml

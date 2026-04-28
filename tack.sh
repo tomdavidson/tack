@@ -21,13 +21,25 @@
 # Per-package context (optional):
 #   <pkg>/tack.yml is an optional context file. It declares parameters
 #   that cannot be derived from filename and path: render vars source,
-#   concat/merge target overrides, link.unfold dirs. If omitted, every
+#   concat/merge target overrides, link.unfold dirs, and mode rules
+#   (link vs copy) for non-content-marker files. If omitted, every
 #   target is derived by stripping the dispatch marker from the source
 #   basename and writing into the same relative path under TARGET.
 #
-# Dispatch:
+# Mode rules (link vs copy):
+#   tack.yml `mode` is an ordered list of single-key entries; each value
+#   is a glob string or list of globs. First match wins. Example:
+#     mode:
+#       - copy: ".github/**"
+#       - copy: [".moon/**/*.yml", "oxlintrc.json"]
+#       - link: "**"
+#   Consumer tackrc.yml may prepend rules per-package via
+#   overrides.<pkg>.mode using the same shape; consumer rules are
+#   evaluated before package rules. Filename marker .copy. is the next
+#   fallback. Default is link.
+#
+# Dispatch (content markers always win over mode rules):
 #   *.tera.*           render via tera (target = strip_marker(src))
-#   *.copy.*           copy verbatim (target = strip_marker(src))
 #   *.concat.*         append to target (default = strip_marker(src),
 #                      override via tack.yml files.<src>.target; signature-dedup)
 #   *.merge.json       deep-merge into target via yq (default = strip_marker(src),
@@ -35,7 +47,9 @@
 #   *.merge.yml|.yaml  deep-merge into target via yq (default = strip_marker(src),
 #                      override via tack.yml files.<src>.target)
 #   *.merge.toml       refused; use *.concat.toml instead
-#   everything else    symlink via lnko (except tack.yml)
+#   *.copy.*           copy verbatim (target = strip_marker(src)); also
+#                      treated as a fallback signal by resolve_mode
+#   everything else    routed by resolve_mode: copy or link (default)
 
 set -euo pipefail
 
@@ -161,6 +175,21 @@ pkg_excludes() {
   yq -r ".overrides[\"$pkg\"].exclude[]?" "$MERGED_TACKRC" 2>/dev/null || true
 }
 
+# glob_match PATTERN STRING -- exit 0 if STRING matches PATTERN as a shell
+# glob. Centralizes the one place where we deliberately let `case` expand an
+# unquoted variable as a glob: tack mode/exclude rules are trusted
+# YAML-sourced patterns, not arbitrary input. Keeping a single suppression
+# site here removes SC2254 from the three callers.
+glob_match() {
+  pat=$1
+  s=$2
+  # shellcheck disable=SC2254
+  case "$s" in
+    $pat) return 0 ;;
+    *)    return 1 ;;
+  esac
+}
+
 # path_excluded REL_PATH PATTERNS -- exit 0 if REL_PATH matches any
 # newline-separated shell-glob in PATTERNS. Patterns are matched against
 # the full package-relative path.
@@ -170,10 +199,10 @@ path_excluded() {
   [ -n "$patterns" ] || return 1
   printf '%s\n' "$patterns" | while IFS= read -r pat; do
     [ -n "$pat" ] || continue
-    # shellcheck disable=SC2254
-    case "$rel" in
-      $pat) printf 'match\n'; break ;;
-    esac
+    if glob_match "$pat" "$rel"; then
+      printf 'match\n'
+      break
+    fi
   done | grep -q match
 }
 
@@ -184,6 +213,11 @@ expand_glob() {
   pat=$1
   (
     cd "$TACK_ROOT" || exit 0
+    # PAT must remain unquoted so the shell performs pathname expansion
+    # using globstar/dotglob/nullglob set at script top. Patterns originate
+    # from the merged tackrc (trusted), not from end-user input. compgen -G
+    # was tried and changed semantics enough to break literal and glob
+    # resolution for nested package paths.
     # shellcheck disable=SC2086
     for entry in $pat; do
       if [ -d "$entry" ]; then
@@ -208,10 +242,9 @@ pat_match_any() {
   list=$2
   printf '%s\n' "$list" | while IFS= read -r p; do
     [ -n "$p" ] || continue
-    # shellcheck disable=SC2254
-    case "$p" in
-      $pat) printf '%s\n' "$p" ;;
-    esac
+    if glob_match "$pat" "$p"; then
+      printf '%s\n' "$p"
+    fi
   done
 }
 
@@ -231,7 +264,7 @@ resolve_pkgs() {
   # Any package key whose exclude array contains the literal "**" is added
   # to the subtraction list. File-level patterns (anything other than "**")
   # are handled later by iterate_files / link_package, not here.
-  raw_excl=$(yq -r '.overrides | to_entries[]? | select(.value.exclude[]? == "**") | .key' "$MERGED_TACKRC" 2>/dev/null || true)
+  raw_excl=$(yq -r '.overrides | to_entries[]? | select((.value.exclude // []) | contains(["**"])) | .key' "$MERGED_TACKRC" 2>/dev/null || true)
 
   # Loops use while-read instead of `for pat in $raw_pkgs` so the unquoted
   # patterns (`configs/*`, `configs/exp-*`) are NOT pathname-expanded against
@@ -321,24 +354,115 @@ manifest_unfold() {
   yq -r '.link.unfold[]?' "$manifest"
 }
 
-link_package() {
+emit_mode_rules() {
+  src=$1
+  [ -f "$src" ] || return 0
+  # shellcheck disable=SC2016
+  yq -r '.mode[]? | to_entries | .[0] | ((select(.value | tag == "!!str") | .key + "\t" + .value), (select(.value | tag == "!!seq") | .key as $k | .value[] | $k + "\t" + .))' "$src" 2>/dev/null || true
+}
+
+manifest_mode_rules() {
+  emit_mode_rules "$1"
+}
+
+consumer_mode_rules() {
+  pkg=$1
+  [ -f "$MERGED_TACKRC" ] || return 0
+  yq -r "(.overrides[\"$pkg\"].mode // [])[]? | to_entries | .[0] | ((select(.value | tag == \"!!str\") | .key + \"\\t\" + .value), (select(.value | tag == \"!!seq\") | .key as \$k | .value[] | \$k + \"\\t\" + .))" "$MERGED_TACKRC" 2>/dev/null || true
+}
+
+match_mode_rules() {
+  rel=$1
+  rules=$2
+  [ -n "$rules" ] || return 0
+  printf '%s\n' "$rules" | while IFS=$'\t' read -r action pat; do
+    [ -n "$action" ] || continue
+    [ -n "$pat" ] || continue
+    if glob_match "$pat" "$rel"; then
+      printf '%s\n' "$action"
+      break
+    fi
+  done
+}
+
+resolve_mode() {
+  rel=$1
+  m=$(match_mode_rules "$rel" "${CURRENT_PKG_CONSUMER_MODE:-}")
+  if [ -n "$m" ]; then printf '%s' "$m"; return 0; fi
+  m=$(match_mode_rules "$rel" "${CURRENT_PKG_MODE:-}")
+  if [ -n "$m" ]; then printf '%s' "$m"; return 0; fi
+  case "$(basename "$rel")" in
+    *.copy.*) printf 'copy'; return 0 ;;
+  esac
+  printf 'link'
+}
+
+copy_pkg_file() {
+  src=$1; pkg_dir=$2; target=$3
+  src_rel=$(rel_in_pkg "$src" "$pkg_dir")
+  base=$(basename "$src_rel")
+  case "$base" in
+    *.copy.*) base=$(strip_marker "$base") ;;
+  esac
+  dir_rel=$(dirname "$src_rel")
+  if [ "$dir_rel" = "." ]; then target_rel=$base; else target_rel=$dir_rel/$base; fi
+  dest="$target/$target_rel"
+  log "copy: $src_rel -> $target_rel"
+  run mkdir -p "$(dirname "$dest")"
+  run cp "$src" "$dest"
+}
+
+apply_link_or_copy() {
   pkg_dir=$1; target=$2; excludes=${3:-}
-  log "link: $pkg_dir -> $target"
-  set -- \
-    --ignore '*.tera.*' \
-    --ignore '*.copy.*' \
-    --ignore '*.concat.*' \
-    --ignore '*.merge.*' \
-    --ignore 'tack.yml'
-  if [ -n "$excludes" ]; then
-    while IFS= read -r pat; do
-      [ -n "$pat" ] || continue
-      set -- "$@" --ignore "$pat"
-    done <<EOF
+  link_list=$(mktemp); tack_cleanup_add "$link_list"
+  copy_list=$(mktemp); tack_cleanup_add "$copy_list"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    rel=${f#"$pkg_dir"/}
+    case "$(basename "$rel")" in
+      tack.yml) continue ;;
+    esac
+    case "$rel" in
+      *.tera.*|*.concat.*|*.merge.*) continue ;;
+    esac
+    if [ -n "$excludes" ] && path_excluded "$rel" "$excludes"; then
+      log "exclude: $rel"
+      continue
+    fi
+    mode=$(resolve_mode "$rel")
+    case "$mode" in
+      copy) printf '%s\n' "$rel" >> "$copy_list" ;;
+      link) printf '%s\n' "$rel" >> "$link_list" ;;
+      *)    die "resolve_mode unexpected value: $mode (rel=$rel)" ;;
+    esac
+  done < <(find "$pkg_dir" -type f)
+
+  if [ -s "$copy_list" ]; then
+    while IFS= read -r rel; do
+      [ -n "$rel" ] || continue
+      copy_pkg_file "$pkg_dir/$rel" "$pkg_dir" "$target"
+    done < "$copy_list"
+  fi
+
+  if [ -s "$link_list" ]; then
+    log "link: $pkg_dir -> $target"
+    set -- --ignore '*.tera.*' --ignore '*.concat.*' --ignore '*.merge.*' --ignore 'tack.yml'
+    while IFS= read -r rel; do
+      [ -n "$rel" ] || continue
+      set -- "$@" --ignore "$rel"
+    done < "$copy_list"
+    if [ -n "$excludes" ]; then
+      while IFS= read -r pat; do
+        [ -n "$pat" ] || continue
+        set -- "$@" --ignore "$pat"
+      done <<EOF
 $excludes
 EOF
+    fi
+    run lnko link "$@" -t "$target" "$pkg_dir"
   fi
-  run lnko link "$@" -t "$target" "$pkg_dir"
+  rm -f "$link_list" "$copy_list"
+  :
 }
 
 apply_unfold() {
@@ -380,6 +504,10 @@ render_file() {
   [ -f "$ctx" ] || [ "$DRY_RUN" -eq 1 ] || die "vars_from not found: $ctx (from $src_rel)"
   run tera --template "$src" --include-path "$(dirname "$src")" "$ctx" --out "$dest"
   if [ -n "$post" ]; then
+    # `post` is a package-author command line from tack.yml
+    # (e.g. "prettier --write", "shfmt -w"). Word splitting is
+    # intentional so authors can pass flags. Input comes from the
+    # tack repo, not the consumer or end user.
     # shellcheck disable=SC2086
     run $post "$dest"
   fi
@@ -554,17 +682,24 @@ apply_package() {
     CURRENT_PKG_EXCLUDES=$(pkg_excludes "$pkg")
   fi
 
-  apply_unfold  "$pkg_dir" "$manifest" "$TARGET"
-  link_package  "$pkg_dir" "$TARGET" "$CURRENT_PKG_EXCLUDES"
+  CURRENT_PKG_MODE=$(manifest_mode_rules "$manifest" || true)
+  if [ "${CLI_SELECTION:-0}" -eq 1 ]; then
+    CURRENT_PKG_CONSUMER_MODE=""
+  else
+    CURRENT_PKG_CONSUMER_MODE=$(consumer_mode_rules "$pkg" || true)
+  fi
+
+  apply_unfold       "$pkg_dir" "$manifest" "$TARGET"
+  apply_link_or_copy "$pkg_dir" "$TARGET" "$CURRENT_PKG_EXCLUDES"
   iterate_files "$pkg_dir" '*.tera.*'   _h_render "$pkg_dir" "$manifest" "$TARGET"
-  iterate_files "$pkg_dir" '*.copy.*'   _h_copy   "$pkg_dir" "$TARGET"
   iterate_files "$pkg_dir" '*.concat.*' _h_concat "$pkg_dir" "$manifest" "$TARGET"
   iterate_files "$pkg_dir" '*.merge.*'  _h_merge  "$pkg_dir" "$manifest" "$TARGET"
   CURRENT_PKG_EXCLUDES=""
+  CURRENT_PKG_MODE=""
+  CURRENT_PKG_CONSUMER_MODE=""
 }
 
 _h_render() { render_file "$1" "$2" "$3" "$4"; }
-_h_copy()   { copy_file   "$1" "$2" "$3"; }
 _h_concat() { concat_file "$1" "$2" "$3" "$4"; }
 _h_merge()  { merge_file  "$1" "$2" "$3" "$4"; }
 
@@ -615,14 +750,21 @@ Control file:
   <tack>/tackrc-defaults.yml deep-merged with <consumer>/tackrc.yml.
   Required: tackrc-defaults.yml. Optional: consumer tackrc.yml.
 
-Dispatch by filename marker:
+Dispatch by filename marker (always wins over mode rules):
   *.tera.*           render via tera (default target: strip marker)
-  *.copy.*           copy verbatim (default target: strip marker)
   *.concat.*         append to target (default: strip marker; override in tack.yml)
   *.merge.json       deep-merge via yq (default: strip marker; override in tack.yml)
   *.merge.yml|.yaml  deep-merge via yq (default: strip marker; override in tack.yml)
   *.merge.toml       refused; use *.concat.toml instead
-  (other)            symlink via lnko (skips tack.yml)
+  *.copy.*           copy verbatim (default target: strip marker)
+  (other)            routed by mode rules; default link via lnko
+
+Mode rules (link vs copy) in tack.yml:
+  mode:
+    - copy: ".github/**"
+    - link: "**"
+  Consumer override in tackrc.yml: overrides.<pkg>.mode (same shape;
+  evaluated before the package's own mode list)
 
 Environment:
   TACK_ROOT            Path to the tack repo (default: dir of tack.sh)
