@@ -1,0 +1,7 @@
+link:
+  unfold:
+    - .moon
+    - .moon/partials
+    - .moon/scripts
+    - .moon/tasks
+    - .moon/templates
