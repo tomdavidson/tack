@@ -1,0 +1,8 @@
+tags:
+  - "gh-pkg-npm"
+
+project:
+  metadata:
+    raa:
+      run: publish
+      rm: unpublish
