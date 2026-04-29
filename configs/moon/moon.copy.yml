@@ -18,11 +18,8 @@ tasks:
   fmt:
     script: "dprint fmt"
     inputs:
-      - "/**/*.{js,jsx,ts,tsx,mjs,cjs}"
-      - "/**/*.{json,jsonc,yml,yaml,toml}"
-      - "/**/*.{css,scss,html,astro}"
-      - ".prototool"
-      - "/dprint.json"
+      - "/**/*"
+      - "!**/*.tera*"
     options:
       runInCI: false
       runFromWorkspaceRoot: true
@@ -31,9 +28,8 @@ tasks:
   fmt-check:
     script: "dprint check"
     inputs:
-      - "/**/*.{js,jsx,ts,tsx,mjs,cjs,json,jsonc,md,yml,yaml,css,scss,html,astr\
-        o}"
-      - "/dprint.json"
+      - "/**/*"
+      - "!**/*.tera*"
     options:
       runFromWorkspaceRoot: true
       affectedFiles: true

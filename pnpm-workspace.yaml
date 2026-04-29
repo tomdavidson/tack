@@ -1,5 +1,9 @@
+# pnpm-workspace.yaml
 packages:
   - "packages/*"
+  - "apps/*"
+  - "plugins/*"
+  - "website"
 catalog:
   eslint: ^9.0.0
   fast-check: ^3.0.0

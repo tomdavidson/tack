@@ -2,7 +2,7 @@
 # Source this file: source run-debug.sh
 # Then use: timing [run-id], logs [run-id], or just run directly for both
 
-_resolve_run_id() {
+resolve_run_id() {
   local run_id="${1:-}"
   if [[ -z $run_id ]]; then
     run_id=$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
@@ -13,7 +13,7 @@ _resolve_run_id() {
 
 timing() {
   local run_id
-  run_id=$(_resolve_run_id "$1")
+  run_id=$(resolve_run_id "$1")
 
   echo "=== Workflow Run: $run_id ==="
   echo ""
@@ -48,7 +48,7 @@ timing() {
 
 logs() {
   local run_id
-  run_id=$(_resolve_run_id "$1")
+  run_id=$(resolve_run_id "$1")
   local outfile="run-${run_id}.log"
 
   echo "Downloading logs for run $run_id..." >&2
@@ -69,7 +69,7 @@ logs() {
 }
 
 if [[ ${BASH_SOURCE[0]} == "${0}" ]]; then
-  run_id=$(_resolve_run_id "$1")
+  run_id=$(resolve_run_id "$1")
   timing "$run_id"
   logs "$run_id"
 fi

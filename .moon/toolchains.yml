@@ -1,5 +1,3 @@
-# config/moon/.moon/toolchains.tera.yml
-$schema: "https://moonrepo.dev/schemas/toolchain.json"
 extends:
   - "toolchains-javascript.yml"
 

@@ -2,7 +2,7 @@
 # Source this file: source run-debug.sh
 # Then use: timing [run-id], logs [run-id], or just run directly for both
 
-_resolve_run_id() {
+resolve_run_id() {
   local run_id="${1:-}"
   if [[ -z $run_id ]]; then
     run_id=$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
@@ -13,16 +13,14 @@ _resolve_run_id() {
 
 timing() {
   local run_id
-  run_id=$(_resolve_run_id "$1")
+  run_id=$(resolve_run_id "$1")
 
   echo "=== Workflow Run: $run_id ==="
   echo ""
 
-  local jq_filter
-  # shellcheck disable=SC2016
-  jq_filter='
+  gh run view "$run_id" --json jobs --jq '
     .jobs | sort_by(.startedAt) | .[] |
-    "── \(.name) (\(.conclusion // \"running\")) ──",
+    "── \(.name) (\(.conclusion // "running")) ──",
     "   Started:  \(.startedAt)",
     "   Duration: \(
       if .completedAt then
@@ -36,28 +34,28 @@ timing() {
       (if .completedAt and .startedAt then
         ((.completedAt | fromdateiso8601) - (.startedAt | fromdateiso8601))
       else 0 end) as $dur |
-      "   \(if $dur >= 60 then \"!!\" elif $dur >= 30 then \">>\" else \"  \" end) \(
+      "   \(if $dur >= 60 then "!!" elif $dur >= 30 then ">>" else "  " end) \(
         if .completedAt and .startedAt then
-          "\($dur / 60 | floor)m \($dur % 60 | tostring | if length < 2 then \"0\" + . else . end)s"
-        else \"--:--\"
+          "\($dur / 60 | floor)m \($dur % 60 | tostring | if length < 2 then "0" + . else . end)s"
+        else "--:--"
         end
-      )  \(.conclusion // \"---\" | if . == \"success\" then \"pass\" elif . == \"skipped\" then \"skip\" elif . == \"failure\" then \"FAIL\" else . end)  \(.name)"
+      )  \(.conclusion // "---" | if . == "success" then "pass" elif . == "skipped" then "skip" elif . == "failure" then "FAIL" else . end)  \(.name)"
     ) | join("\n")),
     "",
     ""
   '
-
-  gh run view "$run_id" --json jobs --jq "$jq_filter"
 }
 
 logs() {
   local run_id
-  run_id=$(_resolve_run_id "$1")
+  run_id=$(resolve_run_id "$1")
   local outfile="run-${run_id}.log"
 
   echo "Downloading logs for run $run_id..." >&2
 
-  if gh run view "$run_id" --log > "$outfile" 2>&1; then
+  gh run view "$run_id" --log > "$outfile" 2>&1
+
+  if [[ $? -eq 0 ]]; then
     echo "Saved to $outfile ($(wc -l < "$outfile") lines)" >&2
     echo "" >&2
     echo "Quick search tips:" >&2
@@ -71,7 +69,7 @@ logs() {
 }
 
 if [[ ${BASH_SOURCE[0]} == "${0}" ]]; then
-  run_id=$(_resolve_run_id "$1")
+  run_id=$(resolve_run_id "$1")
   timing "$run_id"
   logs "$run_id"
 fi
