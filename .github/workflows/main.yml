@@ -19,7 +19,7 @@ jobs:
       ci-matrix: ${{ steps.ci-matrix.outputs.matrix }}
       runner-count: ${{ steps.ci-matrix.outputs.count }}
     steps:
-      - uses: tomdavidson/tack/configs/github/actions/setup@main
+      - uses: tomdavidson/tack/configs/github/.github/actions/setup@main
       - id: ci-matrix
         uses: ./.github/actions/moon-ci-matrix
 
