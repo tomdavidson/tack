@@ -173,14 +173,3 @@ third_party/**       linguist-vendored=true
 third-party/**       linguist-vendored=true
 
 docs/**              linguist-documentation=true
-
-# ---- Export-ignore: omit from `git archive` tarballs ----
-.gitattributes       export-ignore
-.gitignore           export-ignore
-.github/             export-ignore
-.vscode/             export-ignore
-tests/               export-ignore
-test/                export-ignore
-**/__tests__/**      export-ignore
-**/*.test.*          export-ignore
-**/*.spec.*          export-ignore
