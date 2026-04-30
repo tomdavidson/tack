@@ -112,9 +112,11 @@ EOF
   assert_equal "$first" "$second"
 }
 
-@test "concat dies cleanly when target file is missing" {
+@test "concat creates missing target from fragment" {
   # Build an isolated package with only a concat fragment, so no copy pass
-  # seeds Cargo.toml before concat runs.
+  # seeds Cargo.toml before concat runs. Concat is a create-or-update
+  # operation: missing target is created with the fragment as initial
+  # content (no leading newline), mirroring merge's empty-seed behavior.
   ALT_ROOT="$(mktemp -d -t tack-alt-root.XXXXXX)"
   mkdir -p "$ALT_ROOT/configs/bare"
   printf 'vars: {}\n' > "$ALT_ROOT/tackrc-defaults.yml"
@@ -129,8 +131,12 @@ files:
 EOF
   EMPTY_TARGET="$(mktemp -d -t tack-empty.XXXXXX)"
   TACK_ROOT="$ALT_ROOT" run "$TACK_SH" --target "$EMPTY_TARGET" configs/bare
-  assert_failure
-  assert_output --partial "concat target missing"
+  assert_success
+  assert_file_exists "$EMPTY_TARGET/Cargo.toml"
+  # First byte is '[' from the fragment, no leading newline on create.
+  first=$(head -c 1 "$EMPTY_TARGET/Cargo.toml")
+  [ "$first" = "[" ]
+  diff "$EMPTY_TARGET/Cargo.toml" "$ALT_ROOT/configs/bare/clippy.concat.toml"
   rm -rf "$ALT_ROOT" "$EMPTY_TARGET"
 }
 

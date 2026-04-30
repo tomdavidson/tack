@@ -362,6 +362,32 @@ manifest_unfold() {
   yq -r '.link.unfold[]?' "$manifest"
 }
 
+# manifest_path_prefix MANIFEST -- echoes the package's path_prefix
+# (top-level scalar in tack.yml) or empty string. The prefix is
+# prepended to every derived target_rel in the package and is the
+# -t suffix for lnko in link mode. files.<src>.target overrides bypass
+# this prefix entirely.
+manifest_path_prefix() {
+  manifest=$1
+  [ -f "$manifest" ] || {
+    printf ''
+    return 0
+  }
+  yq -r '.path_prefix // ""' "$manifest"
+}
+
+# apply_prefix REL -- echoes REL with CURRENT_PKG_PATH_PREFIX prepended
+# when set; otherwise echoes REL unchanged. Centralizes the one place
+# where derived target paths get prefixed.
+apply_prefix() {
+  rel=$1
+  if [ -n "${CURRENT_PKG_PATH_PREFIX:-}" ]; then
+    printf '%s/%s' "$CURRENT_PKG_PATH_PREFIX" "$rel"
+  else
+    printf '%s' "$rel"
+  fi
+}
+
 emit_mode_rules() {
   src=$1
   [ -f "$src" ] || return 0
@@ -429,6 +455,7 @@ copy_pkg_file() {
     esac
     dir_rel=$(dirname "$src_rel")
     if [ "$dir_rel" = "." ]; then target_rel=$base; else target_rel=$dir_rel/$base; fi
+    target_rel=$(apply_prefix "$target_rel")
   fi
   dest="$target/$target_rel"
   log "copy: $src_rel -> $target_rel"
@@ -496,7 +523,13 @@ apply_link_or_copy() {
 $excludes
 EOF
     fi
-    run lnko link "$@" -t "$target" "$pkg_dir"
+    if [ -n "${CURRENT_PKG_PATH_PREFIX:-}" ]; then
+      link_target="$target/$CURRENT_PKG_PATH_PREFIX"
+      run mkdir -p "$link_target"
+    else
+      link_target=$target
+    fi
+    run lnko link "$@" -t "$link_target" "$pkg_dir"
   fi
   rm -f "$link_list" "$copy_list"
   :
@@ -542,6 +575,7 @@ render_file() {
   else
     target_rel=$(dirname "$src_rel")/$(strip_marker "$(basename "$src")")
     target_rel=${target_rel#./}
+    target_rel=$(apply_prefix "$target_rel")
   fi
   dest="$target/$target_rel"
   vars_from=$(manifest_get "$manifest" "$src_rel" vars_from)
@@ -614,6 +648,7 @@ concat_file() {
     else
       concat_target=$dir_default/$base_default
     fi
+    concat_target=$(apply_prefix "$concat_target")
   fi
   dest="$target/$concat_target"
   log "concat: $src_rel -> $concat_target"
@@ -664,6 +699,7 @@ merge_file() {
     else
       merge_target=$dir_default/$base_default
     fi
+    merge_target=$(apply_prefix "$merge_target")
   fi
   dest="$target/$merge_target"
 
@@ -740,6 +776,7 @@ apply_package() {
   [ -d "$pkg_dir" ] || die "no such package: $pkg"
   manifest="$pkg_dir/tack.yml"
   CURRENT_PKG_MANIFEST=$manifest
+  CURRENT_PKG_PATH_PREFIX=$(manifest_path_prefix "$manifest")
 
   # Build a per-package tera context: merged tackrc with .pkg bound to
   # pkgs_metadata[<this pkg path>] (or {} if absent).
@@ -772,6 +809,7 @@ apply_package() {
   CURRENT_PKG_MODE=""
   CURRENT_PKG_CONSUMER_MODE=""
   CURRENT_PKG_MANIFEST=""
+  CURRENT_PKG_PATH_PREFIX=""
 }
 
 _h_render() { render_file "$1" "$2" "$3" "$4"; }
