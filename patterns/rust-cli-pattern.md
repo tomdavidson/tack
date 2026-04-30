@@ -1,94 +1,84 @@
 # Rust CLI Pattern
 
 Pattern for building user-facing and agent-facing Rust CLI tools. Follows Toms Clean Code,
-Rust Patterns, Toms Clean Architecture, and Testing patterns.
+Rust Patterns, Toms Clean Architecture, and Testing patterns (`testing.md`, `testing-rust.md`).
 
 ## Reference Upstream: starbase
 
-[starbase](https://github.com/moonrepo/starbase) is the reference upstream for this pattern. It is
-not adopted as a framework dependency, but it is the primary source for guidance on problems this
-pattern does not yet address. Before solving an unaddressed problem with a novel approach, check
-how starbase has solved the same class of problem and evaluate whether that pattern should be
-adopted here. Starbase components used directly: `miette`, `tracing`, `schematic`,
-`starbase_styles`, `starbase_console` (when output complexity warrants it).
+[starbase](https://github.com/moonrepo/starbase) is the reference upstream. It is not adopted as a
+framework dependency, but it is the primary source for guidance on problems this pattern does not
+yet address. Before solving an unaddressed problem with a novel approach, check how starbase has
+solved the same class of problem and evaluate whether that pattern should be adopted here.
+Components used directly: `miette`, `tracing`, `schematic`, `starbase_styles`, `starbase_console`
+(when output complexity warrants it), `starbase_sandbox` (in tests).
 
-The `starbase` framework layer — `App`, lifecycle phases, and `starbase_events` — is not used for
-focused single-purpose utilities. The event system and lifecycle phases are the only things starbase
-adds over the components alone. If a project never needs `app.emit(SomeEvent)` or plugin hooks
-across independently distributed crates, the plain `app.rs` bootstrap pattern is sufficient and
-adds no indirection.
-
-Revisit `starbase` as a framework dependency if a project needs an extensible plugin system where
-third-party crates register handlers — the same problem moon itself solves.
+The `starbase` framework layer — `App`, lifecycle phases, `starbase_events` — is not used for
+focused utilities. If a project never needs `app.emit(SomeEvent)` or plugin hooks across
+independently distributed crates, the plain `app.rs` bootstrap is sufficient. Revisit starbase as
+a framework when a project needs third-party crates to register handlers into the same pipeline.
 
 ## When to Use
 
 Apply this pattern when building a Rust binary that:
 - Accepts subcommands via `clap`
 - Owns a pure domain/engine crate with zero CLI dependencies
-- May need to expose its commands as MCP tools (clap → MCP direction)
-- Or is an MCP server that benefits from a human-facing CLI companion (MCP → clap direction)
+- May expose its commands as MCP tools (clap → MCP)
+- Or is an MCP server that benefits from a human CLI companion (MCP → clap)
 
-Do not apply this pattern for single-command binaries with no config, no domain logic, and no MCP
-surface. A plain `clap` `main.rs` is sufficient there.
+Do not apply for single-command binaries with no config, no domain, and no MCP surface. A plain
+`clap` `main.rs` is sufficient there.
 
 ## Workspace Structure
 
-Three crate tiers in a Cargo workspace. The engine crate is the domain. The CLI crate is the
-imperative shell. Fuzz harnesses nest inside the crate they test.
-
 ```
 engine/
-  fuzz/            fuzz harnesses against engine (cargo-fuzz workspace)
+  Cargo.toml       [package] name = "{project}-engine"   (or unpublished; see Crate Naming)
+  src/lib.rs
+  fuzz/            cargo-fuzz workspace — NOT a root workspace member
 cli/
-  fuzz/            fuzz harnesses against CLI surface, only if CLI accepts raw input
-fuzz-common/       shared arbitrary-derived types used by both harnesses and engine test suite
+  Cargo.toml       [package] name = "{project}"           (the installable binary name)
+  src/main.rs
+  src/app.rs
+  src/commands/
+  fuzz/            optional, only if CLI has a parser surface the engine lacks
+fuzz-common/       root workspace member; arbitrary-derived types shared by harnesses and engine tests
 .moon/
 Cargo.toml         workspace root
 ```
 
-Crate names are `engine` and `cli`, without a project-name prefix. The workspace `name` field
-carries project identity. `core` is excluded — it carries meaning in the crate ecosystem (no-std,
-platform primitives).
+### Crate Naming
 
-`engine/fuzz/` is a cargo-fuzz workspace (separate `Cargo.toml` with `[profile.fuzz]`). It is not
-a member of the root workspace; cargo-fuzz manages it. `fuzz-common` is a member of the root
-workspace and can be imported by both `engine/fuzz/` harnesses and `engine`'s own test suite for
-regression tests against known-bad corpus inputs. `cli/fuzz/` only exists if the CLI exposes a
-parser or input surface that the engine does not cover.
+The **directory names** are always `engine/` and `cli/` — consistent across all projects in this
+pattern.
 
-```toml
-# Cargo.toml — root workspace
-[workspace]
-resolver = "2"
-members = [
-  "engine",
-  "cli",
-  "fuzz-common",
-  # engine/fuzz and cli/fuzz are NOT listed here — cargo-fuzz manages them
-]
-```
+The **`[package] name` in each crate's `Cargo.toml` is different** because crates.io requires
+globally unique names. Three valid strategies, pick one per project:
+
+| Strategy | engine `[package] name` | cli `[package] name` | When |
+|---|---|---|---|
+| CLI-only install | not published | `{project}` | Engine is project-private; users install the CLI |
+| Library + CLI | `{project}-engine` | `{project}` | Engine has independent value as a library |
+| Both scoped | `{project}-engine` | `{project}-cli` + bin rename | Both published; binary still installs as `{project}` |
+
+The CLI crate's binary name (what users type in the shell) is controlled by
+`[[bin]] name = "{project}"` in `cli/Cargo.toml`, independent of the package name. `cargo install
+{project}` works when that matches the package name or an alias.
 
 ## Engine Crate
 
-Pure Rust library. All business logic, domain types, and rules live here. Zero CLI, zero async
-runtime (no tokio), zero IO.
+Pure Rust library. Zero CLI, zero async runtime (no tokio), zero IO.
 
 - `thiserror` for typed error enums, never `anyhow`
-- Returns typed `Result<T, E>`, not strings or exit codes
-- No `clap`, no `miette`, no `tracing` in default features
-- May use `tracing::instrument` behind a feature flag; the engine never initializes a subscriber
-- Config model types live here with `serde` derives; loading logic lives in `engine/src/config/`
-  so library consumers can load config without the CLI
+- Returns typed `Result<T, E>`
+- No `clap`, `miette`, `tracing` in default features
+- `tracing::instrument` allowed behind a feature flag; engine never initializes a subscriber
+- Config model types live here; loading lives in `engine/src/config/`
 
 ## CLI Crate
 
-The imperative shell. Three files: `main.rs`, `app.rs`, `commands/`.
+Three files: `main.rs`, `app.rs`, `commands/`.
 
 ### main.rs
-
-Owns the top-level `Cli` struct and `Commands` enum. Wires bootstrap then dispatches. No business
-logic.
 
 ```rust
 mod app;
@@ -96,9 +86,9 @@ mod commands;
 
 use clap::{Parser, Subcommand};
 
-/// {name} — one-line description
+/// {project} — one-line description
 #[derive(Parser, Debug)]
-#[command(name = "{name}", version, about)]
+#[command(name = "{project}", version, about)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -108,52 +98,53 @@ struct Cli {
 enum Commands {
     Run(commands::run::RunArgs),
     Init(commands::init::InitArgs),
-    #[command(hide = true)]
+    /// Generate shell completions: `source <({project} completions bash)`
     Completions(commands::completions::CompletionsArgs),
 }
 
-// Sync CLI (no async domain work):
-fn main() {
+// Sync CLI:
+fn main() -> miette::Result<()> {
     app::install_error_reporter();
     let cli = Cli::parse();
     match cli.command {
         Commands::Run(args) => commands::run::execute(args),
         Commands::Init(args) => commands::init::execute(&args),
-        Commands::Completions(args) => commands::completions::execute(args),
+        Commands::Completions(args) => { commands::completions::execute(args); Ok(()) }
     }
 }
 
-// Async CLI (engine has async ports):
+// Async CLI:
 #[tokio::main]
 async fn main() -> miette::Result<()> {
-    miette::set_hook(Box::new(|_| Box::new(miette::MietteHandlerOpts::new().build())))
-        .map_err(|e| miette::miette!("failed to set miette hook: {e}"))?;
+    let _ = miette::set_hook(Box::new(|_| Box::new(miette::MietteHandlerOpts::new().build())));
     app::init_tracing();
+    let cancel = app::install_signal_handler();
     let cli = Cli::parse();
     match cli.command {
-        Commands::Run(args) => commands::run::run(args).await,
+        Commands::Run(args) => commands::run::run(args, cancel).await,
         Commands::Init(args) => commands::init::run(&args),
         Commands::Completions(args) => { commands::completions::execute(args); Ok(()) }
     }
 }
 ```
 
+Return `miette::Result<()>` from `main` so stack unwinding runs. **Do not** call
+`std::process::exit()` from command bodies: if `starbase_console` is in use, buffered stdout/stderr
+is destroyed without flush because `Drop` is skipped. Use `?` to propagate, or explicitly call
+`console.close()` before any `exit()`.
+
 ### app.rs
 
-Bootstrap helpers only. No business logic.
-
 ```rust
-// Sync project (miette only):
 pub(crate) fn install_error_reporter() {
-    // miette "fancy" feature installs the graphical reporter automatically.
-    // Call set_hook here only for custom renderer overrides.
+    let _ = miette::set_hook(Box::new(|_| Box::new(miette::MietteHandlerOpts::new().build())));
 }
 
 pub(crate) fn load_config(path: Option<&std::path::Path>) -> miette::Result<engine::config::Config> {
     engine::config::load(path).map_err(|e| miette::miette!("{e}"))
 }
 
-// Async project (tracing + miette):
+// Async only — tracing + signal handling
 pub(crate) fn init_tracing() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -161,134 +152,161 @@ pub(crate) fn init_tracing() {
                 .or_else(|_| tracing_subscriber::EnvFilter::try_from_env("RUST_LOG"))
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
-        .with_writer(std::io::stderr) // REQUIRED: MCP stdio owns stdout; logs must go to stderr
+        .with_writer(std::io::stderr)  // REQUIRED: MCP stdio owns stdout
         .init();
+}
+
+pub(crate) fn install_signal_handler() -> tokio_util::sync::CancellationToken {
+    let token = tokio_util::sync::CancellationToken::new();
+    let child = token.clone();
+    tokio::spawn(async move {
+        let _ = tokio::signal::ctrl_c().await;
+        child.cancel();
+    });
+    token
 }
 ```
 
 ### commands/
 
-One file per subcommand. Exports its `Args` struct and a top-level function (`execute` for sync,
-`run` for async). `commands/mod.rs` is `pub mod` declarations only.
+One file per subcommand. Each exports `Args` and a top-level function (`execute` sync, `run`
+async).
+
+**Every `Args` field has a `///` doc comment.** `clap-mcp` lifts these into MCP tool descriptions.
+Sparse comments become bad agent UX when `--mcp` mode is active.
 
 ```rust
 // commands/run.rs
 use clap::Args;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Args, Debug)]
 pub struct RunArgs {
+    /// Path to the target directory or file to process.
     #[arg(short, long)]
     pub path: std::path::PathBuf,
+
+    /// Override the default config file location.
     #[arg(long)]
     pub config: Option<std::path::PathBuf>,
+
+    /// Preview the result without making changes.
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
-pub fn execute(args: RunArgs) {
-    let config = crate::app::load_config(args.config.as_deref()).unwrap_or_else(|e| {
-        #[allow(clippy::print_stderr)]
-        { eprintln!("{e}"); }
-        std::process::exit(2);
-    });
-    match engine::run(&args.path, &config) {
-        Ok(result) => { /* write to stdout */ }
-        Err(e) => { eprintln!("{e}"); std::process::exit(1); }
-    }
-}
-
-// async variant
-pub async fn run(args: RunArgs) -> miette::Result<()> {
+pub async fn run(args: RunArgs, cancel: CancellationToken) -> miette::Result<()> {
     let config = crate::app::load_config(args.config.as_deref())?;
-    engine::run_async(&args.path, &config)
-        .await
-        .map_err(|e| miette::miette!("{e}"))
-}
-```
-
-## Output
-
-Use [`starbase_console`](https://docs.rs/starbase_console) when the CLI has multiple output modes,
-a quiet flag, or needs buffered async-safe writes. The `Console<R>` struct wraps `out`
-(`ConsoleStream` → stdout) and `err` (`ConsoleStream` → stderr), and exposes a `Reporter` trait for
-swappable output strategies. The `Reporter` implementor is where `--output json` vs human-readable
-diverges.
-
-```rust
-use starbase_console::{Console, Reporter, ConsoleStream};
-
-#[derive(Debug)]
-pub struct AppReporter {
-    out: ConsoleStream,
-    json: bool,
-}
-
-impl Reporter for AppReporter {
-    fn inherit_streams(&mut self, _err: ConsoleStream, out: ConsoleStream) {
-        self.out = out;
-    }
-}
-
-impl AppReporter {
-    pub fn print_result(&self, result: &engine::RunResult) {
-        if self.json {
-            self.out.writeln(serde_json::to_string(result).unwrap());
-        } else {
-            self.out.writeln(format!("done: {}", result.summary()));
+    tokio::select! {
+        _ = cancel.cancelled() => Err(miette::miette!("interrupted")),
+        r = engine::run_async(&args.path, &config, args.dry_run) => {
+            r.map_err(|e| miette::miette!("{e}"))
         }
     }
 }
 ```
 
-For simple CLIs without multiple output modes, `println!` guarded by
-`#[allow(clippy::print_stdout)]` at the call site is sufficient. The decision point is: does the
-CLI need buffered output, a quiet mode, or a swappable output backend?
+Commands that mutate state accept `--dry-run` and pass it to the engine. The engine's orchestrator
+is responsible for respecting the flag.
+
+## Output
+
+### Simple CLIs
+
+`println!` and `eprintln!` with `#[allow(clippy::print_stdout)]` / `print_stderr` at the call site.
+Use when the CLI has one output format and no quiet mode.
+
+### Complex Output
+
+[`starbase_console`](https://docs.rs/starbase_console) when the CLI needs multiple output modes, a
+quiet flag, or buffered async-safe writes. `Console<R>` wraps `out` and `err` streams and exposes a
+`Reporter` trait for swappable output strategies.
+
+**When adopting `starbase_console`, handle miette interaction explicitly.** miette's default
+graphical reporter writes directly to raw stderr and ignores `Console::quiet()`. Either:
+- Handle top-level errors manually (don't return `miette::Result` from `main`) and route through
+  the console, or
+- Accept that fatal error output bypasses the console's buffer; this is fine for most tools
+
+### MCP Output Discipline
+
+When `--mcp` is active, stdout is the JSON-RPC transport. Any stray `println!` in command bodies
+corrupts the stream.
+
+Rules when MCP is a target:
+- Command functions return structured data (or `String`) to a dispatcher; the dispatcher decides
+  whether to print (CLI path) or return to `clap-mcp` (MCP path)
+- Tracing writer is `stderr` (enforced in `app::init_tracing`)
+- `#[clap_mcp(skip)]` on any command that interacts with stdout directly (e.g. `Completions`)
+- Default `reinvocation_safe = false` so each tool call re-spawns the binary as a subprocess,
+  which sidesteps the issue at the cost of spawn overhead. Only set `true` after verifying every
+  code path respects stdout discipline
+
+### Color
+
+Support `--color always|auto|never` and the `NO_COLOR` env var. Use `anstream` / `anstyle` or
+`starbase_styles`. Detect TTY with `std::io::IsTerminal`:
+
+```rust
+use std::io::IsTerminal;
+let use_color = match args.color {
+    ColorChoice::Always => true,
+    ColorChoice::Never  => false,
+    ColorChoice::Auto   => std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal(),
+};
+```
 
 ### Shell Completions
 
-Completions are shipped in the binary via `clap_complete`. A hidden `Completions` subcommand prints
-the completion script for the requested shell. Users source it in their shell profile; no separate
-install step.
+Completions ship in the binary via `clap_complete`. The `completions` subcommand is **visible** in
+`--help` so users discover it.
 
 ```rust
 // commands/completions.rs
-use clap::Args;
+use clap::{Args, CommandFactory, ValueEnum};
 use clap_complete::{Shell, generate};
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum ShellArg { Bash, Zsh, Fish, PowerShell, Elvish }
 
 #[derive(Args, Debug)]
 pub struct CompletionsArgs {
-    pub shell: Shell,
+    /// Shell to generate completions for.
+    pub shell: ShellArg,
 }
 
 pub fn execute(args: CompletionsArgs) {
-    generate(
-        args.shell,
-        &mut <crate::Cli as clap::CommandFactory>::command(),
-        env!("CARGO_PKG_NAME"),
-        &mut std::io::stdout(),
-    );
+    let shell = match args.shell {
+        ShellArg::Bash => Shell::Bash,
+        ShellArg::Zsh => Shell::Zsh,
+        ShellArg::Fish => Shell::Fish,
+        ShellArg::PowerShell => Shell::PowerShell,
+        ShellArg::Elvish => Shell::Elvish,
+    };
+    let mut cmd = crate::Cli::command();
+    generate(shell, &mut cmd, env!("CARGO_PKG_NAME"), &mut std::io::stdout());
 }
 ```
 
 ## Config
 
-Use `schematic` when the config schema needs JSON Schema export. Use `serde` + `serde_yaml` /
-`serde_json` directly when the schema is simple and not user-editable. Config model types live in
-the engine crate; loading lives in `engine/src/config/mod.rs` so library consumers can load config
-independently of the CLI.
+Use `schematic` when the config schema needs JSON Schema export (`schemars` also works). Use
+`serde` + `serde_yaml` directly when the schema is simple. Config types and loading live in
+`engine/src/config/` so library consumers can load config without the CLI.
 
 ## Error Handling and Exit Codes
 
-Engine returns typed domain errors with `thiserror`. CLI maps them to exit codes. Exit codes are
-the CLI adapter's transport concern, identical in role to HTTP status codes in a web adapter.
+Engine returns typed domain errors with `thiserror`. CLI maps to exit codes:
 
-Exit code conventions:
 - `0` success
-- `1` domain or validation failure (expected, user-fixable)
+- `1` domain or validation failure
 - `2` config or invocation error (bad args, missing file)
-- `3+` reserved for tool-specific diagnostic categories
+- `130` interrupted (SIGINT); convention — do not reuse
+- `3+` tool-specific diagnostic categories
 
-When using `miette::Result<()>` as `main`'s return type, the `?` operator propagates and miette's
-graphical reporter formats automatically. Use this for async CLIs. For sync CLIs, handle errors
-explicitly in commands via `unwrap_or_else` and `std::process::exit`.
+Returning `miette::Result<()>` from `main` gives exit `1` on `Err` by default. For tool-specific
+non-zero codes, convert the outer error to `std::process::ExitCode` in main or set a custom
+mapping.
 
 ## Async vs Sync Decision
 
@@ -296,290 +314,256 @@ explicitly in commands via `unwrap_or_else` and `std::process::exit`.
 |---|---|
 | Engine has async ports (network, container runtime, DB) | `#[tokio::main]` + async commands |
 | Engine is pure computation or local file IO only | Sync `fn main()` |
-| Any subcommand needs async | Make all commands async — mixing is awkward |
+| Any subcommand needs async | Entry + dispatch async; sync command bodies fine (just don't await) |
 | Targeting WASM or embedded | Sync |
-
-Do not add tokio to a sync project speculatively.
 
 ## Tracing and Logging
 
-Use `tracing` + `tracing-subscriber` for structured observability in async CLIs. Use `eprintln!`
-guarded by `#[allow(clippy::print_stderr)]` in sync CLIs.
+Use `tracing` + `tracing-subscriber` in async CLIs. Use `eprintln!` guarded by
+`#[allow(clippy::print_stderr)]` in sync CLIs.
 
-Rules:
 - All log/trace output goes to `stderr`. Always.
-- Control verbosity with `MYAPP_LOG` env var first, `RUST_LOG` as fallback, `info` as default.
-- Do not initialize a tracing subscriber in the engine crate.
+- Verbosity: `MYAPP_LOG` env, then `RUST_LOG` fallback, default `info`.
+- Never initialize a subscriber in the engine crate.
 
 ## Plugin / Extensibility Strategy
 
-Three strategies appear across projects in this ecosystem. Choose based on who extends the tool
-and how extensions are distributed.
+Three strategies. Choose based on who extends the tool and how extensions are distributed.
 
 ### Compiled-in Rule Set (clippy-style)
 
-Rules are Rust functions in the engine crate, called from a per-input-type orchestrator. Adding a
-rule means adding a module and calling it from the orchestrator. New rules require a binary rebuild.
+Rules are Rust functions in the engine, called from a per-input-type orchestrator. New rules
+require a binary rebuild.
 
 ```
 engine/src/rules/
-  mod.rs           orchestrator: calls each rule module, collects diagnostics
+  mod.rs           orchestrator
   workflow/
     jobs.rs        check_jobs(ast, source) -> Vec<Diagnostic>
     steps.rs
-    expressions.rs
 ```
 
-When to use: the rule set is maintained by the same team as the binary. Users cannot add rules
-without forking. Rules have full access to the parsed AST and the full Rust type system. Zero
-runtime overhead beyond Rust function calls. Each rule module is testable in isolation.
+Use when: the team maintains all rules. Full Rust type system; zero runtime overhead; per-rule
+testability.
 
 ### External Policy WASM (dprint-style)
 
-Policy logic is compiled out-of-process (from OPA Rego or another policy language) into WASM
-modules. The engine embeds the WASM bytes at compile time (`include_bytes!`) or loads them from a
-user-specified path. A `wasmtime` / `opa_wasm` runtime evaluates the module per invocation.
+Policy logic compiled to WASM out-of-process. Engine embeds bytes at compile time or loads at
+runtime. `wasmtime` / `opa_wasm` evaluates per invocation.
 
-```
-engine/src/policy/
-  engine.rs        PolicyEngine::new(wasm_bytes), evaluate(data, input, entrypoint) async
-  eligibility.rs   EligibilityEvaluator wrapping PolicyEngine
-  filter.rs        FilterEvaluator wrapping PolicyEngine
-cli/src/app.rs     include_bytes!("../../policies/eligibility.wasm")
-```
-
-When to use: users write their own policy logic in a policy language without recompiling the binary.
-The policy language and host input/output contract are the extension interface. WASM provides
-sandboxing and portability. Testing requires building the WASM artifact in the test harness or using
-pre-built test fixtures.
+Use when: users write extension logic in a policy language (Rego, CEL). WASM provides sandboxing
+and portability.
 
 ### Event-Driven Plugin System (starbase-style)
 
-Extensions implement event handler traits and register with an `App`. The `starbase_events` emitter
-dispatches typed events; handlers from independent crates all listen to the same event without
-knowing about each other.
+Extensions implement event handler traits registered with an `App`. Handlers from independent
+crates listen to the same event without knowing about each other.
 
-When to use: the tool is a platform where third-party crates need to hook into the same pipeline
-without forking the host binary. This is the moon / proto model. Do not use this for focused
-utilities — it adds `Arc<Mutex<>>` complexity and async overhead to every operation.
+Use when: the tool is a platform where third-party crates hook into the pipeline without forking
+the host binary (moon / proto model). Do not use for focused utilities.
 
 ### Plugin Strategy Decision Guide
 
 ```
 Is the extension author the same team as the binary maintainer?
 ├── Yes → Compiled-in rule set (clippy-style)
-│         Simple, testable, zero overhead, full type safety.
 └── No: Is the extension logic expressible in a policy language (Rego, CEL)?
     ├── Yes → External policy WASM (dprint-style)
-    │         Users write policies; you define the input/output contract.
     └── No: Do third-party crates need to extend behavior at runtime?
         ├── Yes → starbase_events plugin system
-        │         Only justified for platform-class tools.
         └── No → Compiled-in rule set with config-driven enable/disable flags
-                  (Most tools that ask this question land here.)
 ```
+
+### Diagnostic Severity
+
+Compiled-in rule tools emit diagnostics with severity: `error`, `warning`, `info`, `hint`. Severity
+drives exit code: any `error` → exit `1`, warnings alone → exit `0` unless `--warnings-as-errors`.
+Use `miette::Severity` or a domain enum convertible to it.
 
 ## MCP Integration
 
 ### Direction: clap → MCP (clap-mcp)
 
-When the CLI already exists and you want LLM agents to call its commands as MCP tools without
-rewriting the CLI. The CLI gains a `--mcp` flag that starts a stdio MCP server derived from the
-clap schema.
-
-```toml
-# cli/Cargo.toml
-clap-mcp = "0.x"
-```
+`clap-mcp` is new (first published 2026-03). Evaluate before committing: if a needed feature is
+missing or the crate moves slowly, the fallback is to drop to `rmcp` directly and maintain the MCP
+server alongside the CLI.
 
 ```rust
 use clap::{Parser, Subcommand};
 use clap_mcp::ClapMcp;
 
 #[derive(Parser, ClapMcp)]
-#[clap_mcp(reinvocation_safe, parallel_safe = false)]
-struct Cli {
-    #[command(subcommand)]
-    command: Option<Commands>,
-}
+#[clap_mcp(reinvocation_safe = false)]   // default: re-spawn per tool call; safest
+struct Cli { /* ... */ }
 
 #[derive(Subcommand, ClapMcp)]
 #[clap_mcp_output_from = "run"]
 enum Commands {
+    /// Lint the target for common problems.
+    #[clap_mcp(parallel_safe)]               // read-only, safe to run concurrently
     Lint(commands::lint::LintArgs),
-    #[clap_mcp(skip)]   // agents should not call init or completions
+
+    /// Scaffold a new config file.
+    #[clap_mcp(skip)]                        // agents should not call init
     Init,
+
     #[clap_mcp(skip)]
     Completions(commands::completions::CompletionsArgs),
 }
-
-fn run(cmd: Commands) -> String { /* delegate to execute fns */ }
-
-fn main() {
-    app::install_error_reporter();
-    let cli = clap_mcp::parse_or_serve_mcp_attr::<Cli>();
-    match cli.command {
-        None => Cli::print_help_and_exit(),
-        Some(cmd) => println!("{}", run(cmd)),
-    }
-}
 ```
 
-`reinvocation_safe = true` allows in-process execution. Only safe when the command has no side
-effects that conflict on concurrent calls. Always write tracing to `stderr` — stdout is reserved
-for JSON-RPC messages when `--mcp` is active.
+Set `parallel_safe` per-command based on whether it is read-only. Defaulting all commands to
+serial (the clap-mcp default) creates a concurrency bottleneck for agents that parallelize tool
+calls.
 
 Async tool support via `run_async_tool`: defer evaluation until there is a present need.
 
 ### Direction: MCP → clap (mcp-cli-builder)
 
-When the primary surface is an MCP server and you want a CLI for dev/debug convenience.
-
-```rust
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let server = mcp_cli_builder::ServerBuilder::new()
-        .with_tool_box(MyToolBox::new())
-        .build();
-    mcp_cli_builder::run(server).await
-}
-```
+Use when the primary surface is an MCP server and the CLI is a dev/debug companion. Auto-generates
+`--host`, `--port`, and timeout flags from the `ServerBuilder`. If you need project-specific flags
+(like `--config`), verify the builder supports merging before adopting; this may require dropping
+to `rmcp` directly with a hand-rolled `clap` layer.
 
 ### MCP Direction Decision
 
 | Starting point | Want | Use |
 |---|---|---|
 | Existing clap CLI | Add MCP tool surface | `clap-mcp` derive |
-| New project, CLI primary | Add MCP as opt-in mode | `clap-mcp` derive |
-| New project, MCP primary | Add CLI for dev/debug | `mcp-cli-builder` |
-| Need MCP resources, prompts, or streaming | Native MCP server | `rmcp` directly |
+| New project, CLI primary | MCP as opt-in | `clap-mcp` derive |
+| New project, MCP primary | CLI for dev/debug | `mcp-cli-builder` |
+| Need MCP resources, prompts, streaming | Native MCP server | `rmcp` directly |
+
+## Fuzz Workspace Operational Rules
+
+`engine/fuzz/` is a cargo-fuzz workspace — a separate `Cargo.toml` with `[package]`, not a root
+workspace member. This isolation is intentional (keeps `libfuzzer-sys` out of the root graph) but
+creates three operational requirements:
+
+1. **Run cargo-fuzz from `engine/`, not the workspace root.**
+   ```bash
+   cd engine && cargo +nightly fuzz run parse_harness
+   ```
+2. **Add a dedicated CI step to type-check harnesses** — `cargo check --workspace` at root ignores
+   `engine/fuzz/`, so API-drift errors go unnoticed:
+   ```yaml
+   - run: cd engine/fuzz && cargo check
+   ```
+3. **Configure rust-analyzer to index harnesses** so autocomplete and diagnostics work in your
+   editor:
+   ```json
+   {
+     "rust-analyzer.linkedProjects": ["Cargo.toml", "engine/fuzz/Cargo.toml"]
+   }
+   ```
+
+`fuzz-common` is a root workspace member (ordinary library crate). Engine domain types derive
+`Arbitrary` behind a `fuzz` feature; `fuzz-common` holds arbitrary-derived scenario types that wrap
+engine types, so harnesses and engine regression tests can share corpus generators.
 
 ## Distribution
 
-The distribution stack is: `cargo-dist` for release artifacts, `release-please` as the release
-trigger, `cargo publish` as a free secondary, and a proto plugin entry in
-[`tomdavidson/proto`](https://github.com/tomdavidson/proto) as the primary install path for
-proto/moon ecosystem users.
+Stack: `cargo-dist` for artifacts, `release-please` as the release trigger, a proto plugin in
+[`tomdavidson/proto`](https://github.com/tomdavidson/proto), `cargo publish` as a secondary.
+
+### Release Sequence
+
+1. Commits land on `main` with conventional-commit messages
+2. `release-please` opens/updates a release PR bumping `Cargo.toml` version and `CHANGELOG.md`
+3. Merging the release PR creates a git tag `v{version}`
+4. `cargo-dist` workflow triggers on the tag, builds per-target archives, uploads to GitHub
+   Releases
+5. `cargo publish` step (after cargo-dist succeeds) publishes the engine and/or cli crates
+
+`release-please-config.json` must set `release-type: "rust"` and include workspace `Cargo.toml`
+under `extra-files` so version bumps propagate.
 
 ### cargo-dist Setup
 
-Add to the root `Cargo.toml`. cargo-dist generates the GitHub Actions release workflow and produces
-per-platform archives that `release-please` triggers automatically on release PR merge.
+Start minimal. Expand targets based on user demand, not speculation.
 
 ```toml
-# Cargo.toml
 [workspace.metadata.dist]
 cargo-dist-version = "0.x"
 ci = "github"
 installers = ["shell", "powershell"]
 targets = [
   "x86_64-unknown-linux-gnu",
-  "aarch64-unknown-linux-gnu",
   "aarch64-apple-darwin",
-  "x86_64-apple-darwin",
   "x86_64-pc-windows-msvc",
 ]
+# Add x86_64-apple-darwin and aarch64-unknown-linux-gnu when users actually ask.
 ```
 
-cargo-dist produces archives named `{name}-v{version}-{target}.tar.gz` (`.zip` on Windows) and a
-`{name}-v{version}-checksums.txt`. These land in the GitHub Release as assets.
+Artifacts: `{binname}-v{version}-{target}.tar.gz` (`.zip` on Windows) and a
+`{binname}-v{version}-checksums.txt`.
 
 ### Proto Catalog Plugin
 
-Add `plugins/{name}.toml` to [`tomdavidson/proto`](https://github.com/tomdavidson/proto). The
-filename pattern matches what cargo-dist produces. See existing entries like `actionlint.toml` as
-the format reference.
+Add `plugins/{project}.toml` to [`tomdavidson/proto`](https://github.com/tomdavidson/proto). Use
+this template as a starting point; **validate per-platform `[platform.*.arch]` against proto's
+current schema** — existing catalog entries use only `[install.arch]` with short Go-style values.
+Cargo-dist produces full Rust target triples, so either use `[platform.*.arch]` nested tables (if
+supported) or hardcode per-platform `download-file` without `{arch}`:
 
 ```toml
-# plugins/{name}.toml
-name = "{name}"
+name = "{project}"
 type = "cli"
-description = "One-line description of the tool"
+description = "One-line description"
 
 [resolve]
-git-url = "https://github.com/tomdavidson/{name}"
+git-url = "https://github.com/tomdavidson/{project}"
 
+# Simpler, always-supported variant: hardcode filenames per platform,
+# accept one target per platform at first.
 [platform.linux]
-download-file = "{name}-v{version}-{arch}.tar.gz"
-checksum-file = "{name}-v{version}-checksums.txt"
+download-file = "{project}-v{version}-x86_64-unknown-linux-gnu.tar.gz"
+checksum-file = "{project}-v{version}-checksums.txt"
 
 [platform.macos]
-download-file = "{name}-v{version}-{arch}.tar.gz"
-checksum-file = "{name}-v{version}-checksums.txt"
+download-file = "{project}-v{version}-aarch64-apple-darwin.tar.gz"
+checksum-file = "{project}-v{version}-checksums.txt"
 
 [platform.windows]
-download-file = "{name}-v{version}-{arch}.zip"
-checksum-file = "{name}-v{version}-checksums.txt"
+download-file = "{project}-v{version}-x86_64-pc-windows-msvc.zip"
+checksum-file = "{project}-v{version}-checksums.txt"
 
 [install]
-download-url = "https://github.com/tomdavidson/{name}/releases/download/v{version}/{download_file}"
-checksum-url = "https://github.com/tomdavidson/{name}/releases/download/v{version}/{checksum_file}"
-
-[install.arch]
-aarch64 = "aarch64-apple-darwin"      # overridden per-platform below
-x86_64  = "x86_64-unknown-linux-gnu"  # overridden per-platform below
-
-[platform.linux.arch]
-aarch64 = "aarch64-unknown-linux-gnu"
-x86_64  = "x86_64-unknown-linux-gnu"
-
-[platform.macos.arch]
-aarch64 = "aarch64-apple-darwin"
-x86_64  = "x86_64-apple-darwin"
-
-[platform.windows.arch]
-x86_64 = "x86_64-pc-windows-msvc"
+download-url  = "https://github.com/tomdavidson/{project}/releases/download/v{version}/{download_file}"
+checksum-url  = "https://github.com/tomdavidson/{project}/releases/download/v{version}/{checksum_file}"
 ```
 
-Once the entry is merged, users install and version-pin with proto:
-
-```toml
-# .prototools in any project
-{name} = "0.1.0"
-```
-
-```bash
-proto install {name}
-```
+Once merged: `proto install {project}` and version-pin via `.prototools`.
 
 ### crates.io
 
-Publish the engine crate when it has independent library value. The CLI crate may also be
-published so `cargo install {name}` works as a secondary install path for Rust developers. Add
-`cargo publish` as a step in the release workflow after the cargo-dist artifacts are built.
+Publish the engine crate when it has library value (see Crate Naming). Publish the CLI crate so
+`cargo install {project}` works as a secondary path for Rust developers.
 
 ## Testing
 
-Testing follows the Testing and Rust Testing pattern docs. This section covers only CLI-specific
-concerns not addressed in the general testing patterns.
+Testing follows `testing.md` (layered strategy) and `testing-rust.md` (Rust-specific harness
+setup, fuzz configuration, property testing). This section covers only CLI-specific concerns.
 
 ### CLI Integration Tests
-
-The CLI crate is thin; business logic lives in the engine and is tested there. CLI integration
-tests verify the binary's external contract: exit codes, stdout/stderr content, and subcommand
-dispatch.
 
 ```toml
 # cli/Cargo.toml dev-dependencies
 assert_cmd = "2"
 predicates = "3"
+starbase_sandbox = "=0.x"   # pin exact — test-only tool; avoid Renovate range updates
 ```
 
-Minimum CLI test coverage:
-- Each subcommand exits `0` for valid input and `1`/`2` for expected failures
-- `--help` and `--version` flags exit `0` and write to stdout
-- Invalid args exit non-zero with a message to stderr
-- `completions <shell>` exits `0` and writes non-empty output to stdout
-- If `--mcp` is supported: smoke test that the flag starts without crashing
+Minimum CLI coverage:
+- Each subcommand exits `0` on valid input, `1`/`2` on expected failures
+- `--help` and `--version` exit `0` and write to stdout
+- Invalid args exit non-zero with message to stderr
+- `completions <shell>` exits `0` with non-empty stdout
+- If `--mcp` supported: smoke test that `--mcp` starts without crashing and responds to an
+  `initialize` request
+- If signal handling supported: test SIGINT produces exit `130` and any cleanup
 
-Do not test engine logic from CLI tests. If a test requires a complex engine scenario, it belongs
-in `engine/tests/`.
-
-### starbase_sandbox for CLI Tests
-
-[`starbase_sandbox`](https://docs.rs/starbase_sandbox) provides isolated temp directory fixtures
-and process execution helpers. Prefer it over rolling custom `tempdir` + `Command` wrappers when
-tests need file system setup.
+Do not test engine logic from CLI tests.
 
 ```rust
 use starbase_sandbox::create_sandbox;
@@ -598,98 +582,102 @@ fn run_on_valid_input() {
 ```toml
 [workspace]
 resolver = "2"
-members = [
-  "engine",
-  "cli",
-  "fuzz-common",
-]
+members = ["engine", "cli", "fuzz-common"]
+# engine/fuzz and cli/fuzz are NOT listed — cargo-fuzz manages them
 
 [workspace.package]
-version = "0.1.0"
-edition = "2024"
-license = "MIT"
-repository = "https://github.com/tomdavidson/{name}"
+version    = "0.1.0"
+edition    = "2024"
+license    = "MIT"
+repository = "https://github.com/tomdavidson/{project}"
 
 [workspace.dependencies]
-# CLI
-clap             = { version = "4",  features = ["derive"] }
+clap             = { version = "4",   features = ["derive"] }
 clap_complete    = "4"
-miette           = { version = "7",  features = ["fancy"] }
-# Engine
+miette           = { version = "7",   features = ["fancy"] }
 thiserror        = "2"
-serde            = { version = "1",  features = ["derive"] }
+serde            = { version = "1",   features = ["derive"] }
 serde_json       = "1"
-# Optional per project
-schematic        = { version = "0.19", features = ["yaml", "renderer_json_schema"] }
-tokio            = { version = "1",  features = ["full"] }
+# Async stack (async projects only)
+tokio            = { version = "1",   features = ["full"] }
+tokio-util       = "0.7"
 tracing          = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Optional
+schematic        = { version = "0.19", features = ["yaml", "renderer_json_schema"] }
 starbase_console = "0.x"
-clap-mcp         = "0.x"
+clap-mcp         = "0.x"   # evaluate maturity per project
 
 [workspace.metadata.dist]
 cargo-dist-version = "0.x"
-ci = "github"
-installers = ["shell", "powershell"]
-targets = [
-  "x86_64-unknown-linux-gnu",
-  "aarch64-unknown-linux-gnu",
-  "aarch64-apple-darwin",
-  "x86_64-apple-darwin",
-  "x86_64-pc-windows-msvc",
-]
+ci                 = "github"
+installers         = ["shell", "powershell"]
+targets            = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"]
 ```
 
 ## Tooling and Project Files
 
 | File | Purpose |
 |---|---|
-| `.prototools` | Pin tool versions (rust, proto itself) |
+| `.prototools` | Pin tool versions (rust, proto) |
 | `.moon/` | Task definitions: check, build, test, lint, fmt, fuzz |
 | `moon.yml` | Root moon config |
-| `dprint.json` | Formatter config (rustfmt plugin, TOML, JSON, Markdown) |
+| `dprint.json` | Formatter (rustfmt plugin, TOML, JSON, Markdown) |
 | `.rustfmt.toml` | Rustfmt overrides |
-| `.clippy.toml` | Clippy-specific config (msrv, disallowed methods) |
-| `deny.toml` | cargo-deny: license and duplicate crate checks |
-| `renovate.json` | Automated dependency updates |
-| `release-please-config.json` | Release automation |
+| `.clippy.toml` | Clippy config (msrv, disallowed methods) |
+| `deny.toml` | cargo-deny license and duplicate checks |
+| `renovate.json` | Dependency updates |
+| `release-please-config.json` | `release-type: "rust"`, workspace `Cargo.toml` under `extra-files` |
 | `.release-please-manifest.json` | Release manifest |
-| `docs/adrs/` | ADR index; decisions recorded at first significant architectural choice |
+| `.vscode/settings.json` | `rust-analyzer.linkedProjects` includes `engine/fuzz/Cargo.toml` |
+| `docs/adrs/` | ADRs for crate organization and plugin strategy |
 
 ## Anti-Patterns
 
 | Don't | Instead |
 |---|---|
-| Business logic in command handlers | Put it in the engine crate |
-| `unwrap()`/`expect()` in non-test CLI code | Use `?` or `unwrap_or_else` with `process::exit` |
-| Log to stdout | Always log to stderr |
-| `println!` in commands that may run under `--mcp` | Guard with `#[allow(clippy::print_stdout)]`; confirm stdout is not the MCP transport |
-| Tokio in a sync-only project | Don't add async speculatively |
-| Engine imports `clap`, `miette`, or `tokio` | Engine has zero CLI/async runtime deps |
-| Config loading in `main.rs` | Config loading belongs in `app.rs` or engine's config module |
-| Shared `App` state struct passed to every command | Use free functions; inject deps at call site |
-| `starbase_events` when no plugin system is needed | Plain `app.rs` bootstrap |
-| Plugin logic that could be a Rust trait impl | Only reach for WASM plugins when users write the extension code |
-| Crate names like `myapp-core` or `myapp-engine` | Use `engine` and `cli` — the workspace name carries identity |
-| Fuzz harnesses as top-level workspace members | Nest `engine/fuzz/` inside the crate under test |
+| Business logic in command handlers | Put in engine |
+| `unwrap()`/`expect()` in non-test CLI code | Use `?` |
+| `std::process::exit` when `starbase_console` is active | Return `Result` from `main`; let `Drop` flush |
+| Log to stdout | Always stderr |
+| `println!` in commands when `--mcp` may be active | Return structured data; dispatcher decides |
+| Sparse or missing doc comments on `Args` fields | Every field has a `///` — it becomes the MCP tool description |
+| Default `parallel_safe = false` on all MCP commands | Mark read-only commands `parallel_safe` |
+| Tokio in sync-only project | Don't add speculatively |
+| Engine imports `clap`, `miette`, or `tokio` | Engine has zero CLI/runtime deps |
+| Config loading in `main.rs` | In `app.rs` or engine config module |
+| Shared `App` state struct | Free functions; inject at call site |
+| `starbase_events` when no plugin system needed | Plain `app.rs` |
+| Plugin via WASM when a Rust trait impl works | Only reach for WASM when users write extensions |
+| Generic `engine` / `cli` as `[package] name` | Use `{project}-engine` / `{project}` |
+| Fuzz as root workspace member | Nest `engine/fuzz/`; manage via cargo-fuzz |
+| Hidden `completions` subcommand | Visible, so users discover it |
+| `--color` and `NO_COLOR` ignored | Support both; detect TTY via `IsTerminal` |
 
 ## Checklist
 
-- Engine crate has zero `clap`, `miette`, `tokio` dependencies
-- Engine crate returns typed `Result<T, E>` with `thiserror` errors
-- CLI crate has `main.rs`, `app.rs`, `commands/` structure
-- `app.rs` owns bootstrap: error reporter, tracing, config loading
-- One file per subcommand in `commands/`
-- Sync vs async decision made explicitly and consistently
-- All log/trace output goes to `stderr`; tracing writer explicitly set before any MCP mode
-- Exit code mapping exhaustive and co-located with command or in `exit_codes.rs`
-- Shell completions available via hidden `completions` subcommand using `clap_complete`
-- Plugin strategy matches the decision guide
-- `clap-mcp`: `reinvocation_safe` and `parallel_safe` set; `#[clap_mcp(skip)]` on init, completions
-- Fuzz harnesses live in `engine/fuzz/` (and optionally `cli/fuzz/`), not root workspace
-- `fuzz-common` is a root workspace member; `engine/fuzz` and `cli/fuzz` are not
-- CLI integration tests use `assert_cmd` or `starbase_sandbox`; engine logic tested in engine
-- `cargo-dist` configured in `[workspace.metadata.dist]`
-- Proto plugin entry added to `tomdavidson/proto` `plugins/` on first release
-- `docs/adrs/` has at minimum an entry for crate organization and plugin strategy choice
-- `.prototools`, `.moon/`, `dprint.json`, `deny.toml`, `renovate.json`, `release-please` present
+- Engine crate has zero `clap`, `miette`, `tokio` deps
+- Engine returns typed `Result<T, E>` with `thiserror`
+- Crate naming strategy chosen (publish or not); `[package] name` unique on crates.io
+- CLI crate has `main.rs`, `app.rs`, `commands/`
+- `app.rs` owns bootstrap: error reporter, tracing, config loading, signal handler
+- One file per subcommand; every `Args` field has a `///` doc comment
+- Sync vs async decision explicit; `main` returns `Result` so `Drop` flushes
+- All log/trace output to `stderr`; tracing writer set before any MCP mode
+- Exit code mapping exhaustive; SIGINT → `130`
+- Shell completions visible; `clap_complete` + `ValueEnum` wrapper
+- `--color always|auto|never` and `NO_COLOR` supported; `IsTerminal` for TTY detection
+- State-mutating commands accept `--dry-run`; engine respects it
+- Plugin strategy matches decision guide
+- `clap-mcp` maturity evaluated; `reinvocation_safe = false` unless stdout discipline verified
+- `parallel_safe` set per-command based on read-only vs mutating
+- `#[clap_mcp(skip)]` on init, completions, and any stdout-interacting commands
+- `engine/fuzz/` nested; NOT in root `members`; CI has `cd engine/fuzz && cargo check`
+- `rust-analyzer.linkedProjects` includes `engine/fuzz/Cargo.toml`
+- `fuzz-common` is a root workspace member
+- CLI tests use `assert_cmd` or `starbase_sandbox` (exact-pinned); engine logic tested in engine
+- `cargo-dist` targets start minimal (3); expand on demand
+- Proto plugin entry added to `tomdavidson/proto`; arch mapping validated against proto schema
+- `release-please-config.json` has `release-type: "rust"` and workspace `Cargo.toml` in `extra-files`
+- `docs/adrs/` entries for crate organization, plugin strategy, MCP stance
+- `.prototools`, `.moon/`, `dprint.json`, `deny.toml`, `renovate.json` present
