@@ -16,7 +16,6 @@ tera = "https://tomdavidson.github.io/proto/tera.toml"
 shellcheck = "https://tomdavidson.github.io/proto/shellcheck.toml"
 shfmt = "https://tomdavidson.github.io/proto/shfmt.toml"
 
-
 [settings]
 auto-install = true
 auto-clean = true
