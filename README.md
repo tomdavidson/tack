@@ -269,7 +269,8 @@ files:
 
 | Key                     | Type                               | Purpose                                                                                                                |
 | ----------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `link.unfold`           | list of dirs (package-relative)    | Directories `mkdir -p`'d in the target before linking. Used to break a single submodule symlink into per-file links.   |
+| `path_prefix`           | string (target-relative)           | If set, every derived target in the package is prepended with this prefix, and `lnko -t` is set to `<target>/<path_prefix>`. `files.<src>.target` overrides bypass this prefix. `link.unfold` paths are author-supplied target-relative paths and are not auto-prefixed. |
+| `link.unfold`           | list of dirs (target-relative)     | Directories `mkdir -p`'d in the target before linking. Used to break a single submodule symlink into per-file links. With `path_prefix` set, list the full target-relative paths (e.g. `.moon/partials`).   |
 | `mode`                  | ordered list of single-key entries | Each entry is `{copy: <glob-or-list>}` or `{link: <glob-or-list>}`. First match wins. See §7.                          |
 | `files.<src>.vars_from` | string                             | Override tera context for this source file. See resolution rules below.                                                |
 | `files.<src>.post`      | string                             | Post-render command; word-split on whitespace and run with the destination path appended.                              |
