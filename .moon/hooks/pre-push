@@ -64,7 +64,7 @@ if [[ "$branch" == "$trunk" ]]; then
 elif git show-ref --verify --quiet "refs/remotes/origin/$trunk"; then
   mapfile -t affected_files < <(moon query changed-files --base "origin/$trunk" --head HEAD | jq -r '.files[]')
   run_refs=(--base "origin/$trunk" --head HEAD)
-  
+
 else
   mapfile -t affected_files < <(moon query changed-files --local | jq -r '.files[]')
   run_refs=()
