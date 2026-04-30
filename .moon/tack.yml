@@ -1,3 +1,9 @@
+path_prefix: .moon
+
+files:
+  moon.yml:
+    target: ../moon.yml
+
 link:
   unfold:
     - .moon

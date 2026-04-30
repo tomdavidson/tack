@@ -12,3 +12,7 @@ overrides:
     exclude: ["**"]
   scripts:
     exclude: ["**"]
+  .moon:
+    exclude: ["**"]
+  .github:
+    exclude: ["**"]

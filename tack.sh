@@ -419,12 +419,17 @@ copy_pkg_file() {
   pkg_dir=$2
   target=$3
   src_rel=$(rel_in_pkg "$src" "$pkg_dir")
-  base=$(basename "$src_rel")
-  case "$base" in
-    *.copy.*) base=$(strip_marker "$base") ;;
-  esac
-  dir_rel=$(dirname "$src_rel")
-  if [ "$dir_rel" = "." ]; then target_rel=$base; else target_rel=$dir_rel/$base; fi
+  override=$(manifest_get "${CURRENT_PKG_MANIFEST:-}" "$src_rel" target)
+  if [ -n "$override" ]; then
+    target_rel=$override
+  else
+    base=$(basename "$src_rel")
+    case "$base" in
+      *.copy.*) base=$(strip_marker "$base") ;;
+    esac
+    dir_rel=$(dirname "$src_rel")
+    if [ "$dir_rel" = "." ]; then target_rel=$base; else target_rel=$dir_rel/$base; fi
+  fi
   dest="$target/$target_rel"
   log "copy: $src_rel -> $target_rel"
   run mkdir -p "$(dirname "$dest")"
@@ -452,7 +457,16 @@ apply_link_or_copy() {
       log "exclude: $rel"
       continue
     fi
-    mode=$(resolve_mode "$rel")
+    # A files.<src>.target override forces copy mode. Link mode can't
+    # redirect a single file to a different path within a directory
+    # link, so silently honoring the override under link would produce
+    # a wrong layout. Mode rules are bypassed in this case.
+    target_override=$(manifest_get "${CURRENT_PKG_MANIFEST:-}" "$rel" target)
+    if [ -n "$target_override" ]; then
+      mode=copy
+    else
+      mode=$(resolve_mode "$rel")
+    fi
     case "$mode" in
       copy) printf '%s\n' "$rel" >> "$copy_list" ;;
       link) printf '%s\n' "$rel" >> "$link_list" ;;
@@ -518,8 +532,17 @@ render_file() {
   manifest=$3
   target=$4
   src_rel=$(rel_in_pkg "$src" "$pkg_dir")
-  target_rel=$(dirname "$src_rel")/$(strip_marker "$(basename "$src")")
-  target_rel=${target_rel#./}
+  # files.<src>.target, when set, is consumer-target-relative and
+  # bypasses the strip_marker/dirname derivation. Same shape as the
+  # concat/merge target override; extended here so render/copy can
+  # also escape a package's path_prefix or rename freely.
+  override=$(manifest_get "$manifest" "$src_rel" target)
+  if [ -n "$override" ]; then
+    target_rel=$override
+  else
+    target_rel=$(dirname "$src_rel")/$(strip_marker "$(basename "$src")")
+    target_rel=${target_rel#./}
+  fi
   dest="$target/$target_rel"
   vars_from=$(manifest_get "$manifest" "$src_rel" vars_from)
   post=$(manifest_get "$manifest" "$src_rel" post)
@@ -595,7 +618,16 @@ concat_file() {
   dest="$target/$concat_target"
   log "concat: $src_rel -> $concat_target"
   if [ ! -f "$dest" ]; then
-    [ "$DRY_RUN" -eq 1 ] || die "concat target missing: $dest"
+    if [ "$DRY_RUN" -eq 1 ]; then
+      printf '[dry-run] create %s from %s\n' "$dest" "$src"
+      return 0
+    fi
+    # Create-on-missing: mirrors merge's empty-seed behavior so concat
+    # is also a create-or-update operation. No leading newline on create
+    # (concat_append's leading \n separates from an existing file's last
+    # line, which doesn't apply when there is no last line).
+    mkdir -p "$(dirname "$dest")"
+    cat "$src" > "$dest"
     return 0
   fi
   if [ "$DRY_RUN" -eq 1 ]; then
@@ -707,6 +739,7 @@ apply_package() {
   pkg_dir="$TACK_ROOT/$pkg"
   [ -d "$pkg_dir" ] || die "no such package: $pkg"
   manifest="$pkg_dir/tack.yml"
+  CURRENT_PKG_MANIFEST=$manifest
 
   # Build a per-package tera context: merged tackrc with .pkg bound to
   # pkgs_metadata[<this pkg path>] (or {} if absent).
@@ -738,6 +771,7 @@ apply_package() {
   CURRENT_PKG_EXCLUDES=""
   CURRENT_PKG_MODE=""
   CURRENT_PKG_CONSUMER_MODE=""
+  CURRENT_PKG_MANIFEST=""
 }
 
 _h_render() { render_file "$1" "$2" "$3" "$4"; }

@@ -1,5 +1,0 @@
-extends:
-  - "toolchains-javascript.yml"
-
-proto:
-  version: "0.55.4"

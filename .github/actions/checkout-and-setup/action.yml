@@ -3,21 +3,22 @@
 # .github/actions/setup/action.yml
 #
 # Usage:
-#   - uses: ./.github/actions/setup
+#   - uses: tomdavidson/tack/configs/.github/actions/setup@main
 #     with:
 #       cache-cargo: "true"
 #       cache-pnpm: "false"
 #
 # Usage (minimal, no project caches):
-#   - uses: ./.github/actions/setup
+#   - uses: tomdavidson/tack/configs/.github/actions/setup@main
 
-name: "Setup"
+name: "Checkout & Setup"
 description: "Checkout, setup Moon/proto (lazy install), restore caches"
 
 inputs:
   fetch-depth:
     default: "0"
-    description: "Git fetch depth (0 for full history, needed for moon ci affected detection)"
+    description: "Git fetch depth (0 for full history, needed for moon ci affected
+      detection)"
   cache-cargo:
     default: "true"
     description: "Restore Cargo registry, git, and target caches"
@@ -31,6 +32,7 @@ runs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: ${{ inputs.fetch-depth }}
+        submodules: true
 
     - uses: actions/cache@v4
       if: inputs.cache-cargo == 'true'
@@ -47,12 +49,15 @@ runs:
     - name: Install cargo-binstall
       if: inputs.cache-cargo == 'true'
       shell: bash
-      run: command -v cargo-binstall || curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/v1.18.1/install-from-binstall-release.sh | bash
+      run: command -v cargo-binstall || curl -L --proto '=https' --tlsv1.2 -sSf
+        https://raw.githubusercontent.com/cargo-bins/cargo-binstall/v1.18.1/install-from-binstall-release.sh
+        | bash
 
     - uses: actions/cache@v4
       with:
         path: .moon/cache
-        key: moon-${{ runner.os }}-${{ hashFiles('.moon/workspace.yml', '.moon/tasks/*.yml', '.moon/toolchains.yml', '.prototools') }}
+        key: moon-${{ runner.os }}-${{ hashFiles('.moon/workspace.yml',
+          '.moon/tasks/*.yml', '.moon/toolchains.yml', '.prototools') }}
         restore-keys: |
           moon-${{ runner.os }}-
 

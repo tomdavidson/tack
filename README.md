@@ -273,7 +273,7 @@ files:
 | `mode`                  | ordered list of single-key entries | Each entry is `{copy: <glob-or-list>}` or `{link: <glob-or-list>}`. First match wins. See §7.                          |
 | `files.<src>.vars_from` | string                             | Override tera context for this source file. See resolution rules below.                                                |
 | `files.<src>.post`      | string                             | Post-render command; word-split on whitespace and run with the destination path appended.                              |
-| `files.<src>.target`    | path (target-relative)             | Override target for `*.concat.*` and `*.merge.*` files. Defaults to `strip_marker(basename)` in the same relative dir. |
+| `files.<src>.target`    | path (target-relative)             | Override target for any file in the package (render, copy, concat, merge, and unmarked link/copy). Path is consumer-target-relative, bypassing any `path_prefix`. For unmarked files, setting this also forces `copy` mode (link mode can't redirect a single file inside a directory link). Defaults to `strip_marker(basename)` in the same relative dir. |
 | `files.<src>.enforced`  | list (optional, advisory)          | Recorded for tooling; not interpreted by `tack.sh` directly.                                                           |
 
 ### `vars_from` resolution shorthands
@@ -297,7 +297,7 @@ For each file in a selected package, `tack` chooses behavior in this order:
    | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
    | `*.tera.*`                     | Render via `tera`; target = `strip_marker(src)` in same relative dir                                                          |
    | `*.copy.*`                     | Copy verbatim; target = `strip_marker(src)`. Also acts as a fallback signal that resolves the file's mode to `copy`.          |
-   | `*.concat.*`                   | Append to target (default = `strip_marker(src)`; override via `tack.yml`). Two-line signature dedup makes re-runs idempotent. |
+   | `*.concat.*`                   | Append to target (default = `strip_marker(src)`; override via `tack.yml`). Missing target is created from the fragment. Two-line signature dedup makes re-runs idempotent. |
    | `*.merge.json`                 | Deep-merge into target via `yq` (default target = `strip_marker(src)`). Missing target is created.                            |
    | `*.merge.yml` / `*.merge.yaml` | Same as above for YAML.                                                                                                       |
    | `*.merge.toml`                 | **Refused.** Use `*.concat.toml` (see ADR-0002 / ADR-0004).                                                                   |
@@ -313,8 +313,10 @@ For each file in a selected package, `tack` chooses behavior in this order:
 
 **Idempotency:** linking and merging are safe to re-run. Concat is
 deduplicated by a two-line signature so re-running won't double-append the
-same fragment. Merge with a missing destination synthesizes an empty seed
-(`{}` for JSON/YAML) and is therefore a create-or-update operation.
+same fragment. Both concat and merge are create-or-update: a missing
+destination is created (concat writes the fragment as the initial content;
+merge synthesizes an empty `{}` seed in the right format and merges into
+it).
 
 **Per-render tera context:** tack computes the context as the merged tackrc
 with `.pkg = pkgs_metadata[<this pkg path>] // {}` bound for the duration

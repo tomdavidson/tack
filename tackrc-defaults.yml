@@ -13,6 +13,8 @@ moon:
 pkgs:
   - configs/*
   - scripts
+  - .github
+  - .moon
 
 overrides:
   configs/rust:

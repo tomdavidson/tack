@@ -1,1 +1,9 @@
-../configs/moon/.moon/toolchains-javascript.yml
+# https://moonrepo.dev/docs/config/toolchain
+$schema: "https://moonrepo.dev/schemas/toolchain.json"
+
+javascript:
+  packageManager: "pnpm"
+
+node: {}
+
+pnpm: {}

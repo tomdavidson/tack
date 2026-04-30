@@ -1,1 +1,119 @@
-../../configs/moon/.moon/tasks/typescript.yml
+# .moon/tasks/typescript.yml
+#
+# Inherited by all projects with toolchain: "typescript".
+#
+# ┌──────────────┬──────────────────────────────────────────────────┐
+# │ Use case     │ Command                                          │
+# ├──────────────┼──────────────────────────────────────────────────┤
+# │ Lint check   │ moon run ~:lint                                  │
+# │ Lint fix     │ moon run ~:lint-fix                              │
+# │ Typecheck    │ moon run ~:check-types                           │
+# │ Test         │ moon run ~:test                                  │
+# │ All checks   │ moon run ~:check                                 │
+# │ CI           │ moon run :check                                  │
+# │ Pre-push     │ moon run ~:lint-fix --affected                   │
+# │ One file     │ moon run ~:lint-es -- src/taxonomy.ts            │
+# │ Dev loop     │ bun .moon/scripts/watch-file.ts src/foo.ts -w    │
+# └──────────────┴──────────────────────────────────────────────────┘
+
+inheritedBy:
+  toolchains: "typescript"
+
+fileGroups:
+  sources:
+    - "src/**/*"
+    - "types/**/*"
+  tests:
+    - "src/**/*.spec.ts"
+    - "src/**/*.test.ts"
+    - "tests/**/*"
+  configs:
+    - "tsconfig.json"
+    - "tsconfig.*.json"
+
+tasks:
+  lint-es:
+    command: "eslint"
+    args:
+      - "-c"
+      - "$workspaceRoot/eslint.config.mjs"
+    toolchains: ["javascript", "node"]
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "/eslint.config.mjs"
+
+  lint-ox:
+    command: "oxlint"
+    args:
+      - "--config"
+      - "$workspaceRoot/oxlintrc.json"
+    toolchains: ["javascript", "node"]
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "/oxlintrc.json"
+
+  lint:
+    command: "noop"
+    deps:
+      - "~:lint-es"
+      - "~:lint-ox"
+
+  lint-es-fix:
+    extends: "lint-es"
+    args: ["--fix"]
+    options:
+      runInCI: false
+
+  lint-ox-fix:
+    extends: "lint-ox"
+    args: ["--fix"]
+    options:
+      runInCI: false
+
+  lint-fix:
+    command: "noop"
+    deps:
+      - "~:lint-es-fix"
+      - "~:lint-ox-fix"
+    options:
+      runInCI: false
+
+  check-types:
+    command: "tsc"
+    args:
+      - "--noEmit"
+    toolchains: ["javascript", "node"]
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+      - "/tsconfig.*.json"
+
+  test:
+    command: "vitest"
+    args:
+      - "run"
+    toolchains: ["javascript", "node"]
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+
+  check:
+    command: "noop"
+    deps:
+      - "~:check-types"
+      - "~:lint"
+      - "~:test"
+
+  wf:
+    command: "bun"
+    args:
+      - "$workspaceRoot/.moon/scripts/watch-file.ts"
+    toolchains: ["javascript", "node"]
+    options:
+      persistent: true
+      runInCI: false
+      cache: false
+      outputStyle: "stream"

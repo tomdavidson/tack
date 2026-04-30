@@ -1,1 +1,18 @@
-../configs/moon/.moon/toolchains-rust.yml
+# https://moonrepo.dev/docs/config/toolchain
+$schema: "https://moonrepo.dev/schemas/toolchain.json"
+
+rust:
+  version: "^1.94.0"
+  components:
+    - "rustfmt"
+    - "clippy"
+    - "llvm-tools"
+  targets:
+    - "wasm32-unknown-unknown"
+    - "wasm32-wasip1"
+  bins:
+    - "cargo-nextest"
+    - "cargo-component"
+    - "wasm-pack"
+    - "cargo-audit"
+    - "cargo-deny"
