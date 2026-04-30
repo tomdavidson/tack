@@ -79,6 +79,7 @@ jobs:
     name: Release Please
     needs: [ci, audit, codeql]
     runs-on: ubuntu-latest
+    if: ${{ hashFiles('.release-please-manifest.json', 'release-please-config.json') != '' }}
     permissions:
       contents: write
       pull-requests: write
