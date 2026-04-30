@@ -71,19 +71,14 @@ else
 fi
 
 # ---- fmt + lint-fix ----
-if ! moon run :fmt :lint-fix --affected "${run_refs[@]}"; then
-  echo "fmt/lint-fix failed. Aborting git push."
-  exit 1
-fi
+moon run :fmt :lint-fix --affected "${run_refs[@]}" || { echo "fmt/lint-fix failed. Aborting git push."; exit 1; }
 
 # ---- Stage just the affected files ----
-if ((${#affected_files[@]} > 0)); then
-  existing=()
-  for f in "${affected_files[@]}"; do [[ -e "$f" ]] && existing+=("$f"); done
-  ((${#existing[@]} > 0)) && printf '%s\0' "${existing[@]}" | xargs -0 -r git add --
-fi
+((${#affected_files[@]})) && git add --ignore-errors -- "${affected_files[@]}"
 
 git diff --cached --quiet || git commit -m "chore: auto-format and lint-fix before push"
+
+
 
 .moon/scripts/auto-squash.sh check || { echo "Auto-squash failed. Aborting git push."; exit 1; }
 
