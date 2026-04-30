@@ -19,6 +19,8 @@ tasks:
     script: "dprint fmt"
     inputs:
       - "/**/*"
+      - '/**/.*'
+      - '/**/.*/**/*'
       - "!**/*.tera*"
     options:
       runInCI: false
@@ -29,6 +31,8 @@ tasks:
     script: "dprint check"
     inputs:
       - "/**/*"
+      - '/**/.*'
+      - '/**/.*/**/*'
       - "!**/*.tera*"
     options:
       runFromWorkspaceRoot: true
