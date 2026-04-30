@@ -7,6 +7,7 @@ yq = "4.53.2"
 moon = "2.2.3"
 tera = "0.5.0"
 shellcheck = "0.11.0"
+shfmt = "3.13.1"
 
 [plugins]
 lnko = "https://tomdavidson.github.io/proto/lnko.toml"
