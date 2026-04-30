@@ -14,6 +14,8 @@ dprint = "https://tomdavidson.github.io/proto/dprint.toml"
 yq = "github://muuvmuuv/proto-plugins/yq_tool"
 tera = "https://tomdavidson.github.io/proto/tera.toml"
 shellcheck = "https://tomdavidson.github.io/proto/shellcheck.toml"
+shfmt = "https://tomdavidson.github.io/proto/shfmt.toml"
+
 
 [settings]
 auto-install = true
