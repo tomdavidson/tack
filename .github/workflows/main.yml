@@ -79,12 +79,25 @@ jobs:
     name: Release Please
     needs: [ci, audit, codeql]
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('.release-please-manifest.json', 'release-please-config.json') != '' }}
     permissions:
       contents: write
       pull-requests: write
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: actions/checkout@v4
+
+      - id: check
+        name: Check release-please files
+        shell: bash
+        run: |
+          release_enabled=false
+          if [[ -f .release-please-manifest.json && -f release-please-config.json ]]; then
+            release_enabled=true
+          fi
+          echo "release_enabled=$release_enabled" >> "$GITHUB_OUTPUT"
+
+      - name: Run release-please
+        if: ${{ steps.check.outputs.release_enabled == 'true' }}
+        uses: googleapis/release-please-action@v4
         with:
           manifest-file: .release-please-manifest.json
           config-file: release-please-config.json
