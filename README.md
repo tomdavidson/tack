@@ -59,7 +59,7 @@ From the **consumer** repo root:
 
 ```bash
 # 1. Add the tack repo as a submodule. Pin to a stable path.
-git submodule add https://github.com/tomdavidson/tack vendor/tack
+git submodule add https://github.com/tomdavidson/tack .tack
 
 # 2. Initialize and fetch.
 git submodule update --init --recursive
