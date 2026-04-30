@@ -48,7 +48,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - name: Run Moon Audit Tasks (OSV, Cargo, Gitleaks)
-        run: moon run :audit
+        run:  |
+          has_audit=$(moon query tasks --id '^audit$' | jq 'any(.tasks[]; length > 0)')
+
+          if [[ "$has_audit" == "true" ]]; then
+            moon run :audit
+          else
+            echo "No :audit tasks defined. Skipping."
+          fi
 
   codeql:
     name: CodeQL
