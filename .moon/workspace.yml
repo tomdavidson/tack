@@ -4,7 +4,7 @@ extends:
 projects:
   globs:
     - "packages/*"
-    - "configs/*"
+    # - "configs/*"
     - "."
   sources:
     root: "."

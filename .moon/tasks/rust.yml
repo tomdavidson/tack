@@ -1,5 +1,9 @@
 $schema: "https://moonrepo.dev/schemas/tasks.json"
 
+inheritedBy:
+  toolchains: "rust"
+  order: 10
+
 fileGroups:
   cargo:
     - "Cargo.toml"

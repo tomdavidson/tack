@@ -178,19 +178,48 @@ pkg_excludes() {
   yq -r ".overrides[\"$pkg\"].exclude[]?" "$MERGED_TACKRC" 2> /dev/null || true
 }
 
+# manifest_ignores MANIFEST -- newline-separated shell-glob patterns from
+# the package's tack.yml `ignore:` list. Same shell-glob semantics as
+# overrides.<pkg>.exclude in tackrc.yml, but declared by the package itself
+# so every consumer inherits them automatically. Patterns are evaluated
+# relative to the package directory and unioned with consumer excludes.
+# Package ignores express the package's own contract; they apply even
+# when the package is CLI-selected (consumer excludes do not).
+manifest_ignores() {
+  manifest=$1
+  [ -f "$manifest" ] || return 0
+  yq -r '.ignore[]?' "$manifest" 2> /dev/null || true
+}
+
 # glob_match PATTERN STRING -- exit 0 if STRING matches PATTERN as a shell
 # glob. Centralizes the one place where we deliberately let `case` expand an
 # unquoted variable as a glob: tack mode/exclude rules are trusted
 # YAML-sourced patterns, not arbitrary input. Keeping a single suppression
 # site here removes SC2254 from the three callers.
+#
+# Matching policy:
+#   - PATTERN containing '/' is matched against the full STRING (relative
+#     path), so 'src/debug/*.sh' targets that exact subtree.
+#   - PATTERN with no '/' is matched against STRING and, if that fails,
+#     against basename(STRING). This is the gitignore-style expectation
+#     that '*.local.sh' should match a file with that name anywhere in
+#     the package tree, since bash's `*` does not cross '/'.
 glob_match() {
   pat=$1
   s=$2
   # shellcheck disable=SC2254
   case "$s" in
     $pat) return 0 ;;
-    *) return 1 ;;
   esac
+  case "$pat" in
+    */*) return 1 ;;
+  esac
+  base=${s##*/}
+  # shellcheck disable=SC2254
+  case "$base" in
+    $pat) return 0 ;;
+  esac
+  return 1
 }
 
 # path_excluded REL_PATH PATTERNS -- exit 0 if REL_PATH matches any
@@ -535,27 +564,33 @@ apply_link_or_copy() {
   fi
 
   if [ -s "$link_list" ]; then
-    log "link: $pkg_dir -> $target"
-    set -- --ignore '*.tera.*' --ignore '*.concat.*' --ignore '*.merge.*' --ignore 'tack.yml'
-    while IFS= read -r rel; do
-      [ -n "$rel" ] || continue
-      set -- "$@" --ignore "$rel"
-    done < "$copy_list"
-    if [ -n "$excludes" ]; then
-      while IFS= read -r pat; do
-        [ -n "$pat" ] || continue
-        set -- "$@" --ignore "$pat"
-      done << EOF
-$excludes
-EOF
-    fi
     if [ -n "${CURRENT_PKG_PATH_PREFIX:-}" ]; then
       link_target="$target/$CURRENT_PKG_PATH_PREFIX"
       run mkdir -p "$link_target"
     else
       link_target=$target
     fi
-    run lnko link "$@" -t "$link_target" "$pkg_dir"
+    if [ -n "$excludes" ]; then
+      # lnko --ignore matches basenames only; passing full relative paths
+      # or globs there does not exclude nested files. When excludes are
+      # active, fall back to per-file ln -sfn so exclusion (already done
+      # by path_excluded into link_list) is honored.
+      log "link (per-file): $pkg_dir -> $link_target"
+      while IFS= read -r rel; do
+        [ -n "$rel" ] || continue
+        dest="$link_target/$rel"
+        run mkdir -p "$(dirname "$dest")"
+        run ln -sfn "$pkg_dir/$rel" "$dest"
+      done < "$link_list"
+    else
+      log "link: $pkg_dir -> $link_target"
+      set -- --ignore '*.tera.*' --ignore '*.concat.*' --ignore '*.merge.*' --ignore 'tack.yml'
+      while IFS= read -r rel; do
+        [ -n "$rel" ] || continue
+        set -- "$@" --ignore "$rel"
+      done < "$copy_list"
+      run lnko link "$@" -t "$link_target" "$pkg_dir"
+    fi
   fi
   rm -f "$link_list" "$copy_list"
   :
@@ -827,15 +862,20 @@ apply_package() {
   # pkgs_metadata[<this pkg path>] (or {} if absent).
   CURRENT_PKG_CTX=$(pkg_metadata_ctx "$pkg")
 
-  # Per-package file-level exclude patterns from overrides.<pkg>.exclude.
+  # Per-package file-level exclude patterns. Two sources are unioned:
+  #   1. tack.yml `ignore:` (package-declared; always applies, including
+  #      under CLI selection, because it is the package's own contract).
+  #   2. tackrc.yml `overrides.<pkg>.exclude` (consumer-declared; bypassed
+  #      under CLI selection per documented precedence).
   # Shell-glob semantics, evaluated against package-relative paths.
   # Whole-package opt-out (exclude: ["**"]) is handled earlier in
   # resolve_pkgs and never reaches apply_package via the pkgs path.
-  # CLI-supplied packages bypass overrides entirely (documented precedence).
+  pkg_ignores=$(manifest_ignores "$manifest")
   if [ "${CLI_SELECTION:-0}" -eq 1 ]; then
-    CURRENT_PKG_EXCLUDES=""
+    CURRENT_PKG_EXCLUDES=$pkg_ignores
   else
-    CURRENT_PKG_EXCLUDES=$(pkg_excludes "$pkg")
+    consumer_excl=$(pkg_excludes "$pkg")
+    CURRENT_PKG_EXCLUDES=$(printf '%s\n%s\n' "$pkg_ignores" "$consumer_excl" | awk 'NF && !seen[$0]++')
   fi
 
   CURRENT_PKG_MODE=$(manifest_mode_rules "$manifest" || true)

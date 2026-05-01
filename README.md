@@ -249,12 +249,51 @@ files:
 | Key                     | Type                               | Purpose                                                                                                                                                                                                                                                                                                                                                     |
 | ----------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `link.unfold`           | list of dirs (package-relative)    | Directories `mkdir -p`'d in the target before linking. Used to break a single submodule symlink into per-file links.                                                                                                                                                                                                                                        |
+| `ignore`                | list of shell-glob strings         | Package-declared file filters (bash `case`-glob; `*` crosses `/`). Matching files are skipped during apply for every consumer. Unioned with `overrides.<pkg>.exclude`. Applies even under CLI selection (it is the package's own contract). See §6.1.                                                                                                       |
 | `mode`                  | ordered list of single-key entries | Each entry is `{copy: <glob-or-list>}` or `{link: <glob-or-list>}`. First match wins. See §7.                                                                                                                                                                                                                                                               |
 | `files.<src>.vars_from` | string                             | Override tera context for this source file. See resolution rules below.                                                                                                                                                                                                                                                                                     |
 | `files.<src>.post`      | string                             | Post-render command; word-split on whitespace and run with the destination path appended.                                                                                                                                                                                                                                                                   |
 | `files.<src>.target`    | path (target-relative)             | Override target for any file in the package (render, copy, concat, merge, and unmarked link/copy). Path is consumer-target-relative, bypassing any `path_prefix`. For unmarked files, setting this also forces `copy` mode (link mode can't redirect a single file inside a directory link). Defaults to `strip_marker(basename)` in the same relative dir. |
 | `files.<src>.overwrite` | boolean (default `true`)           | When `false`, skip the file if its target already exists. Applies to every mode: render, copy, concat, merge, and unmarked link/copy. For unmarked files in link mode, `overwrite: false` forces copy mode (lnko operates per-package, not per-file). First run still creates the target; subsequent runs leave consumer edits alone.                       |
 | `files.<src>.enforced`  | list (optional, advisory)          | Recorded for tooling; not interpreted by `tack.sh` directly.                                                                                                                                                                                                                                                                                                |
+
+### 6.1 Package-level `ignore`
+
+Use `ignore` for files that live in the package directory but should never
+be tacked into a consumer (local-only helpers, drafts, examples, fixtures).
+It is the package's own contract: every consumer inherits it without
+repeating themselves in `overrides.<pkg>.exclude`.
+
+```yaml
+path_prefix: .moon
+
+ignore:
+  - "scripts/debug.sh"
+  - "*.local.*"
+  - "templates/example/*"
+
+files:
+  moon.yml:
+    target: ../moon.yml
+```
+
+Semantics:
+
+- Same shell-glob syntax as `overrides.<pkg>.exclude` in `tackrc.yml`.
+  Patterns are matched with bash `case` against the package-relative
+  path, so `*` already crosses `/` (e.g. `*.local.*` matches
+  `src/debug/a.local.sh`). `**` has no special meaning in this
+  context; treat it as equivalent to `*`. Use `?` for one character
+  and `[...]` for a class.
+- Unioned with consumer `overrides.<pkg>.exclude`. Both apply.
+- Always honored, including when the package is CLI-selected.
+  Consumer-side `exclude` is bypassed under CLI selection (existing
+  behavior); package-declared `ignore` is not.
+- Applies uniformly to every dispatch path: render, copy, concat, merge,
+  and unmarked link/copy.
+- `ignore: ["**"]` (or `["*"]`) short-circuits the entire package and
+  is consistent with the consumer-side whole-package opt-out, but rarely
+  useful at the package level (just don't ship the package).
 
 ### `vars_from` resolution shorthands
 

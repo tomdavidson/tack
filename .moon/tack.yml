@@ -1,5 +1,9 @@
 path_prefix: .moon
 
+ignore:
+  toolchains.yml
+  workspace.yml
+
 files:
   moon.yml:
     target: ../moon.yml
