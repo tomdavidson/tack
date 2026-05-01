@@ -7,6 +7,25 @@ It is intentionally infrequently used: you set up a consumer repo once, run
 `tackrc.yml` change. This README is verbose on purpose so the next person (you,
 in six months) can re-derive how it works without reading `tack.sh`.
 
+## Why a submodule, not a generator
+
+Generator-style tools (Yeoman, cookiecutter, `create-*` CLIs, repo templates)
+optimize for a one-shot scaffold: they emit files, then disconnect. The
+upstream contribution loop dies at that point — fixes made in a consumer repo
+cannot flow back, drift accumulates, and every consumer eventually owns a
+slightly different fork of the same baseline.
+
+`tack` is built around the opposite priority: **keep the upstream connection
+alive**. Distributing the kit as a vendored git submodule means a consumer can
+(a) pin to a specific tack commit for reproducibility, (b) edit `vendor/tack`
+in place to fix or improve a config, and (c) push that change back upstream as
+a normal PR from inside the consumer repo. Re-running `tack.sh` in the
+consumer is then just `git submodule update` plus a re-apply, with the same
+deterministic dispatch rules. Other distribution shapes considered (npm/cargo
+package, curl-piped installer, generator template, OCI artifact) all break
+that round-trip in some way, so the submodule is load-bearing, not
+incidental.
+
 ## 1. Mental model
 
 ```
