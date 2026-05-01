@@ -50,3 +50,8 @@ tasks:
     command: "noop"
     deps:
       - "~:lint-sh"
+
+  test:
+    command: bats --jobs ${MOON_THREADS:-$(nproc)} tests/
+    options:
+      runFromWorkspaceRoot: true

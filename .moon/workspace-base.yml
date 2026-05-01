@@ -22,7 +22,10 @@ vcs:
     #   - "moon run :fmt --affected --status=staged -- --incremental=false
     #     --allow-no-files"
     #   - "git diff --cached --name-only --diff-filter=ACMR | xargs git add -f"
-    # git diff --quiet && git diff --cached --quiet || { #   echo "Dirty working tree. Commit all changes before pushing."; #   exit 1; # };
+    # git diff --quiet && git diff --cached --quiet || (
+    #   echo "Dirty working tree. Commit all changes before pushing."
+    #   exit 1
+    # )
     pre-push:
       - |
 

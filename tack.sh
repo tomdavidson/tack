@@ -376,6 +376,22 @@ manifest_path_prefix() {
   yq -r '.path_prefix // ""' "$manifest"
 }
 
+# manifest_no_overwrite MANIFEST SRC_REL -- exit 0 if files.<src>.overwrite
+# is false in MANIFEST. Used by every per-file dispatch path to short-circuit
+# when target already exists, so the consumer's edits aren't overwritten
+# on subsequent runs. First run still creates the target.
+manifest_no_overwrite() {
+  manifest=$1
+  src_rel=$2
+  [ -f "$manifest" ] || return 1
+  # WARNING: do NOT use `// true` here. jq's alternative operator triggers
+  # when the LHS is null OR false, so `false // true` evaluates to `true`,
+  # masking the very value we're trying to detect. Read the raw value and
+  # match the literal string. Missing keys yield "null", which falls through.
+  v=$(yq -r ".files[\"$src_rel\"].overwrite" "$manifest")
+  [ "$v" = "false" ]
+}
+
 # apply_prefix REL -- echoes REL with CURRENT_PKG_PATH_PREFIX prepended
 # when set; otherwise echoes REL unchanged. Centralizes the one place
 # where derived target paths get prefixed.
@@ -458,6 +474,10 @@ copy_pkg_file() {
     target_rel=$(apply_prefix "$target_rel")
   fi
   dest="$target/$target_rel"
+  if [ -e "$dest" ] && manifest_no_overwrite "${CURRENT_PKG_MANIFEST:-}" "$src_rel"; then
+    log "skip (overwrite: false): $target_rel"
+    return 0
+  fi
   log "copy: $src_rel -> $target_rel"
   run mkdir -p "$(dirname "$dest")"
   run cp "$src" "$dest"
@@ -489,7 +509,13 @@ apply_link_or_copy() {
     # link, so silently honoring the override under link would produce
     # a wrong layout. Mode rules are bypassed in this case.
     target_override=$(manifest_get "${CURRENT_PKG_MANIFEST:-}" "$rel" target)
+    # overwrite: false also forces copy mode for unmarked files. lnko
+    # operates per-package, not per-file, so there's no way to honor a
+    # "don't replace if exists" rule under link mode. Coercing to copy
+    # lets copy_pkg_file enforce the skip-on-exists check uniformly.
     if [ -n "$target_override" ]; then
+      mode=copy
+    elif manifest_no_overwrite "${CURRENT_PKG_MANIFEST:-}" "$rel"; then
       mode=copy
     else
       mode=$(resolve_mode "$rel")
@@ -578,6 +604,10 @@ render_file() {
     target_rel=$(apply_prefix "$target_rel")
   fi
   dest="$target/$target_rel"
+  if [ -e "$dest" ] && manifest_no_overwrite "$manifest" "$src_rel"; then
+    log "skip (overwrite: false): $target_rel"
+    return 0
+  fi
   vars_from=$(manifest_get "$manifest" "$src_rel" vars_from)
   post=$(manifest_get "$manifest" "$src_rel" post)
   log "render: $src_rel -> $target_rel"
@@ -588,7 +618,14 @@ render_file() {
     ctx="$CURRENT_PKG_CTX"
   fi
   [ -f "$ctx" ] || [ "$DRY_RUN" -eq 1 ] || die "vars_from not found: $ctx (from $src_rel)"
-  run tera --template "$src" --include-path "$(dirname "$src")" "$ctx" --out "$dest"
+  # Do NOT pass --include-path. tera-cli parses every file in that
+  # directory as a candidate template, so a non-template sibling
+  # containing tera-shaped syntax ({#, {%, {{) crashes the render.
+  # Without --include-path tera only parses the single --template
+  # file. Templates that need {% include %} or {% extends %} are not
+  # currently supported; if needed later, add an opt-in tack.yml flag
+  # that enables --include plus a sandboxed include dir.
+  run tera --template "$src" "$ctx" --out "$dest"
   if [ -n "$post" ]; then
     # `post` is a package-author command line from tack.yml
     # (e.g. "prettier --write", "shfmt -w"). Word splitting is
@@ -651,6 +688,10 @@ concat_file() {
     concat_target=$(apply_prefix "$concat_target")
   fi
   dest="$target/$concat_target"
+  if [ -f "$dest" ] && manifest_no_overwrite "$manifest" "$src_rel"; then
+    log "skip (overwrite: false): $concat_target"
+    return 0
+  fi
   log "concat: $src_rel -> $concat_target"
   if [ ! -f "$dest" ]; then
     if [ "$DRY_RUN" -eq 1 ]; then
@@ -703,6 +744,10 @@ merge_file() {
   fi
   dest="$target/$merge_target"
 
+  if [ -f "$dest" ] && manifest_no_overwrite "$manifest" "$src_rel"; then
+    log "skip (overwrite: false): $merge_target"
+    return 0
+  fi
   log "merge: $src_rel -> $merge_target"
 
   if [ "$DRY_RUN" -eq 1 ]; then
