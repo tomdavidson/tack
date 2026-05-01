@@ -188,6 +188,21 @@ pkg_excludes() {
 manifest_ignores() {
   manifest=$1
   [ -f "$manifest" ] || return 0
+  # Validate shape: ignore must be a sequence (or absent/null). A scalar
+  # like the common YAML mistake
+  #   ignore:
+  #     a.yml
+  #     b.yml
+  # parses as the single string "a.yml b.yml" and would silently match
+  # nothing. Fail loudly so the author fixes the YAML instead of
+  # wondering why excludes did not apply.
+  tag=$(yq -r '.ignore | tag' "$manifest" 2> /dev/null || printf '!!null')
+  case "$tag" in
+    '!!seq' | '!!null') ;;
+    *)
+      die "$manifest: ignore must be a YAML list (sequence) of glob strings, got $tag"
+      ;;
+  esac
   yq -r '.ignore[]?' "$manifest" 2> /dev/null || true
 }
 
@@ -210,6 +225,19 @@ glob_match() {
   # shellcheck disable=SC2254
   case "$s" in
     $pat) return 0 ;;
+  esac
+  # Gitignore-style **/ semantics: '**/' means zero or more directories.
+  # Bash globstar requires at least one component, so sub/**/*.yml does
+  # not match sub/b.yml. Retry with **/ stripped (once, anywhere it
+  # appears) to cover the zero-directory case.
+  case "$pat" in
+    *'**/'*)
+      alt=${pat//\*\*\//}
+      # shellcheck disable=SC2254
+      case "$s" in
+        $alt) return 0 ;;
+      esac
+      ;;
   esac
   case "$pat" in
     */*) return 1 ;;
@@ -570,27 +598,21 @@ apply_link_or_copy() {
     else
       link_target=$target
     fi
-    if [ -n "$excludes" ]; then
-      # lnko --ignore matches basenames only; passing full relative paths
-      # or globs there does not exclude nested files. When excludes are
-      # active, fall back to per-file ln -sfn so exclusion (already done
-      # by path_excluded into link_list) is honored.
-      log "link (per-file): $pkg_dir -> $link_target"
-      while IFS= read -r rel; do
-        [ -n "$rel" ] || continue
-        dest="$link_target/$rel"
-        run mkdir -p "$(dirname "$dest")"
-        run ln -sfn "$pkg_dir/$rel" "$dest"
-      done < "$link_list"
-    else
-      log "link: $pkg_dir -> $link_target"
-      set -- --ignore '*.tera.*' --ignore '*.concat.*' --ignore '*.merge.*' --ignore 'tack.yml'
-      while IFS= read -r rel; do
-        [ -n "$rel" ] || continue
-        set -- "$@" --ignore "$rel"
-      done < "$copy_list"
-      run lnko link "$@" -t "$link_target" "$pkg_dir"
-    fi
+    # Per-file ln -sfn for every link. The lnko-driven directory link
+    # branch was retired because lnko refuses to relink an existing
+    # symlink it created on a prior run ('symlink to different package'),
+    # which broke idempotent re-apply. ln -sfn is naturally idempotent:
+    # it replaces an existing symlink with the same or new target.
+    # link_list is already filtered by the walker (tack.yml, *.tera.*,
+    # *.concat.*, *.merge.* and excludes are excluded upstream), so we
+    # don't re-filter here.
+    log "link: $pkg_dir -> $link_target"
+    while IFS= read -r rel; do
+      [ -n "$rel" ] || continue
+      dest="$link_target/$rel"
+      run mkdir -p "$(dirname "$dest")"
+      run ln -sfn "$pkg_dir/$rel" "$dest"
+    done < "$link_list"
   fi
   rm -f "$link_list" "$copy_list"
   :

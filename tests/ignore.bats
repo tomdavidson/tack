@@ -169,3 +169,80 @@ EOF
   [ ! -e "$CONSUMER/a.json" ]
   [ -f "$CONSUMER/b.json" ]
 }
+
+# ----- ignore source vs rendered output -----
+
+@test "ignore: ignoring source name does not block tera rendering to that name" {
+  printf 'literal: true\n' > "$ALT_ROOT/configs/demo/workspace.yml"
+  printf 'rendered: {{ vars.who | default(value=\"world\") }}\n' > "$ALT_ROOT/configs/demo/workspace.tera.yml"
+  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+ignore:
+  - workspace.yml
+EOF
+  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+pkgs: ["configs/demo"]
+vars:
+  who: tack
+EOF
+  run_tack_pkgs
+  [ "$status" -eq 0 ]
+  [ -f "$CONSUMER/workspace.yml" ]
+  run cat "$CONSUMER/workspace.yml"
+  [[ "$output" == *"rendered: tack"* ]]
+  [[ "$output" != *"literal: true"* ]]
+}
+
+@test "ignore: malformed scalar (block-folded) is rejected with a clear error" {
+  printf 't\n' > "$ALT_ROOT/configs/demo/toolchains.yml"
+  printf 'w\n' > "$ALT_ROOT/configs/demo/workspace.yml"
+  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+ignore:
+  toolchains.yml
+  workspace.yml
+EOF
+  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+pkgs: ["configs/demo"]
+EOF
+  run_tack_pkgs
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"ignore"* ]]
+  [[ "$output" == *"list"* || "$output" == *"sequence"* ]]
+}
+
+# ----- conflict resolution: re-apply same package -----
+
+@test "link: re-applying a package is idempotent (lnko branch)" {
+  mkdir -p "$ALT_ROOT/configs/demo/templates/astro-plugin"
+  printf 'pkg\n' > "$ALT_ROOT/configs/demo/templates/astro-plugin/package.json"
+  : > "$ALT_ROOT/configs/demo/tack.yml"
+  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+pkgs: ["configs/demo"]
+EOF
+  run_tack_pkgs
+  [ "$status" -eq 0 ]
+  [ -e "$CONSUMER/templates/astro-plugin/package.json" ]
+  run_tack_pkgs
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"are the same file"* ]]
+  [[ "$output" != *"aborted:"* ]]
+}
+
+@test "link: re-applying is idempotent under per-file branch (active ignore)" {
+  mkdir -p "$ALT_ROOT/configs/demo/templates/astro-plugin"
+  printf 'pkg\n' > "$ALT_ROOT/configs/demo/templates/astro-plugin/package.json"
+  printf 'x\n' > "$ALT_ROOT/configs/demo/skip.txt"
+  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+ignore:
+  - skip.txt
+EOF
+  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+pkgs: ["configs/demo"]
+EOF
+  run_tack_pkgs
+  [ "$status" -eq 0 ]
+  run_tack_pkgs
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"are the same file"* ]]
+  [[ "$output" != *"aborted:"* ]]
+  [ ! -e "$CONSUMER/skip.txt" ]
+}
