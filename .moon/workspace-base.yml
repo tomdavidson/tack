@@ -22,7 +22,10 @@ vcs:
     #   - "moon run :fmt --affected --status=staged -- --incremental=false
     #     --allow-no-files"
     #   - "git diff --cached --name-only --diff-filter=ACMR | xargs git add -f"
-    # git diff --quiet && git diff --cached --quiet || { #   echo "Dirty working tree. Commit all changes before pushing."; #   exit 1; # };
+    # git diff --quiet && git diff --cached --quiet || (
+    #   echo "Dirty working tree. Commit all changes before pushing."
+    #   exit 1
+    # )
     pre-push:
       - |
 
@@ -91,7 +94,13 @@ vcs:
           moon run :fmt :lint-fix --affected "${run_refs[@]}" || { echo "fmt/lint-fix failed. Aborting git push."; exit 1; }
 
           # ---- Stage just the affected files ----
-          ((${#affected_files[@]})) && git add --ignore-errors -- "${affected_files[@]}"
+          # Keep only files that currently exist on disk
+          existing=()
+          for f in "${affected_files[@]}"; do
+            [[ -e "$f" ]] && existing+=("$f")
+          done
+
+          ((${#existing[@]})) && git add -- "${existing[@]}"
 
           git diff --cached --quiet || git commit -m "chore: auto-format and lint-fix before push"
 

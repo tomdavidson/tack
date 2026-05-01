@@ -20,6 +20,7 @@ a framework when a project needs third-party crates to register handlers into th
 ## When to Use
 
 Apply this pattern when building a Rust binary that:
+
 - Accepts subcommands via `clap`
 - Owns a pure domain/engine crate with zero CLI dependencies
 - May expose its commands as MCP tools (clap → MCP)
@@ -54,11 +55,11 @@ pattern.
 The **`[package] name` in each crate's `Cargo.toml` is different** because crates.io requires
 globally unique names. Three valid strategies, pick one per project:
 
-| Strategy | engine `[package] name` | cli `[package] name` | When |
-|---|---|---|---|
-| CLI-only install | not published | `{project}` | Engine is project-private; users install the CLI |
-| Library + CLI | `{project}-engine` | `{project}` | Engine has independent value as a library |
-| Both scoped | `{project}-engine` | `{project}-cli` + bin rename | Both published; binary still installs as `{project}` |
+| Strategy         | engine `[package] name` | cli `[package] name`         | When                                                 |
+| ---------------- | ----------------------- | ---------------------------- | ---------------------------------------------------- |
+| CLI-only install | not published           | `{project}`                  | Engine is project-private; users install the CLI     |
+| Library + CLI    | `{project}-engine`      | `{project}`                  | Engine has independent value as a library            |
+| Both scoped      | `{project}-engine`      | `{project}-cli` + bin rename | Both published; binary still installs as `{project}` |
 
 The CLI crate's binary name (what users type in the shell) is controlled by
 `[[bin]] name = "{project}"` in `cli/Cargo.toml`, independent of the package name. `cargo install
@@ -109,21 +110,29 @@ fn main() -> miette::Result<()> {
     match cli.command {
         Commands::Run(args) => commands::run::execute(args),
         Commands::Init(args) => commands::init::execute(&args),
-        Commands::Completions(args) => { commands::completions::execute(args); Ok(()) }
+        Commands::Completions(args) => {
+            commands::completions::execute(args);
+            Ok(())
+        }
     }
 }
 
 // Async CLI:
 #[tokio::main]
 async fn main() -> miette::Result<()> {
-    let _ = miette::set_hook(Box::new(|_| Box::new(miette::MietteHandlerOpts::new().build())));
+    let _ = miette::set_hook(Box::new(|_| {
+        Box::new(miette::MietteHandlerOpts::new().build())
+    }));
     app::init_tracing();
     let cancel = app::install_signal_handler();
     let cli = Cli::parse();
     match cli.command {
         Commands::Run(args) => commands::run::run(args, cancel).await,
         Commands::Init(args) => commands::init::run(&args),
-        Commands::Completions(args) => { commands::completions::execute(args); Ok(()) }
+        Commands::Completions(args) => {
+            commands::completions::execute(args);
+            Ok(())
+        }
     }
 }
 ```
@@ -137,10 +146,14 @@ is destroyed without flush because `Drop` is skipped. Use `?` to propagate, or e
 
 ```rust
 pub(crate) fn install_error_reporter() {
-    let _ = miette::set_hook(Box::new(|_| Box::new(miette::MietteHandlerOpts::new().build())));
+    let _ = miette::set_hook(Box::new(|_| {
+        Box::new(miette::MietteHandlerOpts::new().build())
+    }));
 }
 
-pub(crate) fn load_config(path: Option<&std::path::Path>) -> miette::Result<engine::config::Config> {
+pub(crate) fn load_config(
+    path: Option<&std::path::Path>,
+) -> miette::Result<engine::config::Config> {
     engine::config::load(path).map_err(|e| miette::miette!("{e}"))
 }
 
@@ -152,7 +165,7 @@ pub(crate) fn init_tracing() {
                 .or_else(|_| tracing_subscriber::EnvFilter::try_from_env("RUST_LOG"))
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
-        .with_writer(std::io::stderr)  // REQUIRED: MCP stdio owns stdout
+        .with_writer(std::io::stderr) // REQUIRED: MCP stdio owns stdout
         .init();
 }
 
@@ -224,6 +237,7 @@ quiet flag, or buffered async-safe writes. `Console<R>` wraps `out` and `err` st
 
 **When adopting `starbase_console`, handle miette interaction explicitly.** miette's default
 graphical reporter writes directly to raw stderr and ignores `Console::quiet()`. Either:
+
 - Handle top-level errors manually (don't return `miette::Result` from `main`) and route through
   the console, or
 - Accept that fatal error output bypasses the console's buffer; this is fine for most tools
@@ -234,6 +248,7 @@ When `--mcp` is active, stdout is the JSON-RPC transport. Any stray `println!` i
 corrupts the stream.
 
 Rules when MCP is a target:
+
 - Command functions return structured data (or `String`) to a dispatcher; the dispatcher decides
   whether to print (CLI path) or return to `clap-mcp` (MCP path)
 - Tracing writer is `stderr` (enforced in `app::init_tracing`)
@@ -267,7 +282,13 @@ use clap::{Args, CommandFactory, ValueEnum};
 use clap_complete::{Shell, generate};
 
 #[derive(ValueEnum, Clone, Debug)]
-pub enum ShellArg { Bash, Zsh, Fish, PowerShell, Elvish }
+pub enum ShellArg {
+    Bash,
+    Zsh,
+    Fish,
+    PowerShell,
+    Elvish,
+}
 
 #[derive(Args, Debug)]
 pub struct CompletionsArgs {
@@ -284,7 +305,12 @@ pub fn execute(args: CompletionsArgs) {
         ShellArg::Elvish => Shell::Elvish,
     };
     let mut cmd = crate::Cli::command();
-    generate(shell, &mut cmd, env!("CARGO_PKG_NAME"), &mut std::io::stdout());
+    generate(
+        shell,
+        &mut cmd,
+        env!("CARGO_PKG_NAME"),
+        &mut std::io::stdout(),
+    );
 }
 ```
 
@@ -310,12 +336,12 @@ mapping.
 
 ## Async vs Sync Decision
 
-| Signal | Choose |
-|---|---|
-| Engine has async ports (network, container runtime, DB) | `#[tokio::main]` + async commands |
-| Engine is pure computation or local file IO only | Sync `fn main()` |
-| Any subcommand needs async | Entry + dispatch async; sync command bodies fine (just don't await) |
-| Targeting WASM or embedded | Sync |
+| Signal                                                  | Choose                                                              |
+| ------------------------------------------------------- | ------------------------------------------------------------------- |
+| Engine has async ports (network, container runtime, DB) | `#[tokio::main]` + async commands                                   |
+| Engine is pure computation or local file IO only        | Sync `fn main()`                                                    |
+| Any subcommand needs async                              | Entry + dispatch async; sync command bodies fine (just don't await) |
+| Targeting WASM or embedded                              | Sync                                                                |
 
 ## Tracing and Logging
 
@@ -393,18 +419,18 @@ use clap::{Parser, Subcommand};
 use clap_mcp::ClapMcp;
 
 #[derive(Parser, ClapMcp)]
-#[clap_mcp(reinvocation_safe = false)]   // default: re-spawn per tool call; safest
-struct Cli { /* ... */ }
+#[clap_mcp(reinvocation_safe = false)] // default: re-spawn per tool call; safest
+struct Cli {/* ... */}
 
 #[derive(Subcommand, ClapMcp)]
 #[clap_mcp_output_from = "run"]
 enum Commands {
     /// Lint the target for common problems.
-    #[clap_mcp(parallel_safe)]               // read-only, safe to run concurrently
+    #[clap_mcp(parallel_safe)] // read-only, safe to run concurrently
     Lint(commands::lint::LintArgs),
 
     /// Scaffold a new config file.
-    #[clap_mcp(skip)]                        // agents should not call init
+    #[clap_mcp(skip)] // agents should not call init
     Init,
 
     #[clap_mcp(skip)]
@@ -427,12 +453,12 @@ to `rmcp` directly with a hand-rolled `clap` layer.
 
 ### MCP Direction Decision
 
-| Starting point | Want | Use |
-|---|---|---|
-| Existing clap CLI | Add MCP tool surface | `clap-mcp` derive |
-| New project, CLI primary | MCP as opt-in | `clap-mcp` derive |
-| New project, MCP primary | CLI for dev/debug | `mcp-cli-builder` |
-| Need MCP resources, prompts, streaming | Native MCP server | `rmcp` directly |
+| Starting point                         | Want                 | Use               |
+| -------------------------------------- | -------------------- | ----------------- |
+| Existing clap CLI                      | Add MCP tool surface | `clap-mcp` derive |
+| New project, CLI primary               | MCP as opt-in        | `clap-mcp` derive |
+| New project, MCP primary               | CLI for dev/debug    | `mcp-cli-builder` |
+| Need MCP resources, prompts, streaming | Native MCP server    | `rmcp` directly   |
 
 ## Fuzz Workspace Operational Rules
 
@@ -529,8 +555,8 @@ download-file = "{project}-v{version}-x86_64-pc-windows-msvc.zip"
 checksum-file = "{project}-v{version}-checksums.txt"
 
 [install]
-download-url  = "https://github.com/tomdavidson/{project}/releases/download/v{version}/{download_file}"
-checksum-url  = "https://github.com/tomdavidson/{project}/releases/download/v{version}/{checksum_file}"
+download-url = "https://github.com/tomdavidson/{project}/releases/download/v{version}/{download_file}"
+checksum-url = "https://github.com/tomdavidson/{project}/releases/download/v{version}/{checksum_file}"
 ```
 
 Once merged: `proto install {project}` and version-pin via `.prototools`.
@@ -551,10 +577,11 @@ setup, fuzz configuration, property testing). This section covers only CLI-speci
 # cli/Cargo.toml dev-dependencies
 assert_cmd = "2"
 predicates = "3"
-starbase_sandbox = "=0.x"   # pin exact — test-only tool; avoid Renovate range updates
+starbase_sandbox = "=0.x" # pin exact — test-only tool; avoid Renovate range updates
 ```
 
 Minimum CLI coverage:
+
 - Each subcommand exits `0` on valid input, `1`/`2` on expected failures
 - `--help` and `--version` exit `0` and write to stdout
 - Invalid args exit non-zero with message to stderr
@@ -571,9 +598,12 @@ use starbase_sandbox::create_sandbox;
 #[test]
 fn run_on_valid_input() {
     let sandbox = create_sandbox("fixtures/valid");
-    sandbox.run_bin("myapp", |cmd| {
-        cmd.arg("run").arg("--path").arg(".");
-    }).assert().success();
+    sandbox
+        .run_bin("myapp", |cmd| {
+            cmd.arg("run").arg("--path").arg(".");
+        })
+        .assert()
+        .success();
 }
 ```
 
@@ -586,73 +616,73 @@ members = ["engine", "cli", "fuzz-common"]
 # engine/fuzz and cli/fuzz are NOT listed — cargo-fuzz manages them
 
 [workspace.package]
-version    = "0.1.0"
-edition    = "2024"
-license    = "MIT"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
 repository = "https://github.com/tomdavidson/{project}"
 
 [workspace.dependencies]
-clap             = { version = "4",   features = ["derive"] }
-clap_complete    = "4"
-miette           = { version = "7",   features = ["fancy"] }
-thiserror        = "2"
-serde            = { version = "1",   features = ["derive"] }
-serde_json       = "1"
+clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
+miette = { version = "7", features = ["fancy"] }
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 # Async stack (async projects only)
-tokio            = { version = "1",   features = ["full"] }
-tokio-util       = "0.7"
-tracing          = "0.1"
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Optional
-schematic        = { version = "0.19", features = ["yaml", "renderer_json_schema"] }
+schematic = { version = "0.19", features = ["yaml", "renderer_json_schema"] }
 starbase_console = "0.x"
-clap-mcp         = "0.x"   # evaluate maturity per project
+clap-mcp = "0.x" # evaluate maturity per project
 
 [workspace.metadata.dist]
 cargo-dist-version = "0.x"
-ci                 = "github"
-installers         = ["shell", "powershell"]
-targets            = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"]
+ci = "github"
+installers = ["shell", "powershell"]
+targets = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"]
 ```
 
 ## Tooling and Project Files
 
-| File | Purpose |
-|---|---|
-| `.prototools` | Pin tool versions (rust, proto) |
-| `.moon/` | Task definitions: check, build, test, lint, fmt, fuzz |
-| `moon.yml` | Root moon config |
-| `dprint.json` | Formatter (rustfmt plugin, TOML, JSON, Markdown) |
-| `.rustfmt.toml` | Rustfmt overrides |
-| `.clippy.toml` | Clippy config (msrv, disallowed methods) |
-| `deny.toml` | cargo-deny license and duplicate checks |
-| `renovate.json` | Dependency updates |
-| `release-please-config.json` | `release-type: "rust"`, workspace `Cargo.toml` under `extra-files` |
-| `.release-please-manifest.json` | Release manifest |
-| `.vscode/settings.json` | `rust-analyzer.linkedProjects` includes `engine/fuzz/Cargo.toml` |
-| `docs/adrs/` | ADRs for crate organization and plugin strategy |
+| File                            | Purpose                                                            |
+| ------------------------------- | ------------------------------------------------------------------ |
+| `.prototools`                   | Pin tool versions (rust, proto)                                    |
+| `.moon/`                        | Task definitions: check, build, test, lint, fmt, fuzz              |
+| `moon.yml`                      | Root moon config                                                   |
+| `dprint.json`                   | Formatter (rustfmt plugin, TOML, JSON, Markdown)                   |
+| `.rustfmt.toml`                 | Rustfmt overrides                                                  |
+| `.clippy.toml`                  | Clippy config (msrv, disallowed methods)                           |
+| `deny.toml`                     | cargo-deny license and duplicate checks                            |
+| `renovate.json`                 | Dependency updates                                                 |
+| `release-please-config.json`    | `release-type: "rust"`, workspace `Cargo.toml` under `extra-files` |
+| `.release-please-manifest.json` | Release manifest                                                   |
+| `.vscode/settings.json`         | `rust-analyzer.linkedProjects` includes `engine/fuzz/Cargo.toml`   |
+| `docs/adrs/`                    | ADRs for crate organization and plugin strategy                    |
 
 ## Anti-Patterns
 
-| Don't | Instead |
-|---|---|
-| Business logic in command handlers | Put in engine |
-| `unwrap()`/`expect()` in non-test CLI code | Use `?` |
-| `std::process::exit` when `starbase_console` is active | Return `Result` from `main`; let `Drop` flush |
-| Log to stdout | Always stderr |
-| `println!` in commands when `--mcp` may be active | Return structured data; dispatcher decides |
-| Sparse or missing doc comments on `Args` fields | Every field has a `///` — it becomes the MCP tool description |
-| Default `parallel_safe = false` on all MCP commands | Mark read-only commands `parallel_safe` |
-| Tokio in sync-only project | Don't add speculatively |
-| Engine imports `clap`, `miette`, or `tokio` | Engine has zero CLI/runtime deps |
-| Config loading in `main.rs` | In `app.rs` or engine config module |
-| Shared `App` state struct | Free functions; inject at call site |
-| `starbase_events` when no plugin system needed | Plain `app.rs` |
-| Plugin via WASM when a Rust trait impl works | Only reach for WASM when users write extensions |
-| Generic `engine` / `cli` as `[package] name` | Use `{project}-engine` / `{project}` |
-| Fuzz as root workspace member | Nest `engine/fuzz/`; manage via cargo-fuzz |
-| Hidden `completions` subcommand | Visible, so users discover it |
-| `--color` and `NO_COLOR` ignored | Support both; detect TTY via `IsTerminal` |
+| Don't                                                  | Instead                                                       |
+| ------------------------------------------------------ | ------------------------------------------------------------- |
+| Business logic in command handlers                     | Put in engine                                                 |
+| `unwrap()`/`expect()` in non-test CLI code             | Use `?`                                                       |
+| `std::process::exit` when `starbase_console` is active | Return `Result` from `main`; let `Drop` flush                 |
+| Log to stdout                                          | Always stderr                                                 |
+| `println!` in commands when `--mcp` may be active      | Return structured data; dispatcher decides                    |
+| Sparse or missing doc comments on `Args` fields        | Every field has a `///` — it becomes the MCP tool description |
+| Default `parallel_safe = false` on all MCP commands    | Mark read-only commands `parallel_safe`                       |
+| Tokio in sync-only project                             | Don't add speculatively                                       |
+| Engine imports `clap`, `miette`, or `tokio`            | Engine has zero CLI/runtime deps                              |
+| Config loading in `main.rs`                            | In `app.rs` or engine config module                           |
+| Shared `App` state struct                              | Free functions; inject at call site                           |
+| `starbase_events` when no plugin system needed         | Plain `app.rs`                                                |
+| Plugin via WASM when a Rust trait impl works           | Only reach for WASM when users write extensions               |
+| Generic `engine` / `cli` as `[package] name`           | Use `{project}-engine` / `{project}`                          |
+| Fuzz as root workspace member                          | Nest `engine/fuzz/`; manage via cargo-fuzz                    |
+| Hidden `completions` subcommand                        | Visible, so users discover it                                 |
+| `--color` and `NO_COLOR` ignored                       | Support both; detect TTY via `IsTerminal`                     |
 
 ## Checklist
 

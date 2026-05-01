@@ -1,0 +1,10 @@
+extends:
+  - "./workspace-base.yml"
+
+projects:
+  globs:
+    - "packages/*"
+    # - "configs/*"
+    - "."
+  sources:
+    root: "."

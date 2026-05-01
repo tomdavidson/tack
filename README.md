@@ -1,32 +1,11 @@
 # tack
 
-`tack` is dotfiles for your git repo: a small shell tool that materializes a curated
-kit of tooling, configs, and scripts into any project that vendors it while keeping
-the upstream connection via git submodule.
+`tack` is dotfiles for your git repo: a small shell tool that materializes a curated kit of tooling, configs, and scripts into any project that vendors it.
 
 It is intentionally infrequently used: you set up a consumer repo once, run
 `tack` to materialize the configuration, and only re-run it when packages or
 `tackrc.yml` change. This README is verbose on purpose so the next person (you,
 in six months) can re-derive how it works without reading `tack.sh`.
-
-## Why a submodule, not a generator
-
-Generator-style tools (Yeoman, cookiecutter, `create-*` CLIs, repo templates)
-optimize for a one-shot scaffold: they emit files, then disconnect. The
-upstream contribution loop dies at that point — fixes made in a consumer repo
-cannot flow back, drift accumulates, and every consumer eventually owns a
-slightly different fork of the same baseline.
-
-`tack` is built around the opposite priority: **keep the upstream connection
-alive**. Distributing the kit as a vendored git submodule means a consumer can
-(a) pin to a specific tack commit for reproducibility, (b) edit `vendor/tack`
-in place to fix or improve a config, and (c) push that change back upstream as
-a normal PR from inside the consumer repo. Re-running `tack.sh` in the
-consumer is then just `git submodule update` plus a re-apply, with the same
-deterministic dispatch rules. Other distribution shapes considered (npm/cargo
-package, curl-piped installer, generator template, OCI artifact) all break
-that round-trip in some way, so the submodule is load-bearing, not
-incidental.
 
 ## 1. Mental model
 
@@ -59,7 +38,7 @@ From the **consumer** repo root:
 
 ```bash
 # 1. Add the tack repo as a submodule. Pin to a stable path.
-git submodule add https://github.com/tomdavidson/tack .tack
+git submodule add https://github.com/tomdavidson/tack vendor/tack
 
 # 2. Initialize and fetch.
 git submodule update --init --recursive
@@ -267,15 +246,54 @@ files:
 
 ### `tack.yml` schema
 
-| Key                     | Type                               | Purpose                                                                                                                |
-| ----------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `path_prefix`           | string (target-relative)           | If set, every derived target in the package is prepended with this prefix, and `lnko -t` is set to `<target>/<path_prefix>`. `files.<src>.target` overrides bypass this prefix. `link.unfold` paths are author-supplied target-relative paths and are not auto-prefixed. |
-| `link.unfold`           | list of dirs (target-relative)     | Directories `mkdir -p`'d in the target before linking. Used to break a single submodule symlink into per-file links. With `path_prefix` set, list the full target-relative paths (e.g. `.moon/partials`).   |
-| `mode`                  | ordered list of single-key entries | Each entry is `{copy: <glob-or-list>}` or `{link: <glob-or-list>}`. First match wins. See §7.                          |
-| `files.<src>.vars_from` | string                             | Override tera context for this source file. See resolution rules below.                                                |
-| `files.<src>.post`      | string                             | Post-render command; word-split on whitespace and run with the destination path appended.                              |
+| Key                     | Type                               | Purpose                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `link.unfold`           | list of dirs (package-relative)    | Directories `mkdir -p`'d in the target before linking. Used to break a single submodule symlink into per-file links.                                                                                                                                                                                                                                        |
+| `ignore`                | list of shell-glob strings         | Package-declared file filters (bash `case`-glob; `*` crosses `/`). Matching files are skipped during apply for every consumer. Unioned with `overrides.<pkg>.exclude`. Applies even under CLI selection (it is the package's own contract). See §6.1.                                                                                                       |
+| `mode`                  | ordered list of single-key entries | Each entry is `{copy: <glob-or-list>}` or `{link: <glob-or-list>}`. First match wins. See §7.                                                                                                                                                                                                                                                               |
+| `files.<src>.vars_from` | string                             | Override tera context for this source file. See resolution rules below.                                                                                                                                                                                                                                                                                     |
+| `files.<src>.post`      | string                             | Post-render command; word-split on whitespace and run with the destination path appended.                                                                                                                                                                                                                                                                   |
 | `files.<src>.target`    | path (target-relative)             | Override target for any file in the package (render, copy, concat, merge, and unmarked link/copy). Path is consumer-target-relative, bypassing any `path_prefix`. For unmarked files, setting this also forces `copy` mode (link mode can't redirect a single file inside a directory link). Defaults to `strip_marker(basename)` in the same relative dir. |
-| `files.<src>.enforced`  | list (optional, advisory)          | Recorded for tooling; not interpreted by `tack.sh` directly.                                                           |
+| `files.<src>.overwrite` | boolean (default `true`)           | When `false`, skip the file if its target already exists. Applies to every mode: render, copy, concat, merge, and unmarked link/copy. For unmarked files in link mode, `overwrite: false` forces copy mode (lnko operates per-package, not per-file). First run still creates the target; subsequent runs leave consumer edits alone.                       |
+| `files.<src>.enforced`  | list (optional, advisory)          | Recorded for tooling; not interpreted by `tack.sh` directly.                                                                                                                                                                                                                                                                                                |
+
+### 6.1 Package-level `ignore`
+
+Use `ignore` for files that live in the package directory but should never
+be tacked into a consumer (local-only helpers, drafts, examples, fixtures).
+It is the package's own contract: every consumer inherits it without
+repeating themselves in `overrides.<pkg>.exclude`.
+
+```yaml
+path_prefix: .moon
+
+ignore:
+  - "scripts/debug.sh"
+  - "*.local.*"
+  - "templates/example/*"
+
+files:
+  moon.yml:
+    target: ../moon.yml
+```
+
+Semantics:
+
+- Same shell-glob syntax as `overrides.<pkg>.exclude` in `tackrc.yml`.
+  Patterns are matched with bash `case` against the package-relative
+  path, so `*` already crosses `/` (e.g. `*.local.*` matches
+  `src/debug/a.local.sh`). `**` has no special meaning in this
+  context; treat it as equivalent to `*`. Use `?` for one character
+  and `[...]` for a class.
+- Unioned with consumer `overrides.<pkg>.exclude`. Both apply.
+- Always honored, including when the package is CLI-selected.
+  Consumer-side `exclude` is bypassed under CLI selection (existing
+  behavior); package-declared `ignore` is not.
+- Applies uniformly to every dispatch path: render, copy, concat, merge,
+  and unmarked link/copy.
+- `ignore: ["**"]` (or `["*"]`) short-circuits the entire package and
+  is consistent with the consumer-side whole-package opt-out, but rarely
+  useful at the package level (just don't ship the package).
 
 ### `vars_from` resolution shorthands
 
@@ -298,7 +316,7 @@ For each file in a selected package, `tack` chooses behavior in this order:
    | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
    | `*.tera.*`                     | Render via `tera`; target = `strip_marker(src)` in same relative dir                                                          |
    | `*.copy.*`                     | Copy verbatim; target = `strip_marker(src)`. Also acts as a fallback signal that resolves the file's mode to `copy`.          |
-   | `*.concat.*`                   | Append to target (default = `strip_marker(src)`; override via `tack.yml`). Missing target is created from the fragment. Two-line signature dedup makes re-runs idempotent. |
+   | `*.concat.*`                   | Append to target (default = `strip_marker(src)`; override via `tack.yml`). Two-line signature dedup makes re-runs idempotent. |
    | `*.merge.json`                 | Deep-merge into target via `yq` (default target = `strip_marker(src)`). Missing target is created.                            |
    | `*.merge.yml` / `*.merge.yaml` | Same as above for YAML.                                                                                                       |
    | `*.merge.toml`                 | **Refused.** Use `*.concat.toml` (see ADR-0002 / ADR-0004).                                                                   |
@@ -314,10 +332,8 @@ For each file in a selected package, `tack` chooses behavior in this order:
 
 **Idempotency:** linking and merging are safe to re-run. Concat is
 deduplicated by a two-line signature so re-running won't double-append the
-same fragment. Both concat and merge are create-or-update: a missing
-destination is created (concat writes the fragment as the initial content;
-merge synthesizes an empty `{}` seed in the right format and merges into
-it).
+same fragment. Merge with a missing destination synthesizes an empty seed
+(`{}` for JSON/YAML) and is therefore a create-or-update operation.
 
 **Per-render tera context:** tack computes the context as the merged tackrc
 with `.pkg = pkgs_metadata[<this pkg path>] // {}` bound for the duration
