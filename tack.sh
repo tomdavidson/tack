@@ -609,9 +609,16 @@ apply_link_or_copy() {
     log "link: $pkg_dir -> $link_target"
     while IFS= read -r rel; do
       [ -n "$rel" ] || continue
+      src="$pkg_dir/$rel"
       dest="$link_target/$rel"
+      # If dest already resolves to src (e.g., a parent directory was
+      # symlinked into the package by a prior run), skip silently. ln
+      # would otherwise abort with 'are the same file'.
+      if [ -e "$dest" ] && [ "$src" -ef "$dest" ]; then
+        continue
+      fi
       run mkdir -p "$(dirname "$dest")"
-      run ln -sfn "$pkg_dir/$rel" "$dest"
+      run ln -sfn "$src" "$dest"
     done < "$link_list"
   fi
   rm -f "$link_list" "$copy_list"
