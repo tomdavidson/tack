@@ -16,3 +16,19 @@ pkgs:
   - scripts
   - .github
   - .moon
+
+# devcontainer vars: consumed by configs/devcontainer.
+# image and digest must be set by the consumer; they have no default because
+# the digest is only known after the tack-dev image is published.
+# devcontainer:
+#   image: ghcr.io/tomdavidson/tack-dev
+#   digest: sha256:<digest-from-image-ci-job-summary>
+#   user: dev
+#   ports: []
+
+# devenv vars: consumed by configs/devenv.
+# nixpkgs_ref should match the ref used in images/tack-dev/Containerfile.
+devenv:
+  nixpkgs_ref: nixos-25.05
+  packages: []
+  env: {}

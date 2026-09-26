@@ -1,0 +1,9 @@
+# devenv.yaml
+# Controls devenv inputs and configuration.
+# See: https://devenv.sh/reference/yaml-options/
+
+allowUnfree: false
+
+inputs:
+  nixpkgs:
+    url: github:NixOS/nixpkgs/{{ vars.devenv.nixpkgs_ref | default(value='nixos-25.05') }}
