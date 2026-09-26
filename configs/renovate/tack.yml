@@ -1,0 +1,8 @@
+# configs/renovate/tack.yml
+#
+# .github/** must be copied, not linked. Renovate reads renovate.json5 directly
+# from the repo filesystem; a symlink into the .tack submodule would require
+# Renovate to follow symlinks, which it does not do reliably.
+mode:
+  - copy: ".github/**"
+  - link: "**"

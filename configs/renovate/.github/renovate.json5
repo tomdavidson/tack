@@ -1,0 +1,35 @@
+// .github/renovate.json5
+//
+// Materialized into consumer repos by tack (configs/renovate package).
+//
+// Tracks ONE thing: the .tack git submodule.
+// When tack tags a new release, Renovate opens a single submodule-bump PR
+// here. All the internal tack dependency noise (proto tools, GHA actions,
+// cargo-binstall) stays inside the tack repo and never reaches consumers.
+//
+// Requires the Renovate GitHub App: https://github.com/apps/renovate
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended"],
+
+  // Ignore everything except the explicit rules below.
+  // Prevents Renovate from scanning consumer deps (npm, Cargo, etc.)
+  // when those are managed by other means.
+  enabledManagers: ["git-submodules"],
+
+  labels: ["renovate", "tack"],
+  prCreation: "immediate",
+
+  packageRules: [
+    {
+      // The .tack submodule bump PR: automerge is off by default so the
+      // consumer can review tack's changelog before merging.
+      // Set automerge: true here if you trust tack releases unconditionally.
+      matchManagers: ["git-submodules"],
+      matchPackageNames: ["tomdavidson/tack"],
+      groupName: "tack",
+      automerge: false,
+      commitMessagePrefix: "chore(tack):",
+    },
+  ],
+}
