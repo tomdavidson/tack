@@ -23,12 +23,18 @@ TACK_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --tack) TACK_ONLY=1 ;;
-    *) printf 'unknown arg: %s\n' "$arg" >&2; exit 1 ;;
+    *)
+      printf 'unknown arg: %s\n' "$arg" >&2
+      exit 1
+      ;;
   esac
 done
 
 log() { printf '[bootstrap] %s\n' "$*"; }
-die() { printf '[bootstrap] error: %s\n' "$*" >&2; exit 1; }
+die() {
+  printf '[bootstrap] error: %s\n' "$*" >&2
+  exit 1
+}
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TACK_DIR="$REPO_ROOT/.tack"
@@ -52,7 +58,7 @@ log "running tack..."
 bash "$TACK_DIR/tack.sh" --target "$REPO_ROOT"
 
 # ── 3. Next steps ─────────────────────────────────────────────────────────────
-cat <<'EOF'
+cat << 'EOF'
 
 [bootstrap] done.
 
