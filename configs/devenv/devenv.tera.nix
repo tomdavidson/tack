@@ -17,6 +17,34 @@
 {% endfor %}
   };
 
+{% if vars.devenv.languages is defined %}
+  languages = {
+{% for lang, cfg in vars.devenv.languages %}
+    {{ lang }} = {
+      enable = {{ cfg.enable | default(value=false) }};
+{% if cfg.version is defined %}
+      version = "{{ cfg.version }}";
+{% endif %}
+    };
+{% endfor %}
+  };
+{% endif %}
+
+{% if vars.devenv.services is defined %}
+  services = {
+{% for svc, cfg in vars.devenv.services %}
+    {{ svc }} = {
+      enable = {{ cfg.enable | default(value=false) }};
+{% if cfg.settings is defined %}
+{% for k, v in cfg.settings %}
+      settings.{{ k }} = {{ v }};
+{% endfor %}
+{% endif %}
+    };
+{% endfor %}
+  };
+{% endif %}
+
   # enterShell runs once when the shell starts.
   enterShell = ''
     echo "devenv ready"

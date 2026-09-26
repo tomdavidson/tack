@@ -35,3 +35,16 @@ devenv:
   nixpkgs_ref: nixos-25.05
   packages: []
   env: {}
+  # languages:
+  #   php:
+  #     enable: true
+  #     version: "8.3"
+  # services:
+  #   mysql:
+  #     enable: true
+  #     settings:
+  #       port: 3306
+  #   redis:
+  #     enable: true
+  #     settings:
+  #       port: 6379
