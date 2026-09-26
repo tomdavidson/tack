@@ -1,4 +1,4 @@
-# sbx sandbox scope: moon invocations
+# bwrap sandbox scope: moon invocations
 
 > **TL;DR for the implementing agent:** wrap `moon` itself as a devenv script
 > (same pattern as `node`, `pnpm`, `cargo`). This is intentional and sufficient
@@ -16,25 +16,30 @@ and execs it directly. This means:
 - Moon tasks (lint, typecheck, test, build, fmt) all run through proto, bypassing
   devenv wrappers entirely
 
-## What the initial sbx implementation does
+## What the initial bwrap implementation does
 
 The devenv script wraps `moon` itself:
 
 ```nix
-scripts.moon.exec = ''exec sbx "$(proto bin moon)" "$@"'';
+scripts.moon.exec = ''
+  exec env \
+    BWRAP_REPO_ROOT=<projectRoot> \
+    <projectRoot>/.tack/configs/devenv/bwrap-run.sh moon "$@"
+'';
 ```
 
 When you type `moon run ~:test` in the devenv shell, the chain is:
 
 ```
-moon (sbx wrapper)
-  └─ sbx → bwrap sandbox started
+moon (bwrap-run wrapper)
+  └─ bwrap-run → bwrap sandbox started
        └─ ~/.proto/tools/moon/2.5.5/bin/moon
             └─ proto resolves node → execs node (inside the sandbox)
                  └─ node runs eslint / vitest / tsc / ...
 ```
 
 Everything moon spawns is inside **one shared sandbox**. This is:
+
 - ✓ Better than no sandbox at all
 - ✓ Host `$HOME`, secrets, ssh-agent, Wayland socket all hidden
 - ✓ Nix daemon socket hidden
@@ -71,7 +76,7 @@ Before implementing the full moon plugin (issue #13), try:
 env.MOON_TOOLCHAIN_FORCE_GLOBALS = "true";
 ```
 
-With this set, moon uses tools from PATH instead of proto. The devenv sbx
+With this set, moon uses tools from PATH instead of proto. The devenv bwrap-run
 wrappers for `node`, `pnpm`, `cargo`, etc. then apply to moon tasks too,
 giving per-tool sandboxes with no plugin required. The trade-off: moon stops
 auto-installing toolchains, so proto must have them installed already. Test
@@ -81,5 +86,6 @@ this in the pilot; if it works cleanly, it obviates the issue #13 plugin work.
 
 See [issue #13](https://github.com/tomdavidson/tack/issues/13) for a full
 breakdown of the plugin approach. The WASM plugin hook `extend_task_command`
-could prepend `sbx` to every moon task command, giving per-tool sandboxes
-that also apply inside VCS hooks. Key unknowns are still being investigated.
+could prepend a `bwrap-run` call to every moon task command, giving per-tool
+sandboxes that also apply inside VCS hooks. Key unknowns are still being
+investigated.
