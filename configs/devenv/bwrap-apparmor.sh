@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# pkgs/sbx-apparmor.sh
+# configs/devenv/bwrap-apparmor.sh
 #
-# sbx-apparmor: manage the AppArmor profile that permits the exact bubblewrap
-# binary sbx uses to create unprivileged user namespaces.
+# bwrap-apparmor: manage the AppArmor profile that permits the exact bubblewrap
+# binary bwrap-run uses to create unprivileged user namespaces.
 #
 # Ubuntu 23.10+ (and KDE Neon on a 24.04 base) set
 # kernel.apparmor_restrict_unprivileged_userns=1, which blocks bwrap unless
@@ -14,7 +14,7 @@
 # Commands:
 #   check [--quiet]   report whether bwrap works; exit 1 if blocked.
 #                     Never needs root. Used by devenv enterShell.
-#   install           one-time sudo: write /etc/apparmor.d/sbx-bwrap-<hash>,
+#   install           one-time sudo: write /etc/apparmor.d/bwrap-run-<hash>,
 #                     load it, re-test. Skipped when bwrap already works.
 #   prune             remove profiles whose bwrap path no longer exists
 #                     (run after nix garbage collection).
@@ -32,14 +32,14 @@ set -euo pipefail
 
 progname=${0##*/}
 
-BWRAP="${SBX_BWRAP:-$(command -v bwrap || true)}"
+BWRAP="${BWRAP_BIN:-$(command -v bwrap || true)}"
 if [ -z "$BWRAP" ]; then
-  printf '%s: error: bwrap not found; set SBX_BWRAP or add bubblewrap to PATH\n' "$progname" >&2
+  printf '%s: error: bwrap not found; set BWRAP_BIN or add bubblewrap to PATH\n' "$progname" >&2
   exit 1
 fi
 STORE_DIR=$(dirname "$(dirname "$BWRAP")")
 HASH=$(basename "$STORE_DIR" | cut -d- -f1)
-NAME="sbx-bwrap-$HASH"
+NAME="bwrap-run-$HASH"
 FILE="/etc/apparmor.d/$NAME"
 PARSER=/usr/sbin/apparmor_parser
 QUIET=""
@@ -73,7 +73,7 @@ cmd_check() {
     say "ok ($BWRAP)"
     return 0
   fi
-  printf '%s: bwrap blocked by AppArmor. Run: sbx-apparmor install\n' "$progname" >&2
+  printf '%s: bwrap blocked by AppArmor. Run: bwrap-apparmor install\n' "$progname" >&2
   return 1
 }
 
@@ -106,7 +106,7 @@ EOF
 
 cmd_prune() {
   shopt -s nullglob
-  for f in /etc/apparmor.d/sbx-bwrap-*; do
+  for f in /etc/apparmor.d/bwrap-run-*; do
     p=$(grep -oE '/nix/store/[^ ]+/bin/bwrap' "$f" | head -n1 || true)
     if [ -z "$p" ] || [ ! -e "$p" ]; then
       printf '%s: removing stale %s\n' "$progname" "$f" >&2
@@ -132,6 +132,6 @@ case "${1:-check}" in
   uninstall) cmd_uninstall ;;
   path) echo "$BWRAP" ;;
   *)
-    die "usage: sbx-apparmor {check [--quiet]|install|prune|uninstall|path}"
+    die "usage: bwrap-apparmor {check [--quiet]|install|prune|uninstall|path}"
     ;;
 esac

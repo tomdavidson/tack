@@ -52,6 +52,6 @@ tasks:
       - "~:lint-sh"
 
   test:
-    command: bats --jobs ${MOON_THREADS:-$(nproc)} tests/
+    command: bats --jobs ${MOON_THREADS:-$(nproc)} tests/ configs/devenv/tests/
     options:
       runFromWorkspaceRoot: true

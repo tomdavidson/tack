@@ -42,17 +42,14 @@ vars:
     packages: []
     env: {}
 
-  # sbx vars: consumed by configs/devenv (bubblewrap sandbox wrappers).
-  # enabled: render sbx scripts + tack flake input into devenv.
-  # tools: which commands get an `exec sbx <tool>` devenv script. Proto tool
-  #   IDs (node, pnpm, moon) resolve via `proto bin`; proto bins (npx)
+  # bwrap sandbox vars: consumed by configs/devenv.
+  # enabled: render bwrap-run wrappers and add pkgs.bubblewrap/apparmor-utils.
+  # tools: which commands get an `exec bwrap-run <tool>` devenv script. Proto
+  #   tool IDs (node, pnpm, moon) resolve via `proto bin`; proto bins (npx)
   #   resolve via proto shims; rust bins (cargo, rustc) resolve via
   #   ~/.cargo/bin. moon is wrapped at the moon level, not per task.
-  # input_url: devenv.yaml URL for the tack flake input; override for forks
-  #   or local checkouts (path:/path/to/tack).
-  sbx:
+  bwrap:
     enabled: true
-    input_url: github:tomdavidson/tack
     tools:
       - node
       - npx

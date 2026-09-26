@@ -1,4 +1,4 @@
-{ pkgs, lib, config, inputs, ... }:
+{ pkgs, lib, config, ... }:
 
 {
   # packages lists additional system-level tools available in the dev shell.
@@ -8,13 +8,12 @@
 {% for pkg in vars.devenv.packages | default(value=[]) %}
     {{ pkg }}
 {% endfor %}
-{% if vars.sbx.enabled | default(value=true) %}
-  ] ++ [
-    # sbx sandbox tooling, built from the tack flake input. sbx and
-    # sbx-apparmor share one bubblewrap so the AppArmor profile matches
-    # the exact bwrap store path sbx execs.
-    inputs.tack.packages.${pkgs.system}.sbx
-    inputs.tack.packages.${pkgs.system}.sbx-apparmor
+{% if vars.bwrap.enabled | default(value=true) %}
+    # bwrap-run sandboxing: bwrap comes from this nixpkgs (pinned by
+    # devenv.lock), so the AppArmor profile managed by bwrap-apparmor
+    # matches the binary the shell actually executes.
+    bubblewrap
+    apparmor-utils
 {% endif %}
   ];
 
@@ -58,23 +57,30 @@
   # enterShell runs once when the shell starts.
   enterShell = ''
     echo "devenv ready"
-{% if vars.sbx.enabled | default(value=true) %}
+{% if vars.bwrap.enabled | default(value=true) %}
     # Report (never fix) AppArmor state for the bwrap binary. Install with:
-    #   sbx-apparmor install
-    command -v sbx-apparmor >/dev/null 2>&1 && sbx-apparmor check --quiet || true
+    #   bwrap-apparmor install
+    command -v bwrap-apparmor >/dev/null 2>&1 && bwrap-apparmor check --quiet || true
 {% endif %}
   '';
 
-{% if vars.sbx.enabled | default(value=true) %}
-  # sbx: run dependency-executing tools inside a bubblewrap sandbox.
-  # `sbx <tool>` resolves the real binary on the host (proto bin, proto
-  # shims, ~/.cargo/bin) before the sandbox starts, so proto-managed
-  # toolchains work. See docs/sbx.md for the mount and cache layout.
+{% if vars.bwrap.enabled | default(value=true) %}
+  # bwrap-run: run dependency-executing tools inside a bubblewrap sandbox.
+  # tack.sh distributes bwrap-run.sh / bwrap-apparmor.sh into the repo root;
+  # DEVENV_ROOT locates them when scripts run outside this shell (git hooks),
+  # falling back to the current directory.
+  #
+  # `bwrap-run <tool>` resolves the real binary on the host (proto bin,
+  # proto shims, ~/.cargo/bin) before the sandbox starts, so proto-managed
+  # toolchains work. See docs/bwrap.md for the mount and cache layout.
   # moon is wrapped at the moon level: everything a moon task spawns runs
-  # in ONE sandbox. See docs/sbx-moon-sandbox-scope.md and issue #13.
+  # in ONE sandbox. See docs/bwrap-moon-sandbox-scope.md (rename pending)
+  # and issue #13.
   scripts = {
-{% for tool in vars.sbx.tools %}
-    {{ tool }}.exec = ''exec sbx {{ tool }} "$@"'';
+    bwrap-run.exec = ''exec "''${DEVENV_ROOT:-$PWD}"/bwrap-run.sh "$@"'';
+    bwrap-apparmor.exec = ''exec "''${DEVENV_ROOT:-$PWD}"/bwrap-apparmor.sh "$@"'';
+{% for tool in vars.bwrap.tools %}
+    {{ tool }}.exec = ''exec bwrap-run {{ tool }} "$@"'';
 {% endfor %}
   };
 {% endif %}

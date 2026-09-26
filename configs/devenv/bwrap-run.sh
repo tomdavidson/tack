@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# pkgs/sbx.sh
+# configs/devenv/bwrap-run.sh
 #
-# sbx: run a development tool inside an unprivileged bubblewrap sandbox.
+# bwrap-run: run a development tool inside an unprivileged bubblewrap sandbox.
 #
 # The sandbox hides the real $HOME (ssh keys, cloud creds, shell history),
 # the Nix daemon socket, agent sockets in /run, /media and /mnt, and gives
@@ -18,27 +18,28 @@
 #   4. $CARGO_HOME/bin/<name>                -> rust (proto keeps bins there)
 #   5. PATH, skipping */.devenv* wrappers    -> anything else
 #
-# devenv scripts call `sbx <tool>`, so wrapped tools resolve through this
-# chain on every invocation. Re-entering sbx from inside a sandbox is a
-# no-op: SBX_ACTIVE is set in the sandbox environment and sbx execs the
+# devenv scripts call `bwrap-run <tool>`, so wrapped tools resolve through this
+# chain on every invocation. Re-entering bwrap-run from inside a sandbox is a
+# no-op: BWRAP_ACTIVE is set in the sandbox environment and bwrap-run execs the
 # resolved command directly (no nesting).
 #
 # pnpm note: hardlinks only work inside ONE mount. When the repo is under
-# SBX_DEV_ROOT (default ~/dev), the store lives at $SBX_DEV_ROOT/.sbx/pnpm-store
+# BWRAP_DEV_ROOT (default ~/dev), the store lives at $BWRAP_DEV_ROOT/.bwrap/pnpm-store
 # inside the same bind mount and hardlinks work. Otherwise pnpm silently
-# falls back to copying. See docs/sbx.md.
+# falls back to copying. See docs/bwrap.md.
 #
 # Environment variables:
-#   SBX_BWRAP           bwrap binary (default: from PATH; baked by pkgs/sbx.nix)
-#   SBX_DEV_ROOT        shared writable root holding projects + caches
+#   BWRAP_BIN            bwrap binary (default: from PATH; the devenv
+#                       packages list provides pkgs.bubblewrap)
+#   BWRAP_DEV_ROOT       shared writable root holding projects + caches
 #                       (default: ~/dev when the repo lives under it)
-#   SBX_STRICT          1 = bind only the repo root (no sibling projects);
+#   BWRAP_STRICT          1 = bind only the repo root (no sibling projects);
 #                       pnpm loses hardlink dedup in this mode
-#   SBX_NO_NET          1 = --unshare-net
-#   SBX_ALLOW_USERNS    1 = allow nested user namespaces (Chromium/Playwright)
-#   SBX_ACTIVE          set inside the sandbox; sbx re-entry execs directly
+#   BWRAP_NO_NET          1 = --unshare-net
+#   BWRAP_ALLOW_USERNS    1 = allow nested user namespaces (Chromium/Playwright)
+#   BWRAP_ACTIVE          set inside the sandbox; bwrap-run re-entry execs directly
 #
-# Usage: sbx [--print-cmd] [--strict] <command> [args...]
+# Usage: bwrap-run [--print-cmd] [--strict] <command> [args...]
 #   --print-cmd  resolve and print the exec target, then exit (no sandbox)
 
 set -euo pipefail
@@ -57,7 +58,7 @@ log() {
 # ---------- tool resolution (host side) ----------
 
 # path_lookup NAME -- first executable NAME on PATH, skipping devenv script
-# wrappers (they call back into sbx; SBX_ACTIVE makes that safe, but resolving
+# wrappers (they call back into bwrap-run; BWRAP_ACTIVE makes that safe, but resolving
 # the real binary directly avoids the extra hop) and skipping non-files.
 path_lookup() {
   needle=$1
@@ -148,17 +149,17 @@ under() {
 
 usage() {
   cat << EOF
-Usage: sbx [--print-cmd] [--strict] <command> [args...]
+Usage: bwrap-run [--print-cmd] [--strict] <command> [args...]
 
-Run <command> inside a bubblewrap sandbox. See docs/sbx.md for the mount
-layout, cache handling, and settings (SBX_DEV_ROOT, SBX_STRICT, SBX_NO_NET,
-SBX_ALLOW_USERNS).
+Run <command> inside a bubblewrap sandbox. See docs/bwrap.md for the mount
+layout, cache handling, and settings (BWRAP_DEV_ROOT, BWRAP_STRICT, BWRAP_NO_NET,
+BWRAP_ALLOW_USERNS).
 EOF
 }
 
 main() {
   print_cmd=0
-  strict=${SBX_STRICT:-0}
+  strict=${BWRAP_STRICT:-0}
   while [ $# -gt 0 ]; do
     case $1 in
       --print-cmd)
@@ -189,9 +190,9 @@ main() {
   shift
 
   # Already inside a sandbox: exec directly. Devenv script wrappers resolve
-  # through sbx again when a sandboxed tool invokes them by name; this makes
+  # through bwrap-run again when a sandboxed tool invokes them by name; this makes
   # that a plain exec of the real binary instead of a nested bwrap attempt.
-  if [ -n "${SBX_ACTIVE:-}" ]; then
+  if [ -n "${BWRAP_ACTIVE:-}" ]; then
     exec "$(resolve_cmd "$cmd")" "$@"
   fi
 
@@ -202,8 +203,8 @@ main() {
     exit 0
   fi
 
-  bwrap_bin=${SBX_BWRAP:-$(command -v bwrap || true)}
-  [ -n "$bwrap_bin" ] || die "bwrap not found; set SBX_BWRAP or add bubblewrap to PATH"
+  bwrap_bin=${BWRAP_BIN:-$(command -v bwrap || true)}
+  [ -n "$bwrap_bin" ] || die "bwrap not found; set BWRAP_BIN or add bubblewrap to PATH"
 
   repo_root=$(find_repo_root)
   proto_home=${PROTO_HOME:-$HOME/.proto}
@@ -217,11 +218,11 @@ main() {
   default_dev_root=$HOME/dev
   if [ "$strict" -eq 1 ]; then
     writable_roots=$repo_root
-    cache_root=${XDG_CACHE_HOME:-$HOME/.cache}/sbx
+    cache_root=${XDG_CACHE_HOME:-$HOME/.cache}/bwrap
     bind_cache=1
-  elif [ -n "${SBX_DEV_ROOT:-}" ]; then
-    dev_root=$SBX_DEV_ROOT
-    cache_root=$dev_root/.sbx
+  elif [ -n "${BWRAP_DEV_ROOT:-}" ]; then
+    dev_root=$BWRAP_DEV_ROOT
+    cache_root=$dev_root/.bwrap
     if under "$dev_root"; then
       writable_roots=$dev_root
       bind_cache=0
@@ -232,14 +233,14 @@ $repo_root"
     fi
   elif [ -d "$default_dev_root" ] && under "$default_dev_root"; then
     writable_roots=$default_dev_root
-    cache_root=$default_dev_root/.sbx
+    cache_root=$default_dev_root/.bwrap
     bind_cache=0
   else
     writable_roots=$repo_root
-    cache_root=${XDG_CACHE_HOME:-$HOME/.cache}/sbx
+    cache_root=${XDG_CACHE_HOME:-$HOME/.cache}/bwrap
     bind_cache=1
     log "repo is not under $default_dev_root; pnpm will copy instead of hardlink"
-    log "set SBX_DEV_ROOT or move the repo under it for dedup"
+    log "set BWRAP_DEV_ROOT or move the repo under it for dedup"
   fi
   mkdir -p \
     "$cache_root/pnpm-store" \
@@ -338,10 +339,10 @@ EOF
     fi
   done
 
-  if [ "${SBX_ALLOW_USERNS:-0}" != "1" ]; then
+  if [ "${BWRAP_ALLOW_USERNS:-0}" != "1" ]; then
     args+=(--disable-userns)
   fi
-  if [ "${SBX_NO_NET:-0}" = "1" ]; then
+  if [ "${BWRAP_NO_NET:-0}" = "1" ]; then
     args+=(--unshare-net)
   fi
 
@@ -366,7 +367,7 @@ EOF
     esac
   done < <(env)
   args+=(
-    --setenv SBX_ACTIVE 1
+    --setenv BWRAP_ACTIVE 1
     --setenv pnpm_config_store_dir "$pnpm_store"
     --setenv pnpm_config_cache_dir "$cache_root/pnpm-cache"
     --setenv PIP_CACHE_DIR "$cache_root/pip"

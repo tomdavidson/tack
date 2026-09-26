@@ -1,5 +1,16 @@
+# Distributed files with consumer-owned edits: render once, never overwrite.
 files:
   devenv.tera.nix:
     overwrite: false
   devenv.tera.yaml:
     overwrite: false
+  bwrap-run.sh:
+    overwrite: false
+  bwrap-apparmor.sh:
+    overwrite: false
+
+# The sandbox test suite is tack-internal: it references tack.sh and the
+# template sources, which consumers do not have. Keep it out of consumer
+# materialization.
+ignore:
+  - tests/**
