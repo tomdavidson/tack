@@ -7,6 +7,10 @@
 #   - uses: ./.github/actions/setup                       (local)
 #
 # checkout-and-setup/ is retained as an alias for any existing callers.
+#
+# proto-version must be >= 0.57.0 (required by the yq plugin).
+# Pin to a specific version to avoid surprise breakage when setup-toolchain
+# ships a new proto default. Bump here and in checkout-and-setup together.
 
 name: "Checkout & Setup"
 description: "Checkout, setup Moon/proto (lazy install), restore caches"
@@ -67,3 +71,4 @@ runs:
     - uses: moonrepo/setup-toolchain@v0
       with:
         auto-install: true
+        proto-version: "0.62.3"
