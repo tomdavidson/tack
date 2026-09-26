@@ -7,3 +7,10 @@ allowUnfree: false
 inputs:
   nixpkgs:
     url: github:NixOS/nixpkgs/{{ vars.devenv.nixpkgs_ref | default(value='nixos-25.05') }}
+{% if vars.sbx.enabled | default(value=true) %}
+  # tack input: provides the sbx / sbx-apparmor packages rendered into
+  # devenv.nix. Consumers pin the revision via devenv.lock; override the
+  # URL for forks or local checkouts (vars.sbx.input_url in tackrc.yml).
+  tack:
+    url: {{ vars.sbx.input_url | default(value='github:tomdavidson/tack') }}
+{% endif %}

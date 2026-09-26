@@ -20,21 +20,43 @@ pkgs:
 pkgs-exclude:
   - configs/direnv
 
-# devcontainer vars: consumed by configs/devcontainer.
-# image and digest must be set by the consumer; they have no default because
-# the digest is only known after the tack-dev image is published.
-# devcontainer:
-#   image: ghcr.io/tomdavidson/tack-dev
-#   digest: sha256:<digest-from-image-ci-job-summary>
-#   user: dev
-#   ports: []
+# All tera-visible configuration lives under vars:. tack.sh renders
+# templates with the merged tackrc as the tera context, so `vars.foo` in a
+# template reads `vars: { foo: ... }` below. Consumers override subsets of
+# these keys in their tackrc.yml under the same vars: paths.
+vars:
+  # devcontainer vars: consumed by configs/devcontainer.
+  # image and digest must be set by the consumer; they have no default because
+  # the digest is only known after the tack-dev image is published.
+  # devcontainer:
+  #   image: ghcr.io/tomdavidson/tack-dev
+  #   digest: sha256:<digest-from-image-ci-job-summary>
+  #   user: dev
+  #   ports: []
 
-# devenv vars: consumed by configs/devenv.
-# nixpkgs_ref should match the ref used in images/tack-dev/Containerfile.
-# languages and services are set per-consumer via stack-specific configs packages.
-devenv:
-  nixpkgs_ref: nixos-25.05
-  packages: []
-  env: {}
-  # languages and services are set per-consumer.
-  # See configs/php for PHP + Composer + database knobs.
+  # devenv vars: consumed by configs/devenv.
+  # nixpkgs_ref should match the ref used in images/tack-dev/Containerfile.
+  # languages and services are set per-consumer via stack-specific configs packages.
+  devenv:
+    nixpkgs_ref: nixos-25.05
+    packages: []
+    env: {}
+
+  # sbx vars: consumed by configs/devenv (bubblewrap sandbox wrappers).
+  # enabled: render sbx scripts + tack flake input into devenv.
+  # tools: which commands get an `exec sbx <tool>` devenv script. Proto tool
+  #   IDs (node, pnpm, moon) resolve via `proto bin`; proto bins (npx)
+  #   resolve via proto shims; rust bins (cargo, rustc) resolve via
+  #   ~/.cargo/bin. moon is wrapped at the moon level, not per task.
+  # input_url: devenv.yaml URL for the tack flake input; override for forks
+  #   or local checkouts (path:/path/to/tack).
+  sbx:
+    enabled: true
+    input_url: github:tomdavidson/tack
+    tools:
+      - node
+      - npx
+      - pnpm
+      - moon
+      - cargo
+      - rustc

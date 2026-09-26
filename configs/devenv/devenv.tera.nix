@@ -1,4 +1,4 @@
-{ pkgs, lib, config, ... }:
+{ pkgs, lib, config, inputs, ... }:
 
 {
   # packages lists additional system-level tools available in the dev shell.
@@ -8,13 +8,23 @@
 {% for pkg in vars.devenv.packages | default(value=[]) %}
     {{ pkg }}
 {% endfor %}
+{% if vars.sbx.enabled | default(value=true) %}
+  ] ++ [
+    # sbx sandbox tooling, built from the tack flake input. sbx and
+    # sbx-apparmor share one bubblewrap so the AppArmor profile matches
+    # the exact bwrap store path sbx execs.
+    inputs.tack.packages.${pkgs.system}.sbx
+    inputs.tack.packages.${pkgs.system}.sbx-apparmor
+{% endif %}
   ];
 
   # env sets environment variables available inside devenv shell and processes.
   env = {
-{% for key, value in vars.devenv.env | default(value={}) %}
+{% if vars.devenv.env is defined %}
+{% for key, value in vars.devenv.env %}
     {{ key }} = "{{ value }}";
 {% endfor %}
+{% endif %}
   };
 
 {% if vars.devenv.languages is defined %}
@@ -48,5 +58,24 @@
   # enterShell runs once when the shell starts.
   enterShell = ''
     echo "devenv ready"
+{% if vars.sbx.enabled | default(value=true) %}
+    # Report (never fix) AppArmor state for the bwrap binary. Install with:
+    #   sbx-apparmor install
+    command -v sbx-apparmor >/dev/null 2>&1 && sbx-apparmor check --quiet || true
+{% endif %}
   '';
+
+{% if vars.sbx.enabled | default(value=true) %}
+  # sbx: run dependency-executing tools inside a bubblewrap sandbox.
+  # `sbx <tool>` resolves the real binary on the host (proto bin, proto
+  # shims, ~/.cargo/bin) before the sandbox starts, so proto-managed
+  # toolchains work. See docs/sbx.md for the mount and cache layout.
+  # moon is wrapped at the moon level: everything a moon task spawns runs
+  # in ONE sandbox. See docs/sbx-moon-sandbox-scope.md and issue #13.
+  scripts = {
+{% for tool in vars.sbx.tools %}
+    {{ tool }}.exec = ''exec sbx {{ tool }} "$@"'';
+{% endfor %}
+  };
+{% endif %}
 }
