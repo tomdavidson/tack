@@ -1,0 +1,5 @@
+files:
+  devenv.nix:
+    overwrite: false
+  devenv.yaml:
+    overwrite: false

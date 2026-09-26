@@ -1,0 +1,3 @@
+files:
+  .devcontainer/devcontainer.json:
+    overwrite: true
