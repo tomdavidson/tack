@@ -35,6 +35,7 @@ moon (sbx wrapper)
 ```
 
 Everything moon spawns is inside **one shared sandbox**. This is:
+
 - ✓ Better than no sandbox at all
 - ✓ Host `$HOME`, secrets, ssh-agent, Wayland socket all hidden
 - ✓ Nix daemon socket hidden
