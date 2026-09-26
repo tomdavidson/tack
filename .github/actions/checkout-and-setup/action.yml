@@ -2,14 +2,10 @@
 #
 # .github/actions/setup/action.yml
 #
-# Usage:
-#   - uses: tomdavidson/tack/configs/.github/actions/setup@main
-#     with:
-#       cache-cargo: "true"
-#       cache-pnpm: "false"
+# Alias retained for any callers that reference checkout-and-setup by name.
+# Canonical action is now .github/actions/setup/action.yml.
 #
-# Usage (minimal, no project caches):
-#   - uses: tomdavidson/tack/configs/.github/actions/setup@main
+# proto-version must be >= 0.57.0 (required by the yq plugin).
 
 name: "Checkout & Setup"
 description: "Checkout, setup Moon/proto (lazy install), restore caches"
@@ -72,3 +68,4 @@ runs:
     - uses: moonrepo/setup-toolchain@v0
       with:
         auto-install: true
+        proto-version: "0.62.3"
