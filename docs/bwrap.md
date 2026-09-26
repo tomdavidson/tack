@@ -7,11 +7,12 @@ shell history, or plant persistence in files that execute outside the
 project.
 
 Implementation: `configs/devenv/bwrap-run.sh` (wrapper) and
-`configs/devenv/bwrap-apparmor.sh` (host AppArmor helper), both plain shell
-scripts that tack.sh distributes into the consumer repo root alongside the
-devenv templates. The consumer's devenv provides `pkgs.bubblewrap` and
-`pkgs.apparmor-utils` from its own pinned nixpkgs. Decision record:
-ADR-0007.
+`configs/devenv/bwrap-apparmor.sh` (host AppArmor helper), plain shell
+scripts that stay inside tack. Consumers execute them through the tack
+submodule at `.tack/configs/devenv/`; they are never copied or symlinked
+into the consuming repository. The consumer's devenv provides
+`pkgs.bubblewrap` and `pkgs.apparmor-utils` from its own pinned nixpkgs.
+Decision record: ADR-0007.
 
 ## Why bubblewrap
 
@@ -149,20 +150,28 @@ with `devenv.lock`.
 
 ## Consumer setup
 
-Apply `configs/devenv` (default through `pkgs: configs/*`). tack.sh copies
-`bwrap-run.sh` and `bwrap-apparmor.sh` into the repo root (consumer-owned,
-`overwrite: false`, never clobbered on re-apply), and the rendered
-`devenv.nix` gains `pkgs.bubblewrap` and `pkgs.apparmor-utils`, an
-`enterShell` AppArmor check, and one script per tool:
+Apply `configs/devenv` (default through `pkgs: configs/*`). Only the
+templates materialize; the sandbox scripts stay in the `.tack` submodule.
+The rendered `devenv.nix` gains `pkgs.bubblewrap` and `pkgs.apparmor-utils`,
+an `enterShell` AppArmor check, and one script per tool:
 
 ```nix
-scripts.moon.exec = ''exec bwrap-run moon "$@"'';
+scripts.moon.exec = ''
+  exec env \
+    BWRAP_REPO_ROOT=<projectRoot> \
+    <projectRoot>/.tack/configs/devenv/bwrap-run.sh moon "$@"
+'';
 ```
 
-The `bwrap-run` and `bwrap-apparmor` devenv scripts locate the distributed
-shell files through `DEVENV_ROOT` (falling back to the current directory),
-so they also work when a script runs outside the shell, for example from a
-git hook.
+Wrappers invoke `.tack/configs/devenv/bwrap-run.sh` by absolute path
+(derived from `config.devenv.root`, shell-quoted with
+`lib.escapeShellArg`) and pass `BWRAP_REPO_ROOT`, so bwrap-run never has
+to guess the repo root. bwrap-run treats `BWRAP_REPO_ROOT` as
+authoritative; when the script is invoked directly, without it, an
+ancestor walk from the working directory finds the nearest repository
+root without running git: a `.git` directory stops the walk, a `.git`
+file pointing through `/modules/` (submodule worktree) continues upward,
+and one pointing through `/worktrees/` (linked worktree) stops there.
 
 Defaults (override in the consumer `tackrc.yml` under `vars:`):
 
@@ -173,11 +182,13 @@ vars:
     tools: [node, npx, pnpm, moon, cargo, rustc]
 ```
 
-Set `enabled: false` to render the plain template with no sandbox wiring;
-the two shell scripts are still distributed, since plain-file distribution
-is not template-gated. `devenv.nix` and `devenv.yaml` render with
-`overwrite: false`, so existing consumers reconcile template changes by
-hand (ADR-0006).
+Set `enabled: false` to render the plain template with no sandbox wiring
+(no scripts, no `let` block, no bubblewrap packages). tack only
+materializes files whose location in the consuming repository is
+functionally significant; the bwrap scripts have none, so they are
+excluded from materialization entirely. `devenv.nix` and `devenv.yaml`
+render with `overwrite: false`, so existing consumers reconcile template
+changes by hand (ADR-0006).
 
 The pre-push hook in `.moon/workspace-base.yml` runs outside the devenv
 shell and stays unsandboxed; accepted in
@@ -210,14 +221,15 @@ shell and stays unsandboxed; accepted in
 
 ## Settings
 
-| Variable             | Default   | Effect                                          |
-| -------------------- | --------- | ----------------------------------------------- |
-| `BWRAP_BIN`          | from PATH | bwrap binary (the devenv `pkgs.bubblewrap`)     |
-| `BWRAP_DEV_ROOT`     | `~/dev`   | shared writable root for projects + caches      |
-| `BWRAP_STRICT`       | 0         | bind only the repo root; pnpm loses hardlinks   |
-| `BWRAP_NO_NET`       | 0         | 1 disables network access                       |
-| `BWRAP_ALLOW_USERNS` | 0         | 1 allows nested user namespaces                 |
-| `BWRAP_ACTIVE`       | unset     | set inside the sandbox; re-entry execs directly |
+| Variable             | Default   | Effect                                                           |
+| -------------------- | --------- | ---------------------------------------------------------------- |
+| `BWRAP_REPO_ROOT`    | detected  | repo root exposed as writable; the devenv wrappers always set it |
+| `BWRAP_BIN`          | from PATH | bwrap binary (the devenv `pkgs.bubblewrap`)                      |
+| `BWRAP_DEV_ROOT`     | `~/dev`   | shared writable root for projects + caches                       |
+| `BWRAP_STRICT`       | 0         | bind only the repo root; pnpm loses hardlinks                    |
+| `BWRAP_NO_NET`       | 0         | 1 disables network access                                        |
+| `BWRAP_ALLOW_USERNS` | 0         | 1 allows nested user namespaces                                  |
+| `BWRAP_ACTIVE`       | unset     | set inside the sandbox; re-entry execs directly                  |
 
 ## Accepted risks
 
@@ -263,7 +275,6 @@ These could not be verified in CI and need a host check:
 - The pnpm version resolved by the consumer's proto pins honors
   `pnpm_config_store_dir` and `pnpm_config_cache_dir` (pnpm 10.26+).
 - devenv `scripts` wrappers take PATH precedence over proto shims and
-  devenv `packages` (asserted by devenv's script generation order), and
-  `DEVENV_ROOT` is exported while scripts and `enterShell` run.
-- tack.sh's plain `cp` preserves the execute bit of the distributed
-  scripts on every consumer filesystem (verified on tmpfs/ext4 here).
+  devenv `packages` (asserted by devenv's script generation order).
+- `config.devenv.root` in a consumer's rendered devenv.nix resolves to the
+  expected project root when tack is checked out as the `.tack` submodule.

@@ -47,11 +47,10 @@ PATH, so per-tool wrappers do not cover moon tasks.
 ## Decision
 
 1. bubblewrap comes from the consumer's devenv nixpkgs (`pkgs.bubblewrap`);
-   `bwrap-run.sh` and `bwrap-apparmor.sh` are plain shell scripts
-   distributed by tack.sh alongside the devenv config templates. No
-   `flake.nix` in tack, no extra devenv input. Because bwrap is pinned by
-   the consumer's own `devenv.lock`, the AppArmor profile and the executed
-   binary cannot drift apart.
+   `bwrap-run.sh` and `bwrap-apparmor.sh` are plain shell scripts that stay
+   in tack under `configs/devenv/`. No `flake.nix` in tack, no extra devenv
+   input. Because bwrap is pinned by the consumer's own `devenv.lock`, the
+   AppArmor profile and the executed binary cannot drift apart.
 
 2. devenv scripts wrap tools with `exec bwrap-run <tool>`. `bwrap-run`
    resolves the real binary on the host before the sandbox starts:
@@ -77,13 +76,22 @@ PATH, so per-tool wrappers do not cover moon tasks.
    copying. Sibling projects under the dev root are writable from inside
    the sandbox, which is accepted.
 
-6. The sandbox scripts are distributed as consumer-owned files with
-   `overwrite: false`, matching how `devenv.nix` and `devenv.yaml` render
-   (ADR-0006): tack provides the initial copy, the consumer owns
-   subsequent edits and reconciles template changes by hand.
+6. tack materializes only files whose location in the consuming
+   repository is functionally significant. The bwrap scripts are not:
+   consumers execute them through `.tack/configs/devenv/` by absolute path
+   (derived from `config.devenv.root`), so they are never copied or
+   symlinked into the consumer root, and the tack-internal test suite is
+   excluded from materialization with them. The devenv wrappers pass
+   `BWRAP_REPO_ROOT`, which bwrap-run treats as authoritative; the
+   direct-invocation fallback walks ancestors for `.git` without running
+   git, stepping over submodule worktrees (`.git` file through
+   `/modules/`) and stopping at linked worktrees (`/worktrees/`).
 
 ## Consequences
 
+- Consumer roots contain only the rendered `devenv.nix` and
+  `devenv.yaml`; the sandbox scripts and their tests never appear in the
+  consuming repository.
 - `tackrc-defaults.yml` moves `devenv:` under `vars:`, fixing a latent
   mismatch where templates referenced `vars.devenv.*` against a
   top-level `devenv:` key that never resolved.

@@ -4,13 +4,13 @@ files:
     overwrite: false
   devenv.tera.yaml:
     overwrite: false
-  bwrap-run.sh:
-    overwrite: false
-  bwrap-apparmor.sh:
-    overwrite: false
 
-# The sandbox test suite is tack-internal: it references tack.sh and the
-# template sources, which consumers do not have. Keep it out of consumer
-# materialization.
+# bwrap-run.sh and bwrap-apparmor.sh stay inside tack's namespace:
+# consumers execute them through the .tack submodule path, so their
+# location in the consuming repository has no meaning and they are not
+# materialized. The sandbox test suite is tack-internal too: it
+# references tack.sh and the template sources, which consumers lack.
 ignore:
+  - bwrap-run.sh
+  - bwrap-apparmor.sh
   - tests/**

@@ -1,6 +1,18 @@
 { pkgs, lib, config, ... }:
 
+{% if vars.bwrap.enabled | default(value=true) %}
+let
+  # bwrap scripts stay in the .tack submodule and are never materialized
+  # into the consumer repo (ADR-0007); the devenv wrappers invoke them by
+  # absolute path. Wrappers pass BWRAP_REPO_ROOT so bwrap-run never
+  # has to guess the repo root from the working directory.
+  projectRoot = toString config.devenv.root;
+  bwrapRun = "${projectRoot}/.tack/configs/devenv/bwrap-run.sh";
+  bwrapAppArmor = "${projectRoot}/.tack/configs/devenv/bwrap-apparmor.sh";
+in {
+{% else %}
 {
+{% endif %}
   # packages lists additional system-level tools available in the dev shell.
   # Add entries here for tools not managed by proto.
   # PHP, Composer, and services are added when configs/php is consumed.
@@ -66,9 +78,8 @@
 
 {% if vars.bwrap.enabled | default(value=true) %}
   # bwrap-run: run dependency-executing tools inside a bubblewrap sandbox.
-  # tack.sh distributes bwrap-run.sh / bwrap-apparmor.sh into the repo root;
-  # DEVENV_ROOT locates them when scripts run outside this shell (git hooks),
-  # falling back to the current directory.
+  # The scripts live in the .tack submodule; these wrappers invoke them by
+  # absolute path with the repo root passed explicitly.
   #
   # `bwrap-run <tool>` resolves the real binary on the host (proto bin,
   # proto shims, ~/.cargo/bin) before the sandbox starts, so proto-managed
@@ -77,10 +88,20 @@
   # in ONE sandbox. See docs/bwrap-moon-sandbox-scope.md (rename pending)
   # and issue #13.
   scripts = {
-    bwrap-run.exec = ''exec "''${DEVENV_ROOT:-$PWD}"/bwrap-run.sh "$@"'';
-    bwrap-apparmor.exec = ''exec "''${DEVENV_ROOT:-$PWD}"/bwrap-apparmor.sh "$@"'';
+    bwrap-run.exec = ''
+      exec env \
+        BWRAP_REPO_ROOT=${lib.escapeShellArg projectRoot} \
+        ${lib.escapeShellArg bwrapRun} "$@"
+    '';
+    bwrap-apparmor.exec = ''
+      exec ${lib.escapeShellArg bwrapAppArmor} "$@"
+    '';
 {% for tool in vars.bwrap.tools %}
-    {{ tool }}.exec = ''exec bwrap-run {{ tool }} "$@"'';
+    {{ tool }}.exec = ''
+      exec env \
+        BWRAP_REPO_ROOT=${lib.escapeShellArg projectRoot} \
+        ${lib.escapeShellArg bwrapRun} {{ tool }} "$@"
+    '';
 {% endfor %}
   };
 {% endif %}

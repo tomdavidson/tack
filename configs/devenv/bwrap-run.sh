@@ -29,6 +29,9 @@
 # falls back to copying. See docs/bwrap.md.
 #
 # Environment variables:
+#   BWRAP_REPO_ROOT       repo root exposed as writable to the sandbox;
+#                       the devenv wrappers always set it. Without it, the
+#                       nearest repository root from $PWD is used
 #   BWRAP_BIN            bwrap binary (default: from PATH; the devenv
 #                       packages list provides pkgs.bubblewrap)
 #   BWRAP_DEV_ROOT       shared writable root holding projects + caches
@@ -119,14 +122,32 @@ resolve_cmd() {
 
 # ---------- repo root ----------
 
-# find_repo_root -- nearest ancestor of $PWD containing .git. Never shells out
-# to git: a repo's own config can execute code (core.fsmonitor, aliases).
+# find_repo_root -- nearest repository root for $PWD. Never shells out to
+# git: a repo's own config can execute code (core.fsmonitor, aliases).
+#
+# Fallback only: the devenv wrappers always pass BWRAP_REPO_ROOT, which
+# overrides detection entirely. .git comes in three shapes:
+#   directory                        ordinary repository root: stop
+#   file "gitdir: .../modules/..."   submodule worktree: the true repo
+#                                    lives in the superproject's
+#                                    .git/modules; keep walking upward
+#   file "gitdir: .../worktrees/..." linked worktree: stop, its working
+#                                    tree is the root that matters
 find_repo_root() {
   d=$PWD
   while :; do
-    if [ -e "$d/.git" ]; then
+    if [ -d "$d/.git" ]; then
       printf '%s\n' "$d"
       return 0
+    fi
+    if [ -f "$d/.git" ]; then
+      case $(cat "$d/.git" 2> /dev/null || true) in
+        *"gitdir:"*"/modules/"*) ;; # submodule: keep walking
+        *)                          # worktree or unrecognized: stop here
+          printf '%s\n' "$d"
+          return 0
+          ;;
+      esac
     fi
     if [ "$d" = "/" ]; then
       break
@@ -206,7 +227,13 @@ main() {
   bwrap_bin=${BWRAP_BIN:-$(command -v bwrap || true)}
   [ -n "$bwrap_bin" ] || die "bwrap not found; set BWRAP_BIN or add bubblewrap to PATH"
 
-  repo_root=$(find_repo_root)
+  # BWRAP_REPO_ROOT is authoritative: the devenv wrappers always pass it.
+  # The ancestor walk only runs when the script is invoked directly.
+  if [ -n "${BWRAP_REPO_ROOT:-}" ]; then
+    repo_root=$BWRAP_REPO_ROOT
+  else
+    repo_root=$(find_repo_root)
+  fi
   proto_home=${PROTO_HOME:-$HOME/.proto}
   cargo_home_host=${CARGO_HOME:-$HOME/.cargo}
   rustup_home_host=${RUSTUP_HOME:-$HOME/.rustup}
