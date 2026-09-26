@@ -1,0 +1,55 @@
+name: image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "images/tack-dev/**"
+      - ".github/workflows/image.yml"
+  pull_request:
+    paths:
+      - "images/tack-dev/**"
+      - ".github/workflows/image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/tack-dev
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: podman build --tag "$IMAGE:$GITHUB_SHA" images/tack-dev
+
+      - name: Smoke test
+        run: |
+          podman run --rm "$IMAGE:$GITHUB_SHA" bash -lc '
+            set -eu
+            for t in nix devenv yq tera lnko proto moon dprint shfmt shellcheck; do
+              printf "%s: " "$t"
+              "$t" --version 2>&1 | head -n1
+            done
+            echo "--- global proto tools ---"
+            proto status --config-mode global'
+
+      - name: Push
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GH_TOKEN" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          podman push --digestfile digest "$IMAGE:$GITHUB_SHA"
+          podman tag "$IMAGE:$GITHUB_SHA" "$IMAGE:latest"
+          podman push "$IMAGE:latest"
+          {
+            echo "### tack-dev image"
+            echo
+            echo "\`$IMAGE@$(cat digest)\`"
+          } >> "$GITHUB_STEP_SUMMARY"

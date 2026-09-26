@@ -1,0 +1,26 @@
+# Global proto config baked into ghcr.io/tomdavidson/tack-dev.
+# Installed to ~/.proto/.prototools inside the image; proto's lowest-priority fallback.
+# A project .prototools overrides any version here.
+# Changing this file triggers an image rebuild via CI path filter.
+# node and pnpm are intentionally absent: they are project-level tools.
+
+moon = "2.2.3"
+dprint = "0.53"
+lnko = "0.2"
+yq = "4.53.2"
+tera = "0.5.0"
+shellcheck = "0.11.0"
+shfmt = "3.13.1"
+
+[plugins]
+lnko = "https://tomdavidson.github.io/proto/lnko.toml"
+dprint = "https://tomdavidson.github.io/proto/dprint.toml"
+yq = "github://muuvmuuv/proto-plugins/yq_tool"
+tera = "https://tomdavidson.github.io/proto/tera.toml"
+shellcheck = "https://tomdavidson.github.io/proto/shellcheck.toml"
+shfmt = "https://tomdavidson.github.io/proto/shfmt.toml"
+
+[settings]
+auto-install = true
+auto-clean = true
+detect-strategy = "prefer-prototools"

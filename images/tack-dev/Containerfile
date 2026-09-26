@@ -1,0 +1,55 @@
+# syntax=docker/dockerfile:1
+# tack-dev: base image for tack consumers.
+# Provides: Nix (single-user), devenv, proto, and tack tools via proto plugins.
+# Non-root user: dev (uid 1000).
+ARG DEBIAN_TAG=trixie-slim
+
+FROM docker.io/library/debian:${DEBIAN_TAG}
+
+ARG USERNAME=dev
+ARG USER_UID=1000
+ARG USER_GID=1000
+ARG NIXPKGS_REF=nixos-25.05
+
+LABEL org.opencontainers.image.source="https://github.com/tomdavidson/tack" \
+      org.opencontainers.image.description="tack base dev image: Nix, devenv, proto, tack tools" \
+      org.opencontainers.image.licenses="MIT"
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      bash ca-certificates curl git gzip less openssh-client procps tar unzip xz-utils \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
+ && useradd --uid "${USER_UID}" --gid "${USER_GID}" --create-home --shell /bin/bash "${USERNAME}" \
+ && mkdir -m 0755 /nix && chown "${USERNAME}:${USERNAME}" /nix
+
+USER ${USERNAME}
+ENV USER=${USERNAME} \
+    HOME=/home/${USERNAME} \
+    PROTO_HOME=/home/${USERNAME}/.proto
+ENV PATH=${PROTO_HOME}/shims:${PROTO_HOME}/bin:${HOME}/.nix-profile/bin:${PATH}
+WORKDIR /home/${USERNAME}
+
+# Install Nix (single-user, no daemon — required for rootless Podman builds)
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon \
+ && mkdir -p "${HOME}/.config/nix" \
+ && printf 'experimental-features = nix-command flakes\nsandbox = false\n' \
+      > "${HOME}/.config/nix/nix.conf" \
+ && echo '. "$HOME/.nix-profile/etc/profile.d/nix.sh"' >> "${HOME}/.bashrc"
+
+# Install devenv and yq via nix profile
+RUN . "${HOME}/.nix-profile/etc/profile.d/nix.sh" \
+ && nix profile install \
+      "github:NixOS/nixpkgs/${NIXPKGS_REF}#devenv" \
+ && nix-collect-garbage -d
+
+# Install proto
+RUN curl -fsSL https://moonrepo.dev/install/proto.sh | bash -s -- --yes --no-profile
+
+# Bake global .prototools and install all tools
+COPY --chown=${USERNAME}:${USERNAME} .prototools ${PROTO_HOME}/.prototools
+RUN . "${HOME}/.nix-profile/etc/profile.d/nix.sh" \
+ && proto install --config-mode global
+
+CMD ["bash"]
