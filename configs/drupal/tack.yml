@@ -1,0 +1,17 @@
+# configs/drupal/tack.yml
+# Drupal-specific devenv extensions: PHP extensions and a database service.
+# Requires configs/php to be listed first in pkgs.
+#
+# Consumer tackrc.yml vars:
+#   vars.drupal.extensions  -- PHP extension names (default: see below)
+#   vars.drupal.database    -- "mysql" or "mariadb" (default: "mysql")
+#   vars.drupal.database_settings -- map of extra service settings (default: {})
+#
+# Default extensions: apcu bcmath gd intl opcache pdo_mysql zip
+# LocalGovDrupal example:
+#   vars:
+#     drupal:
+#       database: mariadb
+files:
+  devenv.concat.nix:
+    target: devenv.nix
