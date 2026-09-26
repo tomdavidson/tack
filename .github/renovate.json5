@@ -1,0 +1,147 @@
+// .github/renovate.json5
+//
+// Renovate configuration for tomdavidson/tack.
+//
+// Managers:
+//   1. github-actions   -- actions/checkout, actions/cache, moonrepo/setup-toolchain, etc.
+//   2. custom:proto-version-in-actions -- proto-version: "x.y.z" in setup action files
+//   3. custom:cargo-binstall-curl -- cargo-binstall version in the curl install URL
+//   4. custom:prototools-github -- github-releases tools in .prototools (moon, yq, shfmt, etc.)
+//   5. custom:prototools-node -- node version in .prototools (node datasource)
+//   6. custom:prototools-npm  -- pnpm version in .prototools (npm datasource)
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Base config: non-disruptive defaults.
+  extends: ["config:recommended"],
+
+  // Automerge patch/minor for low-risk categories; leave major for manual review.
+  // Labels make it easy to filter PRs.
+  labels: ["renovate"],
+  prCreation: "immediate",
+  prHourlyLimit: 4,
+  prConcurrentLimit: 8,
+
+  // Group all GHA updates into one PR to reduce noise.
+  packageRules: [
+    {
+      matchManagers: ["github-actions"],
+      groupName: "GitHub Actions",
+      automerge: false,
+    },
+    {
+      // proto tools: automerge patch, manual for minor/major.
+      matchManagers: [
+        "custom.proto-version-in-actions",
+        "custom.cargo-binstall-curl",
+        "custom.prototools-github",
+        "custom.prototools-node",
+        "custom.prototools-npm",
+      ],
+      groupName: "proto tools",
+      automerge: false,
+    },
+  ],
+
+  customManagers: [
+    // ── 1. proto-version pin in setup action files ────────────────────────
+    // Matches:  proto-version: "0.62.3"
+    {
+      customType: "regex",
+      fileMatch: ["\\.github/actions/.+/action\\.ya?ml$"],
+      matchStrings: ["proto-version:\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "moonrepo/proto",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+
+    // ── 2. cargo-binstall version in curl URL ─────────────────────────────
+    // Matches:  /cargo-bins/cargo-binstall/v1.18.1/install-from-binstall-release.sh
+    {
+      customType: "regex",
+      fileMatch: ["\\.github/actions/.+/action\\.ya?ml$"],
+      matchStrings: [
+        "/cargo-bins/cargo-binstall/v(?<currentValue>[\\d.]+)/install-from-binstall-release",
+      ],
+      depNameTemplate: "cargo-bins/cargo-binstall",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+
+    // ── 3. .prototools: GitHub-releases tools ────────────────────────────
+    // Covers: moon, yq, shfmt, shellcheck, dprint, tera, lnko
+    // Each entry is:  <tool> = "<version>"
+    // depName maps to the upstream GitHub repo for each tool.
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: [
+        // moon
+        "moon\\s*=\\s*\"(?<currentValue>[^\"]+)\"",
+      ],
+      depNameTemplate: "moonrepo/moon",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["^yq\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "mikefarah/yq",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["shfmt\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "mvdan/sh",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["shellcheck\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "koalaman/shellcheck",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["dprint\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "dprint/dprint",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["tera\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "nickel-lang/nickel",
+      datasourceTemplate: "github-releases",
+      // tera-cli lives at https://github.com/nickel-lang/nickel? No --
+      // actually tera-cli is at chevdor/tera-cli. Override below.
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+
+    // ── 4. .prototools: node (node datasource) ───────────────────────────
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["node\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "node",
+      datasourceTemplate: "node-version",
+    },
+
+    // ── 5. .prototools: pnpm (npm datasource) ────────────────────────────
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["pnpm\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "pnpm",
+      datasourceTemplate: "npm",
+    },
+  ],
+}
