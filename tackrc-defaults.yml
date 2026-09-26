@@ -17,6 +17,9 @@ pkgs:
   - .github
   - .moon
 
+pkgs-exclude:
+  - configs/direnv
+
 # devcontainer vars: consumed by configs/devcontainer.
 # image and digest must be set by the consumer; they have no default because
 # the digest is only known after the tack-dev image is published.

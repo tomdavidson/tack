@@ -2,8 +2,7 @@
   "name": "{{ vars.project.name }}",
   "image": "{{ vars.devcontainer.image }}@{{ vars.devcontainer.digest }}",
   "remoteUser": "{{ vars.devcontainer.user | default(value='dev') }}",
-  "overrideCommand": false,
-  "postCreateCommand": "devenv shell -- moon setup"
+  "overrideCommand": false
 {% if vars.devcontainer.ports is defined and vars.devcontainer.ports | length > 0 %}
   ,"forwardPorts": {{ vars.devcontainer.ports | json_encode() }}
 {% endif %}

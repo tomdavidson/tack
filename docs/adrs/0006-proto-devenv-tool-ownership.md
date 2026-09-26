@@ -37,12 +37,14 @@ at all.
 Tool ownership is split by capability, not by language:
 
 **Proto owns:**
+
 - Tools that are self-contained binaries with a well-defined proto plugin.
 - Tools that moon integrates with at a toolchain level (node, pnpm, rust).
 - Tools where per-project version override is the normal case.
 - Default: lnko, tera, yq, dprint, shfmt, shellcheck, moon, node, pnpm, rust.
 
 **devenv owns:**
+
 - Tools that require native library linking or system-level configuration.
 - PHP and Composer (no proto plugin; requires extension management).
 - Services (databases, caches, mail) that run as background processes.
