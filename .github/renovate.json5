@@ -1,0 +1,133 @@
+// .github/renovate.json5
+//
+// Renovate configuration for the tack repo itself.
+// Tracks tack's own dependencies: GHA actions, proto tools, cargo-binstall.
+//
+// Consumer repos do NOT use this file. They receive configs/renovate/.github/renovate.json5
+// via tack.sh, which only watches the .tack submodule for bumps.
+//
+// Managers:
+//   1. github-actions              -- GHA action refs
+//   2. custom.proto-version        -- proto-version pin in setup action files
+//   3. custom.cargo-binstall-curl  -- cargo-binstall version in curl URL
+//   4. custom.prototools-moon      -- moon version in .prototools
+//   5. custom.prototools-yq        -- yq version in .prototools
+//   6. custom.prototools-shfmt     -- shfmt version in .prototools
+//   7. custom.prototools-shellcheck
+//   8. custom.prototools-dprint
+//   9. custom.prototools-tera
+//  10. custom.prototools-node      -- node datasource
+//  11. custom.prototools-pnpm      -- npm datasource
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended"],
+  labels: ["renovate"],
+  prCreation: "immediate",
+  prHourlyLimit: 4,
+  prConcurrentLimit: 8,
+
+  packageRules: [
+    {
+      matchManagers: ["github-actions"],
+      groupName: "GitHub Actions",
+      automerge: false,
+    },
+    {
+      matchManagers: [
+        "custom.proto-version",
+        "custom.cargo-binstall-curl",
+        "custom.prototools-moon",
+        "custom.prototools-yq",
+        "custom.prototools-shfmt",
+        "custom.prototools-shellcheck",
+        "custom.prototools-dprint",
+        "custom.prototools-tera",
+        "custom.prototools-node",
+        "custom.prototools-pnpm",
+      ],
+      groupName: "proto tools",
+      automerge: false,
+    },
+  ],
+
+  customManagers: [
+    {
+      customType: "regex",
+      fileMatch: ["\\.github/actions/.+/action\\.ya?ml$"],
+      matchStrings: ["proto-version:\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "moonrepo/proto",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.github/actions/.+/action\\.ya?ml$"],
+      matchStrings: ["/cargo-bins/cargo-binstall/v(?<currentValue>[\\d.]+)/install-from-binstall-release"],
+      depNameTemplate: "cargo-bins/cargo-binstall",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["moon\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "moonrepo/moon",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["^yq\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "mikefarah/yq",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["shfmt\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "mvdan/sh",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["shellcheck\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "koalaman/shellcheck",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["dprint\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "dprint/dprint",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["tera\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "chevdor/tera-cli",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["node\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "node",
+      datasourceTemplate: "node-version",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["\\.prototools$"],
+      matchStrings: ["pnpm\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "pnpm",
+      datasourceTemplate: "npm",
+    },
+  ],
+}
