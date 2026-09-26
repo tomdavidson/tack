@@ -31,9 +31,8 @@ pkgs-exclude:
 
 # devenv vars: consumed by configs/devenv.
 # nixpkgs_ref should match the ref used in images/tack-dev/Containerfile.
+# languages and services are set per-consumer via stack-specific configs packages.
 devenv:
   nixpkgs_ref: nixos-25.05
   packages: []
   env: {}
-  # languages and services are set per-consumer.
-  # See configs/php for PHP + Composer + database knobs.
