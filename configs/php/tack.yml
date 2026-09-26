@@ -1,0 +1,14 @@
+# configs/php/tack.yml
+# PHP + Composer language support for devenv.
+# Appends to the consumer's devenv.nix via concat dispatch.
+# Consumer tackrc.yml vars:
+#   vars.php.version   -- PHP version string (default: "8.3")
+#   vars.php.packages  -- extra nixpkgs packages list (default: [])
+#   vars.bwrap.enabled -- inherited from bwrap config (default: true)
+#
+# This package does not render a standalone devenv.nix; it appends a
+# Nix attribute set fragment to the one produced by configs/devenv.
+# configs/devenv must appear before configs/php in pkgs.
+files:
+  devenv.concat.nix:
+    target: devenv.nix
