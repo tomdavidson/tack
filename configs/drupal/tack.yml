@@ -14,15 +14,35 @@
 #     - configs/common
 #     - configs/devenv
 #     - configs/drupal
+#     - configs/drupal/stacks/localgov-multisite
 #   vars:
 #     drupal:
 #       stack: localgov-multisite
-#     bwrap:
-#       enabled: false   # disable until Drupal dir writes + sockets tested
 #
 # Override stack defaults in the consumer devenv.nix after the import:
 #   imports = [ ./.tack/configs/drupal/stacks/localgov-multisite.nix ];
 #   env.HASH_SALT = "your-project-specific-value";
+#
+# DELIVERED FILES
+# ---------------
+# phpcs.xml.dist, phpstan.neon.dist, phpunit.xml.dist: delivered once
+# (overwrite: false) to the consumer repo root. Check them in and edit
+# freely; re-running tack will not clobber your changes.
+#
+# composer.merge.json: deep-merged into the consumer's composer.json via
+# tack's *.merge.json dispatch. Adds a path repository for packages/drupal/*
+# and sets minimum-stability: dev / prefer-stable: true.
 
 ignore:
   - stacks/**
+
+files:
+  phpcs.xml.dist:
+    target: phpcs.xml.dist
+    overwrite: false
+  phpstan.neon.dist:
+    target: phpstan.neon.dist
+    overwrite: false
+  phpunit.xml.dist:
+    target: phpunit.xml.dist
+    overwrite: false

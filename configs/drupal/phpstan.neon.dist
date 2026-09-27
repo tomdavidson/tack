@@ -1,0 +1,16 @@
+# Static analysis for LocalGov Multisite custom code.
+# phpstan-drupal is wired in by phpstan/extension-installer
+# (see composer.json allow-plugins).
+# Paths are passed as args by moon tasks; override paths: here if needed.
+parameters:
+  level: 6
+  paths:
+    - web/modules/custom
+    - web/themes/custom
+  excludePaths:
+    - '*/node_modules/*'
+    - '*/tests/*'
+  reportUnmatchedIgnoredErrors: false
+  ignoreErrors:
+    # new static() is idiomatic Drupal.
+    - '#^Unsafe usage of new static#'
