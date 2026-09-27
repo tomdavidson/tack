@@ -23,9 +23,10 @@
 # └────────────────┴──────────────────────────────────────────────┘
 #
 # Service readiness:
-#   test-integration and test-e2e use `devenv tasks run drupal:deploy` as the
-#   setup step. devenv's task DAG handles MariaDB + web server readiness before
-#   phpunit runs. No polling loop or persistent moon task required.
+#   test-prepare installs Drupal if absent, or deploys if already installed.
+#   It reads SIMPLETEST_BASE_URL from $DEVENV_STATE/web.port so the URL is
+#   always correct even in shells outside `devenv up`.
+#   test-integration and test-e2e depend on test-prepare via deps.
 #
 # Minimal per-site moon.yml:
 #   tags: ["drupal-site"]
@@ -54,12 +55,16 @@ fileGroups:
     - "phpunit.xml"
     - "phpunit.xml.dist"
     - "phpstan.neon"
+    - "phpstan.neon.dist"
     - "phpcs.xml"
+    - "phpcs.xml.dist"
     - "config/sync/**/*"
+    - "composer.json"
+    - "composer.lock"
 
 tasks:
   lint:
-    command: phpcs
+    command: $workspaceRoot/vendor/bin/phpcs
     args:
       - "web/modules/custom"
       - "web/themes/custom"
@@ -69,17 +74,16 @@ tasks:
       - "/phpcs.xml.dist"
 
   lint-fix:
-    extends: lint
+    command: $workspaceRoot/vendor/bin/phpcbf
     args:
       - "web/modules/custom"
       - "web/themes/custom"
       - "--standard=$workspaceRoot/phpcs.xml.dist"
-      - "--fix"
     options:
       runInCI: false
 
   analyse:
-    command: phpstan
+    command: $workspaceRoot/vendor/bin/phpstan
     args:
       - analyse
       - "web/modules/custom"
@@ -92,7 +96,7 @@ tasks:
 
   # No services. Cached by moon.
   test-unit:
-    command: phpunit
+    command: $workspaceRoot/vendor/bin/phpunit
     args:
       - "--configuration=$workspaceRoot/phpunit.xml.dist"
       - "--no-coverage"
@@ -106,12 +110,38 @@ tasks:
       SIMPLETEST_BASE_URL: "$SIMPLETEST_BASE_URL"
       SIMPLETEST_DB: "$SIMPLETEST_DB"
 
-  # Kernel tests. devenv tasks run brings up MariaDB + web via its DAG
-  # then phpunit runs against the live site.
+  # Brings services up and ensures Drupal is installed/deployed.
+  # Reads the real allocated port from $DEVENV_STATE/web.port so
+  # SIMPLETEST_BASE_URL is correct in any shell, not just `devenv up`.
+  # Installs if settings.php is missing; deploys (updatedb+config:import) otherwise.
+  services-up:
+    script: |
+      devenv up --detach
+    options:
+      cache: false
+      runInCI: false
+      runFromWorkspaceRoot: true
+
+  test-prepare:
+    script: |
+      port=$(cat "$DEVENV_STATE/web.port" 2>/dev/null || echo "${WEB_PORT:-8080}")
+      export SIMPLETEST_BASE_URL="http://127.0.0.1:${port}"
+      if [ ! -f web/sites/default/settings.php ]; then
+        devenv tasks run drupal:setup
+      else
+        devenv tasks run drupal:deploy
+      fi
+    options:
+      cache: false
+      runInCI: false
+      runFromWorkspaceRoot: true
+
+  # Kernel tests. Depends on test-prepare for service + site readiness.
   test-integration:
     script: |
-      devenv tasks run drupal:deploy
-      phpunit \
+      port=$(cat "$DEVENV_STATE/web.port" 2>/dev/null || echo "${WEB_PORT:-8080}")
+      export SIMPLETEST_BASE_URL="http://127.0.0.1:${port}"
+      "$workspaceRoot/vendor/bin/phpunit" \
         --configuration="$workspaceRoot/phpunit.xml.dist" \
         --no-coverage \
         --testsuite=kernel
@@ -120,8 +150,9 @@ tasks:
       - "@group(tests)"
       - "@group(configs)"
       - "/phpunit.xml.dist"
+    deps:
+      - "~:test-prepare"
     env:
-      SIMPLETEST_BASE_URL: "$SIMPLETEST_BASE_URL"
       SIMPLETEST_DB: "$SIMPLETEST_DB"
     options:
       cache: false
@@ -131,8 +162,9 @@ tasks:
   # Functional/browser tests against the live site.
   test-e2e:
     script: |
-      devenv tasks run drupal:deploy
-      phpunit \
+      port=$(cat "$DEVENV_STATE/web.port" 2>/dev/null || echo "${WEB_PORT:-8080}")
+      export SIMPLETEST_BASE_URL="http://127.0.0.1:${port}"
+      "$workspaceRoot/vendor/bin/phpunit" \
         --configuration="$workspaceRoot/phpunit.xml.dist" \
         --no-coverage \
         --testsuite=functional
@@ -141,8 +173,9 @@ tasks:
       - "@group(tests)"
       - "@group(configs)"
       - "/phpunit.xml.dist"
+    deps:
+      - "~:test-prepare"
     env:
-      SIMPLETEST_BASE_URL: "$SIMPLETEST_BASE_URL"
       SIMPLETEST_DB: "$SIMPLETEST_DB"
       BROWSERTEST_OUTPUT_DIRECTORY: "$BROWSERTEST_OUTPUT_DIRECTORY"
     options:
@@ -180,7 +213,7 @@ tasks:
 
   # Dev-only: run against already-running services.
   deploy:
-    script: ".tack/configs/drupal/scripts/drupal/deploy.sh"
+    script: "scripts/drupal/deploy.sh"
     inputs:
       - "@group(configs)"
     options:
@@ -191,7 +224,7 @@ tasks:
   # Dev-only: drop and reinstall. Set LOCALGOV_DEMO=1 in moon.yml env
   # to enable the demo module via the post-install hook.
   reset:
-    script: ".tack/configs/drupal/scripts/drupal/install.sh --force"
+    script: "scripts/drupal/install.sh --force"
     options:
       runInCI: false
       runFromWorkspaceRoot: true

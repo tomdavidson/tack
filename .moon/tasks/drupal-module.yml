@@ -49,7 +49,7 @@ fileGroups:
 
 tasks:
   lint:
-    command: phpcs
+    command: $workspaceRoot/vendor/bin/phpcs
     args:
       - "src/"
       - "--standard=$workspaceRoot/phpcs.xml.dist"
@@ -58,16 +58,15 @@ tasks:
       - "/phpcs.xml.dist"
 
   lint-fix:
-    extends: lint
+    command: $workspaceRoot/vendor/bin/phpcbf
     args:
       - "src/"
       - "--standard=$workspaceRoot/phpcs.xml.dist"
-      - "--fix"
     options:
       runInCI: false
 
   analyse:
-    command: phpstan
+    command: $workspaceRoot/vendor/bin/phpstan
     args:
       - analyse
       - "src/"
@@ -79,7 +78,7 @@ tasks:
 
   # No services. Cached by moon. Fast inner dev loop.
   test-unit:
-    command: phpunit
+    command: $workspaceRoot/vendor/bin/phpunit
     args:
       - "--configuration=$workspaceRoot/phpunit.xml.dist"
       - "--no-coverage"
@@ -91,11 +90,10 @@ tasks:
 
   # Kernel tests. devenv tasks run brings up MariaDB + web via its DAG
   # (after: mysql@ready etc) before phpunit is invoked.
-  # Services must not already be running (devenv tasks run starts them).
   test-integration:
     script: |
       devenv tasks run drupal:deploy
-      phpunit \
+      "$workspaceRoot/vendor/bin/phpunit" \
         --configuration="$workspaceRoot/phpunit.xml.dist" \
         --no-coverage \
         --testsuite=kernel
@@ -112,11 +110,10 @@ tasks:
       runFromWorkspaceRoot: true
 
   # Functional/browser tests. Same devenv setup as test-integration.
-  # Override args in moon.yml if your e2e suite has a different name.
   test-e2e:
     script: |
       devenv tasks run drupal:deploy
-      phpunit \
+      "$workspaceRoot/vendor/bin/phpunit" \
         --configuration="$workspaceRoot/phpunit.xml.dist" \
         --no-coverage \
         --testsuite=functional
@@ -134,7 +131,6 @@ tasks:
       runFromWorkspaceRoot: true
 
   # Full devenv CI: install + smoke + idempotence + PHPUnit custom suite.
-  # devenv test starts all services, runs enterTest (ci.sh), then stops them.
   test:
     command: devenv
     args: ["test"]
