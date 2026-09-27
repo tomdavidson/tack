@@ -27,31 +27,23 @@ let
 
   # Single source for dev credentials — referenced by both services and env.
   # Override in the consumer devenv.nix after the import.
-  dbName      = "drupal";
-  dbUser      = "drupal";
-  dbPassword  = "drupal";
+  dbName     = "drupal";
+  dbUser     = "drupal";
+  dbPassword = "drupal";
   s3AccessKey = "devadmin";
   s3SecretKey = "devsecret";
 
-  # Defaults to <project-dirname>.localhost so each checkout gets a unique
-  # hostname automatically. Override in the consumer devenv.nix if needed:
-  #   env.PLATFORM_HOST = lib.mkForce "myproject.localhost";
-  platformHost = builtins.baseNameOf (toString config.devenv.root);
-
   # Allocated ports — resolved after devenv assigns them.
-  webPort       = config.processes.web.ports.http.value;
-  dbPort        = config.services.mysql.settings.mysqld.port;
-  s3Port        = config.processes.rustfs.ports.api.value;
+  webPort      = config.processes.web.ports.http.value;
+  dbPort       = config.services.mysql.settings.mysqld.port;
+  s3Port       = config.processes.rustfs.ports.api.value;
   s3ConsolePort = config.processes.rustfs.ports.console.value;
-
-  # Path to the tack scripts directory inside the submodule.
-  tackScripts = ".tack/configs/drupal/scripts";
 
   printUrls = ''
     port=$(cat "$DEVENV_STATE/web.port" 2>/dev/null || echo "${toString webPort}")
     echo ""
     echo "localgov-multisite dev URLs"
-    echo "  Drupal            http://${platformHost}.localhost:$port"
+    echo "  Drupal            http://localhost:$port"
     echo "  S3 API (RustFS)   $S3_ENDPOINT   bucket: $S3_BUCKET"
     echo "  RustFS console    http://127.0.0.1:${toString s3ConsolePort}   ($S3_ACCESS_KEY / $S3_SECRET_KEY)"
     echo "  MariaDB           $DB_HOST:$DB_PORT   db=$DB_NAME user=$DB_USER pass=$DB_PASSWORD"
@@ -62,19 +54,19 @@ in
 {
   # ---------------------------------------------------------------------------
   # Environment contract — must match settings.php and scripts/lib/env.sh.
-  # Override project-specific values (HASH_SALT etc.) in the consumer's
-  # devenv.nix after the import.
+  # Override project-specific values (HASH_SALT, PLATFORM_HOST, etc.) in the
+  # consumer's devenv.nix after the import.
   # ---------------------------------------------------------------------------
   env = {
-    APP_ENV               = lib.mkDefault "development";
-    HASH_SALT             = lib.mkDefault "local-dev-only-not-for-production";
-    CRON_KEY              = lib.mkDefault "local-cron-key";
+    APP_ENV              = lib.mkDefault "development";
+    HASH_SALT            = lib.mkDefault "local-dev-only-not-for-production";
+    CRON_KEY             = lib.mkDefault "local-cron-key";
     DRUPAL_ADMIN_PASSWORD = lib.mkDefault "admin";
 
-    PLATFORM_HOST = lib.mkDefault "${platformHost}.localhost";
-    PLATFORM_URI  = lib.mkDefault "http://${platformHost}.localhost:${toString webPort}";
-    TRUSTED_HOSTS = lib.mkDefault "localhost,127.0.0.1,*.localhost,*.ddev.site";
-    WEB_PORT      = lib.mkDefault (toString webPort);
+    PLATFORM_HOST  = lib.mkDefault "localhost";
+    PLATFORM_URI   = lib.mkDefault "http://localhost:${toString webPort}";
+    TRUSTED_HOSTS  = lib.mkDefault "localhost,127.0.0.1,*.localhost,*.ddev.site";
+    WEB_PORT       = lib.mkDefault (toString webPort);
 
     DB_HOST     = lib.mkDefault "127.0.0.1";
     DB_PORT     = lib.mkDefault (toString dbPort);
@@ -82,11 +74,11 @@ in
     DB_USER     = lib.mkDefault dbUser;
     DB_PASSWORD = lib.mkDefault dbPassword;
 
-    S3_ENDPOINT   = lib.mkDefault "http://127.0.0.1:${toString s3Port}";
+    S3_ENDPOINT  = lib.mkDefault "http://127.0.0.1:${toString s3Port}";
     S3_ACCESS_KEY = lib.mkDefault s3AccessKey;
     S3_SECRET_KEY = lib.mkDefault s3SecretKey;
-    S3_REGION     = lib.mkDefault "auto";
-    S3_BUCKET     = lib.mkDefault "drupal-files";
+    S3_REGION    = lib.mkDefault "auto";
+    S3_BUCKET    = lib.mkDefault "drupal-files";
     S3_PATH_STYLE = lib.mkDefault "1";
     BACKUP_BUCKET = lib.mkDefault "drupal-backups";
     # Required by the AWS SDK for PHP (s3fs); cannot be renamed.
@@ -98,14 +90,6 @@ in
     SIMPLETEST_DB                = lib.mkDefault "mysql://${dbUser}:${dbPassword}@127.0.0.1:${toString dbPort}/${dbName}";
     BROWSERTEST_OUTPUT_DIRECTORY = lib.mkDefault "/tmp/browser_output";
     SYMFONY_DEPRECATIONS_HELPER  = lib.mkDefault "disabled";
-
-    # FrankenPHP / Caddy: listen on the devenv-allocated port; no TLS locally.
-    # SERVER_NAME drives the `{$SERVER_NAME::8080}` block in the Caddyfile.
-    SERVER_NAME = lib.mkDefault ":${toString webPort}";
-    # Empty defaults so Caddyfile interpolation never hits an unset variable.
-    # Set these in the consumer devenv.nix to inject extra Caddy config.
-    CADDY_GLOBAL_OPTIONS          = lib.mkDefault "";
-    CADDY_SERVER_EXTRA_DIRECTIVES = lib.mkDefault "";
   };
 
   # ---------------------------------------------------------------------------
@@ -116,7 +100,6 @@ in
     curl
     jq
     mariadb_114.client
-    frankenphp
   ];
 
   # ---------------------------------------------------------------------------
@@ -148,26 +131,27 @@ in
   # RustFS — local S3-compatible object store for s3fs.
   # ---------------------------------------------------------------------------
   services.rustfs = {
-    enable      = true;
-    package     = pkgs.rustfs;
-    port        = lib.mkDefault 9000;
+    enable     = true;
+    package    = pkgs.rustfs;
+    port       = lib.mkDefault 9000;
     consolePort = lib.mkDefault 9001;
-    accessKey   = s3AccessKey;
-    secretKey   = s3SecretKey;
+    accessKey  = s3AccessKey;
+    secretKey  = s3SecretKey;
   };
 
   # ---------------------------------------------------------------------------
-  # Web server — FrankenPHP with the project Caddyfile.
-  # SERVER_NAME drives the Caddyfile `{$SERVER_NAME::8080}` block so it
-  # listens on the devenv-allocated port. The port is also written to
-  # $DEVENV_STATE/web.port so other shells and `urls` can find it.
+  # Web server — PHP built-in server with Drupal's router script.
+  # FrankenPHP is production (Fly.io); php -S is used locally.
+  # The allocated port is written to $DEVENV_STATE/web.port so other shells
+  # and the `urls` script can find it.
   # ---------------------------------------------------------------------------
   processes.web = {
     ports.http.allocate = lib.mkDefault 8080;
     exec = ''
       echo ${toString webPort} > "$DEVENV_STATE/web.port"
       cd "$DEVENV_ROOT"
-      exec frankenphp run --config Caddyfile
+      exec php -S 0.0.0.0:${toString webPort} \
+        -t "$DEVENV_ROOT/web" "$DEVENV_ROOT/web/.ht.router.php"
     '';
     ready.http.get = {
       port = webPort;
@@ -188,60 +172,53 @@ in
 
   # ---------------------------------------------------------------------------
   # Tasks
-  # All scripts live in .tack/configs/drupal/scripts/ (via the submodule).
-  # post-install.sh for LocalGov-specific setup (role grant, demo module) lives
-  # in .tack/configs/drupal/stacks/localgov-multisite/ and must be symlinked or
-  # copied to scripts/drupal/post-install.sh in the consumer project.
   # ---------------------------------------------------------------------------
   tasks."app:composer" = {
-    description = "composer install (scaffolds web/ and vendor/)";
-    status      = "test -f vendor/autoload.php";
-    exec        = "${tackScripts}/drupal/../../../scripts/drupal/install.sh";
-    before      = [ "devenv:processes:web" ];
-  };
-
-  tasks."app:composer" = {
-    description = "composer install";
-    status      = "test -f vendor/autoload.php";
+    description = "composer install (scaffolds web/ and .ht.router.php)";
+    status      = "test -f vendor/autoload.php -a -f web/.ht.router.php";
     exec        = "composer install --no-interaction";
     before      = [ "devenv:processes:web" ];
   };
 
   tasks."db:user" = {
     description = "Create the ${dbName} database and ${dbUser} user (idempotent)";
-    exec        = "${tackScripts}/db/ensure-user.sh";
+    exec        = "scripts/db/ensure-user.sh";
     after       = [ "devenv:processes:mysql@ready" ];
     before      = [ "devenv:processes:web" ];
   };
 
   tasks."s3:buckets" = {
     description = "Create the files and backup buckets on RustFS (idempotent)";
-    exec        = "${tackScripts}/s3/bootstrap-buckets.sh";
+    exec        = "scripts/s3/bootstrap-buckets.sh";
     after       = [ "devenv:processes:rustfs@ready" ];
     before      = [ "devenv:processes:web" ];
   };
 
   tasks."drupal:setup" = {
-    description = "Install from config/sync + post-install hook (with demo module)";
-    exec        = "LOCALGOV_DEMO=1 ${tackScripts}/drupal/install.sh";
+    description = "Install from config/sync, deploy, drift gate, then enable the demo module";
+    exec        = "scripts/drupal/install.sh --demo";
     after       = [ "app:composer" "db:user" "s3:buckets" ];
   };
 
   tasks."drupal:deploy" = {
     description = "updatedb, config:import, cache:rebuild, cron key, drift gate";
-    exec        = "${tackScripts}/drupal/deploy.sh";
+    exec        = "scripts/drupal/deploy.sh";
     after       = [ "app:composer" "db:user" ];
   };
 
   tasks."drupal:reset" = {
-    description = "Drop and reinstall from config/sync + post-install hook (with demo module)";
-    exec        = "LOCALGOV_DEMO=1 ${tackScripts}/drupal/install.sh --force";
+    description = "Drop and reinstall the site from config/sync (+ demo module)";
+    exec        = "scripts/drupal/install.sh --force --demo";
     after       = [ "app:composer" "db:user" "s3:buckets" ];
   };
 
   # ---------------------------------------------------------------------------
   # Test + Shell
   # ---------------------------------------------------------------------------
+
+  # `devenv test` starts all processes (triggering before-tasks: composer,
+  # db:user, s3:buckets), runs enterTest, then stops. ci.sh re-runs the
+  # idempotent setup scripts itself so it doesn't rely on devenv ordering.
   enterTest = ''
     scripts/test/ci.sh
   '';
