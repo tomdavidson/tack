@@ -1,43 +1,57 @@
 # configs/drupal/stacks
 
 Devenv stack modules for Drupal projects. Each stack is a Nix module
-imported by the consumer's `devenv.nix` at eval time via the `.tack`
-submodule — never materialized into the project.
+imported by the consumer's `devenv.nix`. The import is automated by the
+tack tera renderer — the consumer does not write the `imports` line manually.
 
 ## Available stacks
 
 | Stack | Path | Description |
 |---|---|---|
-| `localgov-multisite` | `configs/drupal/stacks/localgov-multisite` | FrankenPHP + MariaDB 11.4 + PHP 8.3 + LocalGov Drupal multisite |
+| `localgov-multisite` | `configs/drupal/stacks/localgov-multisite.nix` | FrankenPHP + MariaDB 11.4 + PHP 8.3 + LocalGov Drupal multisite |
 
 ## Stack selection
 
-In `tackrc.yml`, add the stack package alongside `configs/drupal`:
+A stack requires two entries in `tackrc.yml` — one to select the devenv
+Nix module, one to deliver the stack's extra scripts:
 
 ```yaml
 pkgs:
-  - configs/common
-  - configs/devenv
   - configs/drupal
-  - configs/drupal/stacks/localgov-multisite
+  - configs/drupal/stacks/localgov-multisite   # delivers post-install.sh
+
+vars:
+  drupal:
+    stack: localgov-multisite                  # renders the devenv.nix import
 ```
 
-In `devenv.nix`, import the stack module:
+`vars.drupal.stack` is read by `configs/devenv/devenv.tera.nix` and renders
+to:
+
+```nix
+imports = [ ./.tack/configs/drupal/stacks/localgov-multisite.nix ];
+```
+
+The consumer's `devenv.nix` only needs overrides — no manual import line:
 
 ```nix
 { pkgs, config, ... }:
 {
-  imports = [ ./.tack/configs/drupal/stacks/localgov-multisite.nix ];
-
+  # Stack imported automatically via vars.drupal.stack in tackrc.yml.
   # Override stack defaults here:
   env.HASH_SALT = "your-project-specific-value";
 }
 ```
 
+Tack has no dependency mechanism so the two entries are intentionally
+separate: `pkgs` controls file delivery, `vars` controls tera rendering.
+Stacks are permitted to be slightly wet rather than forcing an abstraction
+tack doesn't have.
+
 ## Post-install hook
 
-The `localgov-multisite` stack package also delivers a post-install hook
-script via tack:
+The `localgov-multisite` stack package delivers a post-install hook via tack's
+`path_prefix` mechanism:
 
 ```
 configs/drupal/stacks/localgov-multisite/
@@ -45,10 +59,10 @@ configs/drupal/stacks/localgov-multisite/
   post-install.sh   # linked -> scripts/drupal/post-install.sh in consumer
 ```
 
-The generic `scripts/drupal/install.sh` (from `configs/drupal`) calls
+`scripts/drupal/install.sh` (from `configs/drupal`) calls
 `scripts/drupal/post-install.sh` if it exists after Drupal installation
-completes. For LocalGov this enables the demo module, creates multisite
-config, etc. Override or replace it in the consumer project.
+completes. For LocalGov this enables the demo module and configures multisite.
+Override or replace it in the consumer project.
 
 To enable the demo module on `reset`:
 
