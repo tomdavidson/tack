@@ -35,7 +35,7 @@ let
 
   # Defaults to <project-dirname>.localhost so each checkout gets a unique
   # hostname automatically. Override in the consumer devenv.nix if needed:
-  #   env.PLATFORM_HOST = "myproject.localhost";
+  #   env.PLATFORM_HOST = lib.mkForce "myproject.localhost";
   platformHost = builtins.baseNameOf (toString config.devenv.root);
 
   # Allocated ports — resolved after devenv assigns them.
@@ -44,11 +44,14 @@ let
   s3Port        = config.processes.rustfs.ports.api.value;
   s3ConsolePort = config.processes.rustfs.ports.console.value;
 
+  # Path to the tack scripts directory inside the submodule.
+  tackScripts = ".tack/configs/drupal/scripts";
+
   printUrls = ''
     port=$(cat "$DEVENV_STATE/web.port" 2>/dev/null || echo "${toString webPort}")
     echo ""
     echo "localgov-multisite dev URLs"
-    echo "  Drupal            http://${platformHost}:$port"
+    echo "  Drupal            http://${platformHost}.localhost:$port"
     echo "  S3 API (RustFS)   $S3_ENDPOINT   bucket: $S3_BUCKET"
     echo "  RustFS console    http://127.0.0.1:${toString s3ConsolePort}   ($S3_ACCESS_KEY / $S3_SECRET_KEY)"
     echo "  MariaDB           $DB_HOST:$DB_PORT   db=$DB_NAME user=$DB_USER pass=$DB_PASSWORD"
@@ -185,9 +188,20 @@ in
 
   # ---------------------------------------------------------------------------
   # Tasks
+  # All scripts live in .tack/configs/drupal/scripts/ (via the submodule).
+  # post-install.sh for LocalGov-specific setup (role grant, demo module) lives
+  # in .tack/configs/drupal/stacks/localgov-multisite/ and must be symlinked or
+  # copied to scripts/drupal/post-install.sh in the consumer project.
   # ---------------------------------------------------------------------------
   tasks."app:composer" = {
     description = "composer install (scaffolds web/ and vendor/)";
+    status      = "test -f vendor/autoload.php";
+    exec        = "${tackScripts}/drupal/../../../scripts/drupal/install.sh";
+    before      = [ "devenv:processes:web" ];
+  };
+
+  tasks."app:composer" = {
+    description = "composer install";
     status      = "test -f vendor/autoload.php";
     exec        = "composer install --no-interaction";
     before      = [ "devenv:processes:web" ];
@@ -195,33 +209,33 @@ in
 
   tasks."db:user" = {
     description = "Create the ${dbName} database and ${dbUser} user (idempotent)";
-    exec        = "scripts/db/ensure-user.sh";
+    exec        = "${tackScripts}/db/ensure-user.sh";
     after       = [ "devenv:processes:mysql@ready" ];
     before      = [ "devenv:processes:web" ];
   };
 
   tasks."s3:buckets" = {
     description = "Create the files and backup buckets on RustFS (idempotent)";
-    exec        = "scripts/s3/bootstrap-buckets.sh";
+    exec        = "${tackScripts}/s3/bootstrap-buckets.sh";
     after       = [ "devenv:processes:rustfs@ready" ];
     before      = [ "devenv:processes:web" ];
   };
 
   tasks."drupal:setup" = {
-    description = "Install from config/sync, deploy, drift gate, then enable the demo module";
-    exec        = "scripts/drupal/install.sh --demo";
+    description = "Install from config/sync + post-install hook (with demo module)";
+    exec        = "LOCALGOV_DEMO=1 ${tackScripts}/drupal/install.sh";
     after       = [ "app:composer" "db:user" "s3:buckets" ];
   };
 
   tasks."drupal:deploy" = {
     description = "updatedb, config:import, cache:rebuild, cron key, drift gate";
-    exec        = "scripts/drupal/deploy.sh";
+    exec        = "${tackScripts}/drupal/deploy.sh";
     after       = [ "app:composer" "db:user" ];
   };
 
   tasks."drupal:reset" = {
-    description = "Drop and reinstall the site from config/sync (+ demo module)";
-    exec        = "scripts/drupal/install.sh --force --demo";
+    description = "Drop and reinstall from config/sync + post-install hook (with demo module)";
+    exec        = "LOCALGOV_DEMO=1 ${tackScripts}/drupal/install.sh --force";
     after       = [ "app:composer" "db:user" "s3:buckets" ];
   };
 
