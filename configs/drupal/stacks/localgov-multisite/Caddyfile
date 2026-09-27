@@ -1,0 +1,85 @@
+# Caddyfile for LocalGov Drupal Multisite on FrankenPHP.
+# Delivered by the localgov-multisite tack stack to the consumer repo root.
+#
+# Plain HTTP on the devenv-allocated port. TLS terminates at the edge
+# (production/review) or is absent (local dev).
+#
+# SERVER_NAME is set by localgov-multisite.nix to ":PORT" (e.g. ":8081").
+# {$SERVER_NAME::8080} expands to that value, falling back to :8080.
+# Caddy's ":PORT" site address is a catch-all — it accepts every hostname
+# on that port. LocalGov microsites are routed by Host header inside Drupal
+# via Domain / Domain Alias / Group Context Domain; Caddy does not need to
+# know about individual microsite hostnames.
+#
+# Worker mode is OFF: no `worker` directive and FRANKENPHP_CONFIG is not
+# interpolated here. Enable in the consumer Caddyfile override if needed.
+#
+# Hardening adapted from Drupal's .htaccess.
+
+{
+	{$CADDY_GLOBAL_OPTIONS}
+
+	frankenphp
+
+	order php_server before file_server
+	order php before file_server
+}
+
+{$SERVER_NAME::8080} {
+	root * web
+	encode zstd br gzip
+
+	# Bound request bodies before PHP reads them.
+	request_body {
+		max_size 64MB
+	}
+
+	# Dotfiles and dot-directories (.git, .env, .htaccess ...)
+	@hiddenFilesRegexp path_regexp (^|/)\.
+	error @hiddenFilesRegexp 403
+
+	# PHP inside hidden directories
+	@hiddenPhpFilesRegexp path_regexp \..*/.*\.php$
+	error @hiddenPhpFilesRegexp 403
+
+	# Composer-managed code is never web-executable
+	@notFoundPhpFiles path_regexp /vendor/.*\.php$
+	error @notFoundPhpFiles 404
+
+	# Uploaded PHP in files directories
+	@notFoundPhpFilesRegexp path_regexp ^/sites/[^/]+/files/.*\.php$
+	error @notFoundPhpFilesRegexp 404
+
+	# Private files are served only through Drupal's system/files route
+	@privateDirRegexp path_regexp ^/sites/.*/private/
+	error @privateDirRegexp 403
+
+	# Source, config, backup and editor files
+	@protectedFilesRegexp {
+		not path /.well-known*
+		path_regexp \.(engine|inc|install|make|module|profile|po|sh|.*sql|theme|twig|tpl(\.php)?|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?$|^/(\..*|Entries.*|Repository|Root|Tag|Template|composer\.(json|lock)|web\.config|yarn\.lock|package\.json)$|^\/#.*#$|\.php(~|\.sw[op]|\.bak|\.orig|\.save)$
+	}
+	error @protectedFilesRegexp 403
+
+	# Drupal maintenance entry points are not needed via HTTP
+	@blockedEntryPoints path /update.php /install.php /rebuild.php
+	error @blockedEntryPoints 404
+
+	@static {
+		file
+		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
+	}
+	header @static Cache-Control "max-age=31536000,public,immutable"
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+		-X-Powered-By
+	}
+
+	{$CADDY_SERVER_EXTRA_DIRECTIVES}
+
+	php_server
+}

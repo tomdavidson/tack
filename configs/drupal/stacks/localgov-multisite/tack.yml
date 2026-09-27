@@ -1,6 +1,10 @@
 # configs/drupal/stacks/localgov-multisite: LocalGov Drupal Multisite stack extras.
 #
-# Delivers the LocalGov-specific post-install hook to the consumer project.
+# Delivers:
+#   - post-install.sh  -> scripts/drupal/post-install.sh  (via path_prefix)
+#   - Caddyfile        -> Caddyfile                        (files target override)
+#   - localgov-microsite.yml -> .moon/tasks/localgov-microsite.yml (files target override)
+#
 # Add this package to pkgs in tackrc.yml alongside configs/drupal:
 #
 #   pkgs:
@@ -9,9 +13,13 @@
 #     - configs/drupal
 #     - configs/drupal/stacks/localgov-multisite
 #
-# Tack links post-install.sh -> scripts/drupal/post-install.sh in the
-# consumer. The generic install.sh calls that path if it exists.
-#
-# path_prefix places every file in this package under scripts/drupal/
-# in the consumer project.
+# path_prefix places post-install.sh under scripts/drupal/ in the consumer.
+# The Caddyfile and localgov-microsite.yml use files.<src>.target to bypass
+# path_prefix and land at their correct consumer paths.
 path_prefix: scripts/drupal
+
+files:
+  Caddyfile:
+    target: Caddyfile
+  localgov-microsite.yml:
+    target: .moon/tasks/localgov-microsite.yml

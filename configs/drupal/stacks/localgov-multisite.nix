@@ -74,7 +74,9 @@ in
 
     PLATFORM_HOST = lib.mkDefault "${platformHost}.localhost";
     PLATFORM_URI  = lib.mkDefault "http://${platformHost}.localhost:${toString webPort}";
-    TRUSTED_HOSTS = lib.mkDefault "localhost,127.0.0.1,*.localhost,*.ddev.site";
+    # *.localhost covers all microsite subdomains locally. No *.ddev.site —
+    # this stack is devenv-only. Add extra patterns in the consumer devenv.nix.
+    TRUSTED_HOSTS = lib.mkDefault "localhost,127.0.0.1,*.localhost";
     WEB_PORT      = lib.mkDefault (toString webPort);
 
     DB_HOST     = lib.mkDefault "127.0.0.1";
@@ -102,8 +104,11 @@ in
     BROWSERTEST_OUTPUT_DIRECTORY = lib.mkDefault "/tmp/browser_output";
     SYMFONY_DEPRECATIONS_HELPER  = lib.mkDefault "disabled";
 
-    # FrankenPHP / Caddy: listen on the devenv-allocated port; no TLS locally.
-    # SERVER_NAME drives the `{$SERVER_NAME::8080}` block in the Caddyfile.
+    # FrankenPHP / Caddy: SERVER_NAME is set to ":PORT" (e.g. ":8081").
+    # The Caddyfile uses {$SERVER_NAME::8080} which expands to :8081 —
+    # Caddy's catch-all "bind all hosts on this port" syntax.
+    # Do NOT prefix with another colon in the Caddyfile (:{$SERVER_NAME}
+    # would produce ::8081, which is invalid Caddy syntax).
     SERVER_NAME = lib.mkDefault ":${toString webPort}";
     # Empty defaults so Caddyfile interpolation never hits an unset variable.
     # Set these in the consumer devenv.nix to inject extra Caddy config.
@@ -161,9 +166,9 @@ in
 
   # ---------------------------------------------------------------------------
   # Web server — FrankenPHP with the project Caddyfile.
-  # SERVER_NAME drives the Caddyfile `{$SERVER_NAME::8080}` block so it
-  # listens on the devenv-allocated port. The port is also written to
-  # $DEVENV_STATE/web.port so other shells and `urls` can find it.
+  # SERVER_NAME=":PORT" drives {$SERVER_NAME::8080} in the Caddyfile.
+  # The port is also written to $DEVENV_STATE/web.port so other shells
+  # and the `urls` script can find it without parsing env.
   # ---------------------------------------------------------------------------
   processes.web = {
     ports.http.allocate = lib.mkDefault 8080;
