@@ -36,11 +36,34 @@ vars:
 
   # devenv vars: consumed by configs/devenv.
   # nixpkgs_ref should match the ref used in images/tack-dev/Containerfile.
-  # languages and services are set per-consumer via stack-specific configs packages.
+  # languages and services are set per-consumer via the drupal stack module.
   devenv:
-    nixpkgs_ref: nixos-25.05
+    nixpkgs_ref: nixos-25.11
     packages: []
     env: {}
+
+  # drupal vars: consumed by configs/drupal and configs/devenv.
+  #
+  # stack: selects the devenv Nix module to import. The rendered devenv.nix
+  # will include:
+  #   imports = [ ./.tack/configs/drupal/stacks/<stack>.nix ];
+  # Available stacks (configs/drupal/stacks/):
+  #   localgov-multisite  FrankenPHP + MariaDB 11.4 + Drupal tasks
+  #
+  # Example consumer tackrc.yml for a LocalGov Drupal multisite project:
+  #   pkgs:
+  #     - configs/common
+  #     - configs/devenv
+  #     - configs/drupal
+  #   vars:
+  #     drupal:
+  #       stack: localgov-multisite
+  #     bwrap:
+  #       enabled: false   # disable until Drupal dir writes + sockets tested
+  #
+  # Uncomment and set stack to enable:
+  # drupal:
+  #   stack: localgov-multisite
 
   # bwrap sandbox vars: consumed by configs/devenv.
   # enabled: render bwrap-run wrappers and add pkgs.bubblewrap/apparmor-utils.
