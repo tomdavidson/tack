@@ -3,29 +3,21 @@
 # Inherited by all projects tagged "drupal-module" (packages/drupal/*).
 # PHP and Composer binaries come from devenv; moon does not manage the toolchain.
 #
-# ┌────────────────┬──────────────────────────────────────────────┐
-# │ Use case       │ Command                                             │
-# ├────────────────┼──────────────────────────────────────────────┤
-# │ Lint check     │ moon run ~:lint                                     │
-# │ Lint fix       │ moon run ~:lint-fix                                 │
-# │ Static anal    │ moon run ~:analyse                                  │
-# │ Unit tests     │ moon run ~:test-unit  (no services, cached)          │
-# │ Integration    │ moon run ~:test-integration  (devenv starts services) │
-# │ E2E            │ moon run ~:test-e2e  (devenv starts services)        │
-# │ Full devenv CI │ moon run ~:test  (devenv test; full ci.sh)           │
-# │ Fast CI        │ moon run ~:check  (no services; moon ci default)     │
-# │ Full CI        │ moon run ~:check-full                               │
-# └────────────────┴──────────────────────────────────────────────┘
+# ┌──────────────┬─────────────────────────────────────────────┐
+# │ Use case     │ Command                                     │
+# ├──────────────┼─────────────────────────────────────────────┤
+# │ Lint check   │ moon run ~:lint                             │
+# │ Lint fix     │ moon run ~:lint-fix                         │
+# │ Static anal  │ moon run ~:analyse                          │
+# │ Unit tests   │ moon run ~:test                             │
+# │ All checks   │ moon run ~:check                            │
+# │ CI (affected)│ moon ci                                     │
+# └──────────────┴─────────────────────────────────────────────┘
 #
-# Service readiness for test-integration and test-e2e:
-#   `devenv tasks run drupal:deploy` is used as the setup step. devenv's own
-#   task DAG (after: mysql@ready, rustfs@ready) handles service startup and
-#   readiness before phpunit is invoked. No polling or persistent task needed.
-#
-# Per-module overrides in moon.yml:
+# Per-module overrides go in the module's moon.yml, e.g.:
 #   tasks:
-#     test-integration:
-#       args: ["--testsuite=kernel,unit", "--configuration=phpunit.xml.dist"]
+#     test:
+#       args: ["--testsuite=unit", "--configuration=phpunit.xml"]
 
 $schema: "https://moonrepo.dev/schemas/tasks.json"
 
@@ -77,8 +69,7 @@ tasks:
       - "@group(sources)"
       - "/phpstan.neon.dist"
 
-  # No services. Cached by moon. Fast inner dev loop.
-  test-unit:
+  test:
     command: phpunit
     args:
       - "--configuration=$workspaceRoot/phpunit.xml.dist"
@@ -88,76 +79,13 @@ tasks:
       - "@group(sources)"
       - "@group(tests)"
       - "/phpunit.xml.dist"
-
-  # Kernel tests. devenv tasks run brings up MariaDB + web via its DAG
-  # (after: mysql@ready etc) before phpunit is invoked.
-  # Services must not already be running (devenv tasks run starts them).
-  test-integration:
-    script: |
-      devenv tasks run drupal:deploy
-      phpunit \
-        --configuration="$workspaceRoot/phpunit.xml.dist" \
-        --no-coverage \
-        --testsuite=kernel
-    inputs:
-      - "@group(sources)"
-      - "@group(tests)"
-      - "/phpunit.xml.dist"
     env:
       SIMPLETEST_BASE_URL: "$SIMPLETEST_BASE_URL"
       SIMPLETEST_DB: "$SIMPLETEST_DB"
-    options:
-      cache: false
-      runInCI: false
-      runFromWorkspaceRoot: true
 
-  # Functional/browser tests. Same devenv setup as test-integration.
-  # Override args in moon.yml if your e2e suite has a different name.
-  test-e2e:
-    script: |
-      devenv tasks run drupal:deploy
-      phpunit \
-        --configuration="$workspaceRoot/phpunit.xml.dist" \
-        --no-coverage \
-        --testsuite=functional
-    inputs:
-      - "@group(sources)"
-      - "@group(tests)"
-      - "/phpunit.xml.dist"
-    env:
-      SIMPLETEST_BASE_URL: "$SIMPLETEST_BASE_URL"
-      SIMPLETEST_DB: "$SIMPLETEST_DB"
-      BROWSERTEST_OUTPUT_DIRECTORY: "$BROWSERTEST_OUTPUT_DIRECTORY"
-    options:
-      cache: false
-      runInCI: false
-      runFromWorkspaceRoot: true
-
-  # Full devenv CI: install + smoke + idempotence + PHPUnit custom suite.
-  # devenv test starts all services, runs enterTest (ci.sh), then stops them.
-  test:
-    command: devenv
-    args: ["test"]
-    options:
-      cache: false
-      runFromWorkspaceRoot: true
-
-  # Default CI target: static + unit. No services. Moon caches.
   check:
     command: noop
     deps:
       - "~:lint"
       - "~:analyse"
-      - "~:test-unit"
-
-  # Full CI: all tiers. Explicit opt-in only.
-  check-full:
-    command: noop
-    deps:
-      - "~:lint"
-      - "~:analyse"
-      - "~:test-unit"
-      - "~:test-integration"
-      - "~:test-e2e"
-    options:
-      runInCI: false
+      - "~:test"
