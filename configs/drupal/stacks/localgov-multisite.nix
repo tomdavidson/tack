@@ -27,16 +27,16 @@ let
 
   # Single source for dev credentials — referenced by both services and env.
   # Override in the consumer devenv.nix after the import.
-  dbName     = "drupal";
-  dbUser     = "drupal";
-  dbPassword = "drupal";
+  dbName      = "drupal";
+  dbUser      = "drupal";
+  dbPassword  = "drupal";
   s3AccessKey = "devadmin";
   s3SecretKey = "devsecret";
 
   # Allocated ports — resolved after devenv assigns them.
-  webPort      = config.processes.web.ports.http.value;
-  dbPort       = config.services.mysql.settings.mysqld.port;
-  s3Port       = config.processes.rustfs.ports.api.value;
+  webPort       = config.processes.web.ports.http.value;
+  dbPort        = config.services.mysql.settings.mysqld.port;
+  s3Port        = config.processes.rustfs.ports.api.value;
   s3ConsolePort = config.processes.rustfs.ports.console.value;
 
   printUrls = ''
@@ -58,15 +58,15 @@ in
   # consumer's devenv.nix after the import.
   # ---------------------------------------------------------------------------
   env = {
-    APP_ENV              = lib.mkDefault "development";
-    HASH_SALT            = lib.mkDefault "local-dev-only-not-for-production";
-    CRON_KEY             = lib.mkDefault "local-cron-key";
+    APP_ENV               = lib.mkDefault "development";
+    HASH_SALT             = lib.mkDefault "local-dev-only-not-for-production";
+    CRON_KEY              = lib.mkDefault "local-cron-key";
     DRUPAL_ADMIN_PASSWORD = lib.mkDefault "admin";
 
-    PLATFORM_HOST  = lib.mkDefault "localhost";
-    PLATFORM_URI   = lib.mkDefault "http://localhost:${toString webPort}";
-    TRUSTED_HOSTS  = lib.mkDefault "localhost,127.0.0.1,*.localhost,*.ddev.site";
-    WEB_PORT       = lib.mkDefault (toString webPort);
+    PLATFORM_HOST = lib.mkDefault "localhost";
+    PLATFORM_URI  = lib.mkDefault "http://localhost:${toString webPort}";
+    TRUSTED_HOSTS = lib.mkDefault "localhost,127.0.0.1,*.localhost,*.ddev.site";
+    WEB_PORT      = lib.mkDefault (toString webPort);
 
     DB_HOST     = lib.mkDefault "127.0.0.1";
     DB_PORT     = lib.mkDefault (toString dbPort);
@@ -74,11 +74,11 @@ in
     DB_USER     = lib.mkDefault dbUser;
     DB_PASSWORD = lib.mkDefault dbPassword;
 
-    S3_ENDPOINT  = lib.mkDefault "http://127.0.0.1:${toString s3Port}";
+    S3_ENDPOINT   = lib.mkDefault "http://127.0.0.1:${toString s3Port}";
     S3_ACCESS_KEY = lib.mkDefault s3AccessKey;
     S3_SECRET_KEY = lib.mkDefault s3SecretKey;
-    S3_REGION    = lib.mkDefault "auto";
-    S3_BUCKET    = lib.mkDefault "drupal-files";
+    S3_REGION     = lib.mkDefault "auto";
+    S3_BUCKET     = lib.mkDefault "drupal-files";
     S3_PATH_STYLE = lib.mkDefault "1";
     BACKUP_BUCKET = lib.mkDefault "drupal-backups";
     # Required by the AWS SDK for PHP (s3fs); cannot be renamed.
@@ -90,6 +90,9 @@ in
     SIMPLETEST_DB                = lib.mkDefault "mysql://${dbUser}:${dbPassword}@127.0.0.1:${toString dbPort}/${dbName}";
     BROWSERTEST_OUTPUT_DIRECTORY = lib.mkDefault "/tmp/browser_output";
     SYMFONY_DEPRECATIONS_HELPER  = lib.mkDefault "disabled";
+
+    # FrankenPHP / Caddy: listen on the devenv-allocated port; no TLS locally.
+    SERVER_NAME = lib.mkDefault ":${toString webPort}";
   };
 
   # ---------------------------------------------------------------------------
@@ -100,6 +103,7 @@ in
     curl
     jq
     mariadb_114.client
+    frankenphp
   ];
 
   # ---------------------------------------------------------------------------
@@ -131,27 +135,26 @@ in
   # RustFS — local S3-compatible object store for s3fs.
   # ---------------------------------------------------------------------------
   services.rustfs = {
-    enable     = true;
-    package    = pkgs.rustfs;
-    port       = lib.mkDefault 9000;
+    enable      = true;
+    package     = pkgs.rustfs;
+    port        = lib.mkDefault 9000;
     consolePort = lib.mkDefault 9001;
-    accessKey  = s3AccessKey;
-    secretKey  = s3SecretKey;
+    accessKey   = s3AccessKey;
+    secretKey   = s3SecretKey;
   };
 
   # ---------------------------------------------------------------------------
-  # Web server — PHP built-in server with Drupal's router script.
-  # FrankenPHP is production (Fly.io); php -S is used locally.
-  # The allocated port is written to $DEVENV_STATE/web.port so other shells
-  # and the `urls` script can find it.
+  # Web server — FrankenPHP with the project Caddyfile.
+  # SERVER_NAME drives the Caddyfile `{$SERVER_NAME::8080}` block so it
+  # listens on the devenv-allocated port. The port is also written to
+  # $DEVENV_STATE/web.port so other shells and `urls` can find it.
   # ---------------------------------------------------------------------------
   processes.web = {
     ports.http.allocate = lib.mkDefault 8080;
     exec = ''
       echo ${toString webPort} > "$DEVENV_STATE/web.port"
       cd "$DEVENV_ROOT"
-      exec php -S 0.0.0.0:${toString webPort} \
-        -t "$DEVENV_ROOT/web" "$DEVENV_ROOT/web/.ht.router.php"
+      exec frankenphp run --config Caddyfile
     '';
     ready.http.get = {
       port = webPort;
@@ -174,8 +177,8 @@ in
   # Tasks
   # ---------------------------------------------------------------------------
   tasks."app:composer" = {
-    description = "composer install (scaffolds web/ and .ht.router.php)";
-    status      = "test -f vendor/autoload.php -a -f web/.ht.router.php";
+    description = "composer install (scaffolds web/ and vendor/)";
+    status      = "test -f vendor/autoload.php";
     exec        = "composer install --no-interaction";
     before      = [ "devenv:processes:web" ];
   };
@@ -215,10 +218,6 @@ in
   # ---------------------------------------------------------------------------
   # Test + Shell
   # ---------------------------------------------------------------------------
-
-  # `devenv test` starts all processes (triggering before-tasks: composer,
-  # db:user, s3:buckets), runs enterTest, then stops. ci.sh re-runs the
-  # idempotent setup scripts itself so it doesn't rely on devenv ordering.
   enterTest = ''
     scripts/test/ci.sh
   '';
