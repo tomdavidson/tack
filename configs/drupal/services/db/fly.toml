@@ -1,0 +1,50 @@
+# Drupal database app for Fly.io: MariaDB 11.4 on a Fly Volume.
+# Delivered by configs/drupal (tack-owned: overwrite: false).
+# Check this file in and edit freely; re-running tack will not clobber your changes.
+#
+# No [http_service] or [[services]]: reachable only over the private network
+# at <app>-db.internal:3306.
+#
+# First-time setup:
+#   fly apps create <app>-db
+#   fly volumes create <app>_db --region den --size 3 -a <app>-db
+#   fly secrets set MARIADB_ROOT_PASSWORD=... MARIADB_PASSWORD=... -a <app>-db
+#   fly deploy -c services/db/fly.toml -a <app>-db
+#   fly scale count 1 -a <app>-db
+
+app = "<app>-db"
+primary_region = "den"
+kill_signal = "SIGTERM"
+kill_timeout = "30s"
+
+[build]
+  image = "mariadb:11.4"
+
+[env]
+  MARIADB_DATABASE = "drupal"
+  MARIADB_USER = "drupal"
+  MARIADB_AUTO_UPGRADE = "1"
+
+[mounts]
+  source = "<app>_db"
+  destination = "/data"
+  initial_size = "3gb"
+  snapshot_retention = 5
+
+# The image ENTRYPOINT prepends `mariadbd` when the command starts with `-`.
+# The datadir must be a SUBDIRECTORY of the mount: the mount root holds
+# lost+found, which makes MariaDB refuse to initialise.
+[processes]
+  app = "--datadir=/data/mysql --innodb-buffer-pool-size=256M --innodb-buffer-pool-instances=1 --innodb-log-file-size=64M --performance-schema=OFF --max-connections=40 --skip-name-resolve --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --transaction-isolation=READ-COMMITTED"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[checks]
+  [checks.mariadb]
+    type = "tcp"
+    port = 3306
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "30s"
