@@ -14,18 +14,16 @@ in {
 {
 {% endif %}
 
-{% if vars.devenv.stack is defined %}
-  # Stack module imported directly from the .tack submodule at Nix eval time.
-  # Set vars.devenv.stack in tackrc.yml to select the stack, e.g.:
-  #   vars:
-  #     devenv:
-  #       stack: localgov-multisite
-  imports = [ ./.tack/configs/{{ vars.devenv.stack }}/devenv.nix ];
+{% if vars.drupal.stack is defined %}
+  # Drupal devenv stack module imported directly from the .tack submodule.
+  # Set vars.drupal.stack in tackrc.yml to select the stack. Available stacks
+  # are in configs/drupal/stacks/. Override any default after this import.
+  imports = [ ./.tack/configs/drupal/stacks/{{ vars.drupal.stack }}.nix ];
 
 {% endif %}
   # packages lists additional system-level tools available in the dev shell.
   # Add entries here for tools not managed by proto.
-  # PHP, Composer, and services are added when configs/php is consumed.
+  # PHP, Composer, and services are added by the drupal stack module.
   packages = with pkgs; [
 {% for pkg in vars.devenv.packages | default(value=[]) %}
     {{ pkg }}

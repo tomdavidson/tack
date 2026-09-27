@@ -1,7 +1,30 @@
-# configs/drupal: Drupal project tooling (dprint, phpcs, phpstan, etc.)
-# Devenv stack config is handled by the stack-import pattern in configs/devenv.
-# Select a devenv stack via vars.devenv.stack in tackrc.yml instead.
+# configs/drupal: Drupal project tooling and devenv stack modules.
 #
-# The devenv.concat.nix file has been removed; it caused Nix syntax errors
-# by appending Tera-rendered content outside the closing brace of devenv.nix.
+# DEVENV STACK SELECTION
+# ----------------------
+# Select a devenv stack for this Drupal project by setting vars.drupal.stack
+# in the consumer's tackrc.yml. The rendered devenv.nix will import the
+# corresponding Nix module directly from the .tack submodule at Nix eval time.
+#
+# Available stacks (configs/drupal/stacks/):
+#   localgov-multisite  FrankenPHP + MariaDB 11.4 + Drupal tasks
+#                       (PHP 8.3, composer, db:user, drupal:setup/deploy/reset)
+#
+# Example tackrc.yml:
+#   pkgs:
+#     - configs/common
+#     - configs/devenv
+#     - configs/drupal
+#   vars:
+#     drupal:
+#       stack: localgov-multisite
+#
+# The stack .nix files are never materialized into the consumer repo;
+# they live inside .tack/ and are imported at Nix eval time.
+# Override any stack default in the consumer's devenv.nix after the import:
+#   imports = [ ./.tack/configs/drupal/stacks/localgov-multisite.nix ];
+#   env.HASH_SALT = "your-project-specific-salt";
 
+# Stack modules are imported by the rendered devenv.nix, not materialized.
+ignore:
+  - stacks/**
