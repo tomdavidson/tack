@@ -1,0 +1,13 @@
+# Drupal cron schedule, executed by supercronic on the cron machine.
+# Delivered by configs/drupal (tack-owned: overwrite: false).
+# Check this file in and edit freely; re-running tack will not clobber your changes.
+#
+# Drupal runs cron in-process on the web machine when the /cron/{key} route is
+# hit. The Host header must be a trusted host or Drupal answers HTTP 400.
+# CRON_KEY, WEB_INTERNAL_URL and WEB_HOST come from the cron app's env/secrets.
+
+# Drupal cron every 15 minutes.
+*/15 * * * * curl -fsS --max-time 600 -H "Host: ${WEB_HOST}" "${WEB_INTERNAL_URL}/cron/${CRON_KEY}" -o /dev/null -w "cron %{http_code} %{time_total}s\n"
+
+# Nightly logical backup to the backup bucket (03:00 UTC).
+0 3 * * * /app/services/cron/backup-db.sh nightly
