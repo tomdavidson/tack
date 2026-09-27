@@ -14,18 +14,16 @@ in {
 {
 {% endif %}
 
-{% if vars.devenv.stack is defined %}
-  # Stack module imported directly from the .tack submodule at Nix eval time.
-  # Set vars.devenv.stack in tackrc.yml to select the stack, e.g.:
-  #   vars:
-  #     devenv:
-  #       stack: localgov-multisite
-  imports = [ ./.tack/configs/{{ vars.devenv.stack }}/devenv.nix ];
+{% if vars.drupal.stack is defined %}
+  # Drupal devenv stack module imported directly from the .tack submodule.
+  # Set vars.drupal.stack in tackrc.yml to select the stack. Available stacks
+  # are in configs/drupal/stacks/. Override any default after this import.
+  imports = [ ./.tack/configs/drupal/stacks/{{ vars.drupal.stack }}.nix ];
 
 {% endif %}
   # packages lists additional system-level tools available in the dev shell.
   # Add entries here for tools not managed by proto.
-  # PHP, Composer, and services are added when configs/php is consumed.
+  # PHP, Composer, and services are added by the drupal stack module.
   packages = with pkgs; [
 {% for pkg in vars.devenv.packages | default(value=[]) %}
     {{ pkg }}
@@ -88,15 +86,6 @@ in {
 
 {% if vars.bwrap.enabled | default(value=true) %}
   # bwrap-run: run dependency-executing tools inside a bubblewrap sandbox.
-  # The scripts live in the .tack submodule; these wrappers invoke them by
-  # absolute path with the repo root passed explicitly.
-  #
-  # `bwrap-run <tool>` resolves the real binary on the host (proto bin,
-  # proto shims, ~/.cargo/bin) before the sandbox starts, so proto-managed
-  # toolchains work. See docs/bwrap.md for the mount and cache layout.
-  # moon is wrapped at the moon level: everything a moon task spawns runs
-  # in ONE sandbox. See docs/bwrap-moon-sandbox-scope.md (rename pending)
-  # and issue #13.
   scripts = {
     bwrap-run.exec = ''
       exec env \

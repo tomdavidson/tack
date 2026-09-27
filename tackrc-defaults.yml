@@ -20,10 +20,6 @@ pkgs:
 pkgs-exclude:
   - configs/direnv
 
-# All tera-visible configuration lives under vars:. tack.sh renders
-# templates with the merged tackrc as the tera context, so `vars.foo` in a
-# template reads `vars: { foo: ... }` below. Consumers override subsets of
-# these keys in their tackrc.yml under the same vars: paths.
 vars:
   # devcontainer vars: consumed by configs/devcontainer.
   # image and digest must be set by the consumer; they have no default because
@@ -36,41 +32,27 @@ vars:
 
   # devenv vars: consumed by configs/devenv.
   # nixpkgs_ref should match the ref used in images/tack-dev/Containerfile.
-  # languages and services are set per-consumer via the drupal stack module.
   devenv:
     nixpkgs_ref: nixos-25.11
     packages: []
     env: {}
 
-  # drupal vars: consumed by configs/drupal and configs/devenv.
+  # drupal vars: consumed by configs/drupal + configs/devenv.
   #
-  # stack: selects the devenv Nix module to import. The rendered devenv.nix
-  # will include:
+  # stack selects the devenv Nix module to import. The rendered devenv.nix
+  # will contain:
   #   imports = [ ./.tack/configs/drupal/stacks/<stack>.nix ];
+  #
   # Available stacks (configs/drupal/stacks/):
-  #   localgov-multisite  FrankenPHP + MariaDB 11.4 + Drupal tasks
+  #   localgov-multisite  FrankenPHP + MariaDB 11.4 + PHP 8.3 + Drupal tasks
   #
-  # Example consumer tackrc.yml for a LocalGov Drupal multisite project:
-  #   pkgs:
-  #     - configs/common
-  #     - configs/devenv
-  #     - configs/drupal
-  #   vars:
-  #     drupal:
-  #       stack: localgov-multisite
-  #     bwrap:
-  #       enabled: false   # disable until Drupal dir writes + sockets tested
-  #
-  # Uncomment and set stack to enable:
+  # Uncomment to enable:
   # drupal:
   #   stack: localgov-multisite
 
   # bwrap sandbox vars: consumed by configs/devenv.
   # enabled: render bwrap-run wrappers and add pkgs.bubblewrap/apparmor-utils.
-  # tools: which commands get an `exec bwrap-run <tool>` devenv script. Proto
-  #   tool IDs (node, pnpm, moon) resolve via `proto bin`; proto bins (npx)
-  #   resolve via proto shims; rust bins (cargo, rustc) resolve via
-  #   ~/.cargo/bin. moon is wrapped at the moon level, not per task.
+  # tools: which commands get an `exec bwrap-run <tool>` devenv script.
   bwrap:
     enabled: true
     tools:
