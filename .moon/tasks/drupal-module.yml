@@ -3,21 +3,26 @@
 # Inherited by all projects tagged "drupal-module" (packages/drupal/*).
 # PHP and Composer binaries come from devenv; moon does not manage the toolchain.
 #
-# ┌──────────────┬─────────────────────────────────────────────┐
+# ┌──────────────┬───────────────────────────────────────────┐
 # │ Use case     │ Command                                     │
-# ├──────────────┼─────────────────────────────────────────────┤
+# ├──────────────┼───────────────────────────────────────────┤
 # │ Lint check   │ moon run ~:lint                             │
 # │ Lint fix     │ moon run ~:lint-fix                         │
 # │ Static anal  │ moon run ~:analyse                          │
-# │ Unit tests   │ moon run ~:test                             │
-# │ All checks   │ moon run ~:check                            │
-# │ CI (affected)│ moon ci                                     │
-# └──────────────┴─────────────────────────────────────────────┘
+# │ Unit tests   │ moon run ~:test-unit                        │
+# │ Integration  │ moon run ~:test  (starts services via devenv)│
+# │ Fast CI      │ moon run ~:check  (no services)             │
+# │ Full CI      │ moon run ~:check-full                       │
+# │ Affected CI  │ moon ci                                     │
+# └──────────────┴───────────────────────────────────────────┘
+#
+# `check` (lint + analyse + test-unit) is the default CI target: fast, no
+# services. Use `check-full` or `test` when integration tests are needed.
 #
 # Per-module overrides go in the module's moon.yml, e.g.:
 #   tasks:
-#     test:
-#       args: ["--testsuite=unit", "--configuration=phpunit.xml"]
+#     test-unit:
+#       args: ["--testsuite=unit,kernel", "--configuration=phpunit.xml.dist"]
 
 $schema: "https://moonrepo.dev/schemas/tasks.json"
 
@@ -69,7 +74,8 @@ tasks:
       - "@group(sources)"
       - "/phpstan.neon.dist"
 
-  test:
+  # No services needed. Moon caches this. Fast inner loop.
+  test-unit:
     command: phpunit
     args:
       - "--configuration=$workspaceRoot/phpunit.xml.dist"
@@ -79,13 +85,31 @@ tasks:
       - "@group(sources)"
       - "@group(tests)"
       - "/phpunit.xml.dist"
-    env:
-      SIMPLETEST_BASE_URL: "$SIMPLETEST_BASE_URL"
-      SIMPLETEST_DB: "$SIMPLETEST_DB"
 
+  # Full integration: devenv starts MariaDB + web server, runs ci.sh, stops.
+  # Not cached (services are external state). Override in moon.yml to scope
+  # to a specific testsuite instead of the full ci.sh.
+  test:
+    command: devenv
+    args: ["test"]
+    options:
+      cache: false
+      runFromWorkspaceRoot: true
+
+  # Default CI target: static checks + unit tests only. No services required.
   check:
     command: noop
     deps:
       - "~:lint"
       - "~:analyse"
+      - "~:test-unit"
+
+  # Full CI target: includes integration tests via devenv test.
+  check-full:
+    command: noop
+    deps:
+      - "~:lint"
+      - "~:analyse"
       - "~:test"
+    options:
+      runInCI: false
