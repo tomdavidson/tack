@@ -33,6 +33,11 @@ let
   s3AccessKey = "devadmin";
   s3SecretKey = "devsecret";
 
+  # Defaults to <project-dirname>.localhost so each checkout gets a unique
+  # hostname automatically. Override in the consumer devenv.nix if needed:
+  #   env.PLATFORM_HOST = "myproject.localhost";
+  platformHost = builtins.baseNameOf (toString config.devenv.root);
+
   # Allocated ports — resolved after devenv assigns them.
   webPort       = config.processes.web.ports.http.value;
   dbPort        = config.services.mysql.settings.mysqld.port;
@@ -43,7 +48,7 @@ let
     port=$(cat "$DEVENV_STATE/web.port" 2>/dev/null || echo "${toString webPort}")
     echo ""
     echo "localgov-multisite dev URLs"
-    echo "  Drupal            http://localhost:$port"
+    echo "  Drupal            http://${platformHost}:$port"
     echo "  S3 API (RustFS)   $S3_ENDPOINT   bucket: $S3_BUCKET"
     echo "  RustFS console    http://127.0.0.1:${toString s3ConsolePort}   ($S3_ACCESS_KEY / $S3_SECRET_KEY)"
     echo "  MariaDB           $DB_HOST:$DB_PORT   db=$DB_NAME user=$DB_USER pass=$DB_PASSWORD"
@@ -54,8 +59,8 @@ in
 {
   # ---------------------------------------------------------------------------
   # Environment contract — must match settings.php and scripts/lib/env.sh.
-  # Override project-specific values (HASH_SALT, PLATFORM_HOST, etc.) in the
-  # consumer's devenv.nix after the import.
+  # Override project-specific values (HASH_SALT etc.) in the consumer's
+  # devenv.nix after the import.
   # ---------------------------------------------------------------------------
   env = {
     APP_ENV               = lib.mkDefault "development";
@@ -63,8 +68,8 @@ in
     CRON_KEY              = lib.mkDefault "local-cron-key";
     DRUPAL_ADMIN_PASSWORD = lib.mkDefault "admin";
 
-    PLATFORM_HOST = lib.mkDefault "localhost";
-    PLATFORM_URI  = lib.mkDefault "http://localhost:${toString webPort}";
+    PLATFORM_HOST = lib.mkDefault "${platformHost}.localhost";
+    PLATFORM_URI  = lib.mkDefault "http://${platformHost}.localhost:${toString webPort}";
     TRUSTED_HOSTS = lib.mkDefault "localhost,127.0.0.1,*.localhost,*.ddev.site";
     WEB_PORT      = lib.mkDefault (toString webPort);
 
@@ -92,7 +97,12 @@ in
     SYMFONY_DEPRECATIONS_HELPER  = lib.mkDefault "disabled";
 
     # FrankenPHP / Caddy: listen on the devenv-allocated port; no TLS locally.
+    # SERVER_NAME drives the `{$SERVER_NAME::8080}` block in the Caddyfile.
     SERVER_NAME = lib.mkDefault ":${toString webPort}";
+    # Empty defaults so Caddyfile interpolation never hits an unset variable.
+    # Set these in the consumer devenv.nix to inject extra Caddy config.
+    CADDY_GLOBAL_OPTIONS          = lib.mkDefault "";
+    CADDY_SERVER_EXTRA_DIRECTIVES = lib.mkDefault "";
   };
 
   # ---------------------------------------------------------------------------
