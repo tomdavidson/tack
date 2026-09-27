@@ -99,6 +99,12 @@ in
     # PHPUnit — SIMPLETEST_DB points at the dedicated test database so kernel
     # and functional tests never touch the dev database. drupal_test is created
     # by the db:user task alongside the drupal database.
+    #
+    # SIMPLETEST_BASE_URL uses 127.0.0.1 with the base port. In shells outside
+    # devenv up the real allocated port is in $DEVENV_STATE/web.port; scripts
+    # that need the live port (e.g. deploy.sh --uri) read that file directly.
+    # PHPUnit only needs a reachable base URL — the base port is stable and
+    # correct for the devenv process that runs tests.
     SIMPLETEST_BASE_URL          = lib.mkDefault "http://127.0.0.1:${toString webPort}";
     SIMPLETEST_DB                = lib.mkDefault "mysql://${dbUser}:${dbPassword}@127.0.0.1:${toString dbPort}/${dbTestName}";
     BROWSERTEST_OUTPUT_DIRECTORY = lib.mkDefault "/tmp/browser_output";

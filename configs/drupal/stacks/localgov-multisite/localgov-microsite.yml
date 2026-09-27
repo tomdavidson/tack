@@ -19,6 +19,10 @@
 #
 # Minimal per-microsite moon.yml:
 #   tags: ["localgov-microsite"]
+#
+# apply runs after test-e2e when both are in the same moon run — use deps
+# in the consumer moon.yml to order them if needed. No mutex: PHPUnit
+# table-prefix isolation makes parallel test workers safe without locking.
 
 $schema: "https://moonrepo.dev/schemas/tasks.json"
 
@@ -118,9 +122,9 @@ tasks:
       runInCI: false
 
   # Stub — replace script when gitops pattern is defined.
-  # mutex on drupal-db because apply touches live Drupal state.
+  # No mutex: order with deps in the consumer moon.yml if apply must run
+  # after test-e2e in the same moon run (e.g. deps: ["drupal-site:test-e2e"]).
   apply:
     command: noop
     options:
       runInCI: false
-      mutex: "drupal-db"
