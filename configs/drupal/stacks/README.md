@@ -140,9 +140,10 @@ reuses the existing services.
 | `deploy` | must be up | ✗ | ✗ |
 | `reset` | must be up | ✗ | ✗ |
 
-`moon ci` runs `check` by default: lint + analyse + test-unit. Fast,
-cacheable, no service spin-up. Use `check-full` for the full integration
-suite locally or in a dedicated CI job.
+`moon ci` is the primary task runner. It runs `check` by default: lint +
+analyse + test-unit. Fast, cacheable, no service spin-up. `runInCI: true`
+is the default. Devenv manages services. Use `check-full` for the full
+integration suite locally or in a dedicated CI job.
 
 ### Per-project overrides
 
@@ -154,16 +155,18 @@ tags: ["drupal-module"]
 tasks:
   test-unit:
     args: ["--testsuite=unit,kernel", "--configuration=phpunit.xml.dist"]
-
-# microsites/my-council/moon.yml
-tags: ["drupal-site"]
-tasks:
-  test-integration:
-    args: ["--testsuite=kernel,custom", "--configuration=phpunit.xml.dist"]
-  reset:
-    env:
-      LOCALGOV_DEMO: "1"
 ```
+
+### LocalGov Microsites: MariaDB required for tests
+
+Use MariaDB for `SIMPLETEST_DB` when running tests against a LocalGov
+Microsites platform. LocalGov's Group module schema has not been validated
+against sqlite. Drupal kernel tests install a fresh Drupal into `drupal_test`
+using random table prefixes — no clone of the dev database is involved.
+
+Sqlite offers a potential 25–33% speed improvement for kernel tests but is
+deferred until compatibility with LocalGov's Group schema is confirmed.
+See [issue #21](https://github.com/tomdavidson/tack/issues/21).
 
 ### Workspace globs
 
