@@ -1,18 +1,24 @@
 # Caddyfile for LocalGov Drupal Multisite on FrankenPHP.
 # Delivered by the localgov-multisite tack stack to the consumer repo root.
+# Tack delivers this file once (overwrite: false in tack.yml) — check it in
+# and edit freely; re-running tack will not clobber your changes.
 #
 # Plain HTTP on the devenv-allocated port. TLS terminates at the edge
 # (production/review) or is absent (local dev).
 #
 # SERVER_NAME is set by localgov-multisite.nix to ":PORT" (e.g. ":8081").
 # {$SERVER_NAME::8080} expands to that value, falling back to :8080.
-# Caddy's ":PORT" site address is a catch-all — it accepts every hostname
-# on that port. LocalGov microsites are routed by Host header inside Drupal
-# via Domain / Domain Alias / Group Context Domain; Caddy does not need to
-# know about individual microsite hostnames.
+# The catch-all site address accepts every hostname on that port; LocalGov
+# microsites are routed by Host header inside Drupal via Domain / Domain Alias
+# / Group Context Domain.
 #
-# Worker mode is OFF: no `worker` directive and FRANKENPHP_CONFIG is not
-# interpolated here. Enable in the consumer Caddyfile override if needed.
+# The *.{$PLATFORM_HOST} block explicitly declares wildcard subdomain handling
+# for the localgov_microsites_domain_alias module. On Linux *.localhost
+# resolves natively; this block ensures Caddy owns the routing and provides
+# a clear extension point for future TLS (tls internal + ask endpoint).
+#
+# Worker mode is OFF: no `worker` directive. Enable in the consumer
+# Caddyfile after the import block if needed.
 #
 # Hardening adapted from Drupal's .htaccess.
 
@@ -23,6 +29,13 @@
 
 	order php_server before file_server
 	order php before file_server
+}
+
+# Wildcard block for localgov_microsites_domain_alias subdomains.
+# e.g. my-council.dlg-microsites.localhost
+*.{$PLATFORM_HOST} {
+	tls internal
+	reverse_proxy {$SERVER_NAME::8080}
 }
 
 {$SERVER_NAME::8080} {
