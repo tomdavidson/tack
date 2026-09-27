@@ -1,0 +1,17 @@
+# configs/drupal/stacks/localgov-multisite: LocalGov Drupal Multisite stack extras.
+#
+# Delivers the LocalGov-specific post-install hook to the consumer project.
+# Add this package to pkgs in tackrc.yml alongside configs/drupal:
+#
+#   pkgs:
+#     - configs/common
+#     - configs/devenv
+#     - configs/drupal
+#     - configs/drupal/stacks/localgov-multisite
+#
+# Tack links post-install.sh -> scripts/drupal/post-install.sh in the
+# consumer. The generic install.sh calls that path if it exists.
+#
+# path_prefix places every file in this package under scripts/drupal/
+# in the consumer project.
+path_prefix: scripts/drupal
