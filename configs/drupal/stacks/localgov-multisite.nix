@@ -3,39 +3,119 @@
 #
 #   imports = [ ./.tack/configs/drupal/stacks/localgov-multisite.nix ];
 #
-# Override any attribute with a plain assignment (or lib.mkForce) after the
-# import in the consumer's devenv.nix.
+# Override any value with a plain assignment (or lib.mkForce) after the import
+# in the consumer's devenv.nix. lib.mkDefault is used throughout so consumer
+# overrides always win without needing mkForce.
 { pkgs, lib, config, ... }:
 
 let
   php = pkgs.php83.buildEnv {
     extensions = { all, enabled }: with all; enabled ++ [
-      apcu bcmath gd intl opcache pdo_mysql zip
+      apcu
+      bcmath
+      gd
+      intl
+      opcache
+      pdo_mysql
+      zip
     ];
     extraConfig = ''
       memory_limit = 512M
       max_execution_time = 120
     '';
   };
+
+  # Single source for dev credentials — referenced by both services and env.
+  # Override in the consumer devenv.nix after the import.
+  dbName     = "drupal";
+  dbUser     = "drupal";
+  dbPassword = "drupal";
+  s3AccessKey = "devadmin";
+  s3SecretKey = "devsecret";
+
+  # Allocated ports — resolved after devenv assigns them.
+  webPort      = config.processes.web.ports.http.value;
+  dbPort       = config.services.mysql.settings.mysqld.port;
+  s3Port       = config.processes.rustfs.ports.api.value;
+  s3ConsolePort = config.processes.rustfs.ports.console.value;
+
+  printUrls = ''
+    port=$(cat "$DEVENV_STATE/web.port" 2>/dev/null || echo "${toString webPort}")
+    echo ""
+    echo "localgov-multisite dev URLs"
+    echo "  Drupal            http://localhost:$port"
+    echo "  S3 API (RustFS)   $S3_ENDPOINT   bucket: $S3_BUCKET"
+    echo "  RustFS console    http://127.0.0.1:${toString s3ConsolePort}   ($S3_ACCESS_KEY / $S3_SECRET_KEY)"
+    echo "  MariaDB           $DB_HOST:$DB_PORT   db=$DB_NAME user=$DB_USER pass=$DB_PASSWORD"
+    echo "  Drupal admin      admin / $DRUPAL_ADMIN_PASSWORD   (or: drush uli)"
+    echo ""
+  '';
 in
 {
+  # ---------------------------------------------------------------------------
+  # Environment contract — must match settings.php and scripts/lib/env.sh.
+  # Override project-specific values (HASH_SALT, PLATFORM_HOST, etc.) in the
+  # consumer's devenv.nix after the import.
+  # ---------------------------------------------------------------------------
   env = {
-    COMPOSER_MEMORY_LIMIT        = lib.mkDefault "-1";
-    SIMPLETEST_DB                = lib.mkDefault "mysql://drupal:drupal@127.0.0.1:3306/drupal";
-    SIMPLETEST_BASE_URL          = lib.mkDefault "http://127.0.0.1:8080";
+    APP_ENV              = lib.mkDefault "development";
+    HASH_SALT            = lib.mkDefault "local-dev-only-not-for-production";
+    CRON_KEY             = lib.mkDefault "local-cron-key";
+    DRUPAL_ADMIN_PASSWORD = lib.mkDefault "admin";
+
+    PLATFORM_HOST  = lib.mkDefault "localhost";
+    PLATFORM_URI   = lib.mkDefault "http://localhost:${toString webPort}";
+    TRUSTED_HOSTS  = lib.mkDefault "localhost,127.0.0.1,*.localhost,*.ddev.site";
+    WEB_PORT       = lib.mkDefault (toString webPort);
+
+    DB_HOST     = lib.mkDefault "127.0.0.1";
+    DB_PORT     = lib.mkDefault (toString dbPort);
+    DB_NAME     = lib.mkDefault dbName;
+    DB_USER     = lib.mkDefault dbUser;
+    DB_PASSWORD = lib.mkDefault dbPassword;
+
+    S3_ENDPOINT  = lib.mkDefault "http://127.0.0.1:${toString s3Port}";
+    S3_ACCESS_KEY = lib.mkDefault s3AccessKey;
+    S3_SECRET_KEY = lib.mkDefault s3SecretKey;
+    S3_REGION    = lib.mkDefault "auto";
+    S3_BUCKET    = lib.mkDefault "drupal-files";
+    S3_PATH_STYLE = lib.mkDefault "1";
+    BACKUP_BUCKET = lib.mkDefault "drupal-backups";
+    # Required by the AWS SDK for PHP (s3fs); cannot be renamed.
+    AWS_REQUEST_CHECKSUM_CALCULATION = lib.mkDefault "when_required";
+    AWS_RESPONSE_CHECKSUM_VALIDATION = lib.mkDefault "when_required";
+
+    # PHPUnit
+    SIMPLETEST_BASE_URL          = lib.mkDefault "http://127.0.0.1:${toString webPort}";
+    SIMPLETEST_DB                = lib.mkDefault "mysql://${dbUser}:${dbPassword}@127.0.0.1:${toString dbPort}/${dbName}";
     BROWSERTEST_OUTPUT_DIRECTORY = lib.mkDefault "/tmp/browser_output";
     SYMFONY_DEPRECATIONS_HELPER  = lib.mkDefault "disabled";
-    DB_HOST                      = lib.mkDefault "127.0.0.1";
-    DB_PORT                      = lib.mkDefault "3306";
-    DB_NAME                      = lib.mkDefault "drupal";
-    DB_USER                      = lib.mkDefault "drupal";
-    DB_PASSWORD                  = lib.mkDefault "drupal";
   };
 
-  packages = with pkgs; [ git curl jq mariadb_114.client frankenphp ];
+  # ---------------------------------------------------------------------------
+  # Packages
+  # ---------------------------------------------------------------------------
+  packages = with pkgs; [
+    git
+    curl
+    jq
+    mariadb_114.client
+  ];
 
-  languages.php = { enable = true; package = php; };
+  # ---------------------------------------------------------------------------
+  # PHP
+  # ---------------------------------------------------------------------------
+  languages.php = {
+    enable  = true;
+    package = php;
+  };
 
+  # ---------------------------------------------------------------------------
+  # MariaDB
+  # devenv's service is always services.mysql regardless of the package used.
+  # No initialDatabases/ensureUsers: devenv skips those during `devenv up`
+  # (cachix/devenv#2852). The db:user task creates the database and user.
+  # ---------------------------------------------------------------------------
   services.mysql = {
     enable  = true;
     package = pkgs.mariadb_114;
@@ -47,42 +127,109 @@ in
     };
   };
 
+  # ---------------------------------------------------------------------------
+  # RustFS — local S3-compatible object store for s3fs.
+  # ---------------------------------------------------------------------------
+  services.rustfs = {
+    enable     = true;
+    package    = pkgs.rustfs;
+    port       = lib.mkDefault 9000;
+    consolePort = lib.mkDefault 9001;
+    accessKey  = s3AccessKey;
+    secretKey  = s3SecretKey;
+  };
+
+  # ---------------------------------------------------------------------------
+  # Web server — PHP built-in server with Drupal's router script.
+  # FrankenPHP is production (Fly.io); php -S is used locally.
+  # The allocated port is written to $DEVENV_STATE/web.port so other shells
+  # and the `urls` script can find it.
+  # ---------------------------------------------------------------------------
   processes.web = {
     ports.http.allocate = lib.mkDefault 8080;
     exec = ''
+      echo ${toString webPort} > "$DEVENV_STATE/web.port"
       cd "$DEVENV_ROOT"
-      exec frankenphp run --config Caddyfile
+      exec php -S 0.0.0.0:${toString webPort} \
+        -t "$DEVENV_ROOT/web" "$DEVENV_ROOT/web/.ht.router.php"
     '';
     ready.http.get = {
-      port = config.processes.web.ports.http.value;
+      port = webPort;
       path = "/core/misc/druplicon.png";
     };
   };
 
+  # Prints the URL table in the devenv up TUI once the web server is ready.
+  processes.urls.exec = ''
+    while ! curl -s "http://127.0.0.1:${toString webPort}/core/misc/druplicon.png" >/dev/null 2>&1; do
+      sleep 0.5
+    done
+    ${printUrls}
+  '';
+
+  # `urls` shell command — print service URLs and credentials at any time.
+  scripts.urls.exec = printUrls;
+
+  # ---------------------------------------------------------------------------
+  # Tasks
+  # ---------------------------------------------------------------------------
   tasks."app:composer" = {
-    description = "composer install";
-    status      = "test -f vendor/autoload.php";
+    description = "composer install (scaffolds web/ and .ht.router.php)";
+    status      = "test -f vendor/autoload.php -a -f web/.ht.router.php";
     exec        = "composer install --no-interaction";
     before      = [ "devenv:processes:web" ];
   };
 
   tasks."db:user" = {
-    description = "Create drupal db + user (idempotent)";
+    description = "Create the ${dbName} database and ${dbUser} user (idempotent)";
     exec        = "scripts/db/ensure-user.sh";
     after       = [ "devenv:processes:mysql@ready" ];
     before      = [ "devenv:processes:web" ];
   };
 
-  tasks."drupal:setup"  = { description = "Install from config/sync";          exec = "scripts/drupal/install.sh";         after = [ "app:composer" "db:user" ]; };
-  tasks."drupal:deploy" = { description = "updatedb + config:import + cr";      exec = "scripts/drupal/deploy.sh";          after = [ "app:composer" "db:user" ]; };
-  tasks."drupal:reset"  = { description = "Drop and reinstall from config/sync"; exec = "scripts/drupal/install.sh --force"; after = [ "app:composer" "db:user" ]; };
+  tasks."s3:buckets" = {
+    description = "Create the files and backup buckets on RustFS (idempotent)";
+    exec        = "scripts/s3/bootstrap-buckets.sh";
+    after       = [ "devenv:processes:rustfs@ready" ];
+    before      = [ "devenv:processes:web" ];
+  };
+
+  tasks."drupal:setup" = {
+    description = "Install from config/sync, deploy, drift gate, then enable the demo module";
+    exec        = "scripts/drupal/install.sh --demo";
+    after       = [ "app:composer" "db:user" "s3:buckets" ];
+  };
+
+  tasks."drupal:deploy" = {
+    description = "updatedb, config:import, cache:rebuild, cron key, drift gate";
+    exec        = "scripts/drupal/deploy.sh";
+    after       = [ "app:composer" "db:user" ];
+  };
+
+  tasks."drupal:reset" = {
+    description = "Drop and reinstall the site from config/sync (+ demo module)";
+    exec        = "scripts/drupal/install.sh --force --demo";
+    after       = [ "app:composer" "db:user" "s3:buckets" ];
+  };
+
+  # ---------------------------------------------------------------------------
+  # Test + Shell
+  # ---------------------------------------------------------------------------
+
+  # `devenv test` starts all processes (triggering before-tasks: composer,
+  # db:user, s3:buckets), runs enterTest, then stops. ci.sh re-runs the
+  # idempotent setup scripts itself so it doesn't rely on devenv ordering.
+  enterTest = ''
+    scripts/test/ci.sh
+  '';
 
   enterShell = ''
     export PATH="$DEVENV_ROOT/vendor/bin:$PATH"
-    echo "localgov-multisite devenv: php $(php -r 'echo PHP_VERSION;')"
-    echo "  devenv up                      -> start services"
-    echo "  devenv tasks run drupal:setup  -> first-time install"
-    echo "  devenv tasks run drupal:deploy -> apply config changes"
-    echo "  devenv test                    -> run the CI suite locally"
+    echo "localgov-multisite devenv: php $(php -r 'echo PHP_VERSION;') (APP_ENV=$APP_ENV)"
+    echo "  devenv up                       -> start services (prints URLs)"
+    echo "  devenv tasks run drupal:setup   -> first-time install (+ demo)"
+    echo "  devenv tasks run drupal:deploy  -> apply config changes"
+    echo "  devenv test                     -> run the CI suite locally"
+    echo "  urls                            -> show service URLs"
   '';
 }
