@@ -1,7 +1,28 @@
-# configs/drupal: Drupal project tooling (dprint, phpcs, phpstan, etc.)
-# Devenv stack config is handled by the stack-import pattern in configs/devenv.
-# Select a devenv stack via vars.devenv.stack in tackrc.yml instead.
+# configs/drupal: Drupal project tooling and devenv stack modules.
 #
-# The devenv.concat.nix file has been removed; it caused Nix syntax errors
-# by appending Tera-rendered content outside the closing brace of devenv.nix.
+# DEVENV STACK SELECTION
+# ----------------------
+# Select a devenv stack by setting vars.drupal.stack in tackrc.yml.
+# The rendered devenv.nix imports the corresponding Nix module directly
+# from the .tack submodule at Nix eval time (never materialized).
+#
+# Available stacks (configs/drupal/stacks/):
+#   localgov-multisite  FrankenPHP + MariaDB 11.4 + PHP 8.3 + Drupal tasks
+#
+# Consumer tackrc.yml example:
+#   pkgs:
+#     - configs/common
+#     - configs/devenv
+#     - configs/drupal
+#   vars:
+#     drupal:
+#       stack: localgov-multisite
+#     bwrap:
+#       enabled: false   # disable until Drupal dir writes + sockets tested
+#
+# Override stack defaults in the consumer devenv.nix after the import:
+#   imports = [ ./.tack/configs/drupal/stacks/localgov-multisite.nix ];
+#   env.HASH_SALT = "your-project-specific-value";
 
+ignore:
+  - stacks/**
