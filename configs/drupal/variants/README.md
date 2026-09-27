@@ -1,35 +1,35 @@
-# configs/drupal/stacks
+# configs/drupal/variants
 
-Devenv stack modules for Drupal projects. Each stack is a Nix module
+Devenv variant modules for Drupal projects. Each variant is a Nix module
 imported by the consumer's `devenv.nix`. The import is automated by the
 tack tera renderer — the consumer does not write the `imports` line manually.
 
-## Available stacks
+## Available variants
 
-| Stack | Path | Description |
+| Variant | Path | Description |
 |---|---|---|
-| `localgov-multisite` | `configs/drupal/stacks/localgov-multisite.nix` | FrankenPHP + MariaDB 11.4 + PHP 8.3 + LocalGov Drupal multisite |
+| `localgov-multisite` | `configs/drupal/variants/localgov-multisite.nix` | FrankenPHP + MariaDB 11.4 + PHP 8.3 + LocalGov Drupal multisite |
 
-## Stack selection
+## Variant selection
 
-A stack requires two entries in `tackrc.yml` — one to select the devenv
-Nix module, one to deliver the stack's extra scripts:
+A variant requires two entries in `tackrc.yml` — one to select the devenv
+Nix module, one to deliver the variant's extra scripts:
 
 ```yaml
 pkgs:
   - configs/drupal
-  - configs/drupal/stacks/localgov-multisite   # delivers post-install.sh
+  - configs/drupal/variants/localgov-multisite   # delivers post-install.sh
 
 vars:
   drupal:
-    stack: localgov-multisite                  # renders the devenv.nix import
+    variant: localgov-multisite                  # renders the devenv.nix import
 ```
 
-`vars.drupal.stack` is read by `configs/devenv/devenv.tera.nix` and renders
+`vars.drupal.variant` is read by `configs/devenv/devenv.tera.nix` and renders
 to:
 
 ```nix
-imports = [ ./.tack/configs/drupal/stacks/localgov-multisite.nix ];
+imports = [ ./.tack/configs/drupal/variants/localgov-multisite.nix ];
 ```
 
 The consumer's `devenv.nix` only needs overrides — no manual import line:
@@ -37,24 +37,24 @@ The consumer's `devenv.nix` only needs overrides — no manual import line:
 ```nix
 { pkgs, config, ... }:
 {
-  # Stack imported automatically via vars.drupal.stack in tackrc.yml.
-  # Override stack defaults here:
+  # Variant imported automatically via vars.drupal.variant in tackrc.yml.
+  # Override variant defaults here:
   env.HASH_SALT = "your-project-specific-value";
 }
 ```
 
 Tack has no dependency mechanism so the two entries are intentionally
 separate: `pkgs` controls file delivery, `vars` controls tera rendering.
-Stacks are permitted to be slightly wet rather than forcing an abstraction
+Variants are permitted to be slightly wet rather than forcing an abstraction
 tack doesn't have.
 
 ## Post-install hook
 
-The `localgov-multisite` stack package delivers a post-install hook via tack's
+The `localgov-multisite` variant package delivers a post-install hook via tack's
 `path_prefix` mechanism:
 
 ```
-configs/drupal/stacks/localgov-multisite/
+configs/drupal/variants/localgov-multisite/
   tack.yml          # path_prefix: scripts/drupal
   post-install.sh   # linked -> scripts/drupal/post-install.sh in consumer
 ```

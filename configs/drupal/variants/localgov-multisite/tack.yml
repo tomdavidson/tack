@@ -1,4 +1,4 @@
-# configs/drupal/stacks/localgov-multisite: LocalGov Drupal Microsites stack extras.
+# configs/drupal/variants/localgov-multisite: LocalGov Drupal Microsites variant extras.
 #
 # Delivers:
 #   - composer.tera.json     -> composer.json                             (rendered, overwrite: false)
@@ -13,7 +13,7 @@
 #     - configs/common
 #     - configs/devenv
 #     - configs/drupal
-#     - configs/drupal/stacks/localgov-multisite
+#     - configs/drupal/variants/localgov-multisite
 #   vars:
 #     project:
 #       name: your-org/your-project

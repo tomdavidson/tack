@@ -1,5 +1,5 @@
 # .moon/tasks/drupal/localgov-multisite/microsite.yml
-# Delivered by configs/drupal/stacks/localgov-multisite (tack-owned).
+# Delivered by configs/drupal/variants/localgov-multisite (tack-owned).
 # See docs/adrs/0008-moon-task-organization.md.
 #
 # Inherited by all projects tagged "localgov-microsite".

@@ -1,5 +1,5 @@
 # Caddyfile for LocalGov Drupal Multisite on FrankenPHP.
-# Delivered by the localgov-multisite tack stack to the consumer repo root.
+# Delivered by the localgov-multisite tack variant to the consumer repo root.
 # Tack delivers this file once (overwrite: false in tack.yml) — check it in
 # and edit freely; re-running tack will not clobber your changes.
 #

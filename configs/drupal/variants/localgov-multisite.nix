@@ -1,7 +1,7 @@
-# Opinionated devenv module for LocalGov Drupal multisite projects.
-# Imported by the consumer's devenv.nix via the tack stack-import pattern:
+# Opinionated devenv variant for LocalGov Drupal multisite projects.
+# Imported by the consumer's devenv.nix via the tack variant-import pattern:
 #
-#   imports = [ ./.tack/configs/drupal/stacks/localgov-multisite.nix ];
+#   imports = [ ./.tack/configs/drupal/variants/localgov-multisite.nix ];
 #
 # Override any value with a plain assignment (or lib.mkForce) after the import
 # in the consumer's devenv.nix. lib.mkDefault is used throughout so consumer
@@ -75,7 +75,7 @@ in
     PLATFORM_HOST = lib.mkDefault "${platformHost}.localhost";
     PLATFORM_URI  = lib.mkDefault "http://${platformHost}.localhost:${toString webPort}";
     # *.localhost covers all microsite subdomains locally. No *.ddev.site —
-    # this stack is devenv-only. Add extra patterns in the consumer devenv.nix.
+    # this variant is devenv-only. Add extra patterns in the consumer devenv.nix.
     TRUSTED_HOSTS = lib.mkDefault "localhost,127.0.0.1,*.localhost";
     WEB_PORT      = lib.mkDefault (toString webPort);
 
@@ -204,7 +204,7 @@ in
   # Tasks
   # All scripts live in scripts/drupal/ (delivered by tack from configs/drupal).
   # post-install.sh for LocalGov-specific setup lives in
-  # configs/drupal/stacks/localgov-multisite/ and is delivered via path_prefix
+  # configs/drupal/variants/localgov-multisite/ and is delivered via path_prefix
   # to scripts/drupal/post-install.sh in the consumer project.
   # ---------------------------------------------------------------------------
   tasks."app:composer" = {

@@ -6,15 +6,15 @@
 #     - configs/common
 #     - configs/devenv
 #     - configs/drupal
-#     - configs/drupal/stacks/localgov-multisite
+#     - configs/drupal/variants/localgov-multisite
 #   vars:
 #     project:
 #       name: your-org/your-project
 #     drupal:
-#       stack: localgov-multisite
+#       variant: localgov-multisite
 #
-# Override stack defaults in the consumer devenv.nix after the import:
-#   imports = [ ./.tack/configs/drupal/stacks/localgov-multisite.nix ];
+# Override variant defaults in the consumer devenv.nix after the import:
+#   imports = [ ./.tack/configs/drupal/variants/localgov-multisite.nix ];
 #   env.HASH_SALT = "your-project-specific-value";
 #
 # DELIVERED FILES
@@ -46,7 +46,7 @@
 #   fly.toml       Fly app config for MariaDB 11.4 on a Fly Volume
 
 ignore:
-  - stacks/**
+  - variants/**
 
 files:
   phpcs.xml.dist:

@@ -1,5 +1,5 @@
 # moon generate localgov-microsite
-# Delivered by configs/drupal/stacks/localgov-multisite to
+# Delivered by configs/drupal/variants/localgov-multisite to
 # .moon/templates/localgov-microsite/.
 #
 # Placeholder: the microsite package design (gitops module) is not settled.
