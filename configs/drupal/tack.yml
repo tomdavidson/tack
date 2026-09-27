@@ -8,6 +8,8 @@
 #     - configs/drupal
 #     - configs/drupal/stacks/localgov-multisite
 #   vars:
+#     project:
+#       name: your-org/your-project
 #     drupal:
 #       stack: localgov-multisite
 #
@@ -29,22 +31,16 @@
 # -----------------------------------
 # moon/all.yml  -> .moon/tasks/drupal/all.yml  (tack-owned; tags: drupal)
 # moon/app.yml  -> .moon/tasks/drupal/app.yml  (tack-owned; drupal + application)
-# templates/app.moon.yml -> moon.yml           (seed, overwrite: false)
+# templates/app.moon.yml -> apps/hub/moon.yml  (seed, overwrite: false)
 # templates/drupal-module/ -> .moon/templates/drupal-module/
 #   (moon generate drupal-module; scaffolds packages/drupal/<name>/moon.yml)
 #
 # SERVICES (Fly.io deployment scaffolding)
 # ----------------------------------------
-# services/cron/ -> services/cron/  (seeded once, overwrite: false)
-#   Containerfile  alpine + supercronic cron worker (no PHP)
-#   backup-db.sh   dump MariaDB -> gzip -> S3 backup bucket
-#   crontab        Drupal cron every 15 min + nightly DB backup
-#   fly.toml       Fly app config template
-# services/db/ -> services/db/  (seeded once, overwrite: false)
-#   fly.toml       Fly app config for MariaDB 11.4 on a Fly Volume
+# services/cron/ -> services/cron/  (Containerfile, scripts, fly.toml)
+# services/db/   -> services/db/    (fly.toml)
 
-ignore:
-  - stacks/**
+path_prefix: .moon
 
 files:
   phpcs.xml.dist:
@@ -56,29 +52,6 @@ files:
   phpunit.xml.dist:
     target: phpunit.xml.dist
     overwrite: false
-  moon/all.yml:
-    target: .moon/tasks/drupal/all.yml
-  moon/app.yml:
-    target: .moon/tasks/drupal/app.yml
   templates/app.moon.yml:
-    target: moon.yml
-    overwrite: false
-  templates/drupal-module/template.yml:
-    target: .moon/templates/drupal-module/template.yml
-  templates/drupal-module/moon.yml.tera:
-    target: .moon/templates/drupal-module/moon.yml.tera
-  services/cron/Containerfile:
-    target: services/cron/Containerfile
-    overwrite: false
-  services/cron/backup-db.sh:
-    target: services/cron/backup-db.sh
-    overwrite: false
-  services/cron/crontab:
-    target: services/cron/crontab
-    overwrite: false
-  services/cron/fly.toml:
-    target: services/cron/fly.toml
-    overwrite: false
-  services/db/fly.toml:
-    target: services/db/fly.toml
+    target: apps/hub/moon.yml
     overwrite: false
