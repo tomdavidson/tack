@@ -3,10 +3,10 @@
 # Inherited by all projects tagged "drupal-site" (microsites/*, or the repo root
 # when the whole repo is a single Drupal site).
 #
-# Extends drupal-module tasks: same lint/analyse/check, but test defaults to
-# the kernel testsuite and adds deploy/reset wrappers around the tack scripts.
-# Sites that need browser tests or a different suite override `test.args` in
-# their own moon.yml.
+# Same lint/analyse/check shape as drupal-module. test-unit runs phpunit without
+# services; test delegates to `devenv test` which runs the full ci.sh lifecycle
+# (install, smoke, idempotence, PHPUnit custom suite). deploy/reset wrap the
+# tack scripts directly and are dev-only (runInCI: false).
 #
 # ┌──────────────┬─────────────────────────────────────────────────────────────┐
 # │ Use case     │ Command                                                     │
@@ -14,17 +14,23 @@
 # │ Lint check   │ moon run ~:lint                                             │
 # │ Lint fix     │ moon run ~:lint-fix                                         │
 # │ Static anal  │ moon run ~:analyse                                          │
-# │ Kernel tests │ moon run ~:test                                             │
-# │ All checks   │ moon run ~:check                                            │
-# │ Deploy       │ moon run ~:deploy                                           │
-# │ Reset (dev)  │ moon run ~:reset                                            │
+# │ Unit tests   │ moon run ~:test-unit  (no services)                         │
+# │ Integration  │ moon run ~:test  (devenv test; starts/stops services)        │
+# │ Fast CI      │ moon run ~:check  (no services)                             │
+# │ Full CI      │ moon run ~:check-full                                       │
+# │ Deploy       │ moon run ~:deploy  (dev; services must be up)               │
+# │ Reset        │ moon run ~:reset   (dev; services must be up)               │
 # └──────────────┴─────────────────────────────────────────────────────────────┘
 #
-# Minimal per-site moon.yml example:
+# Minimal per-site moon.yml:
 #   tags: ["drupal-site"]
+# Override test-unit suite or add LOCALGOV_DEMO for reset:
 #   tasks:
-#     test:
-#       args: ["--testsuite=functional", "--configuration=phpunit.xml.dist"]
+#     test-unit:
+#       args: ["--testsuite=kernel", "--configuration=phpunit.xml.dist"]
+#     reset:
+#       env:
+#         LOCALGOV_DEMO: "1"
 
 $schema: "https://moonrepo.dev/schemas/tasks.json"
 
@@ -79,12 +85,13 @@ tasks:
       - "@group(sources)"
       - "/phpstan.neon.dist"
 
-  test:
+  # No services needed. Moon caches this.
+  test-unit:
     command: phpunit
     args:
       - "--configuration=$workspaceRoot/phpunit.xml.dist"
       - "--no-coverage"
-      - "--testsuite=kernel"
+      - "--testsuite=unit"
     inputs:
       - "@group(sources)"
       - "@group(tests)"
@@ -94,25 +101,49 @@ tasks:
       SIMPLETEST_BASE_URL: "$SIMPLETEST_BASE_URL"
       SIMPLETEST_DB: "$SIMPLETEST_DB"
 
+  # Full integration: install + smoke + idempotence + PHPUnit custom suite.
+  # devenv test starts services, runs enterTest (ci.sh), then stops them.
+  # Not cached (external service state).
+  test:
+    command: devenv
+    args: ["test"]
+    options:
+      cache: false
+      runFromWorkspaceRoot: true
+
+  # Default CI target: static + unit only. Fast, no services.
+  check:
+    command: noop
+    deps:
+      - "~:lint"
+      - "~:analyse"
+      - "~:test-unit"
+
+  # Full CI: includes devenv test integration run.
+  check-full:
+    command: noop
+    deps:
+      - "~:lint"
+      - "~:analyse"
+      - "~:test"
+    options:
+      runInCI: false
+
+  # Dev-only: run deploy.sh against already-running services.
   deploy:
     script: ".tack/configs/drupal/scripts/drupal/deploy.sh"
     inputs:
       - "@group(configs)"
-      - "config/sync/**/*"
     options:
       runInCI: false
       runFromWorkspaceRoot: true
+      cache: false
 
+  # Dev-only: drop and reinstall. Set LOCALGOV_DEMO=1 in moon.yml env to
+  # enable the demo module via the post-install hook.
   reset:
     script: ".tack/configs/drupal/scripts/drupal/install.sh --force"
     options:
       runInCI: false
       runFromWorkspaceRoot: true
       cache: false
-
-  check:
-    command: noop
-    deps:
-      - "~:lint"
-      - "~:analyse"
-      - "~:test"
