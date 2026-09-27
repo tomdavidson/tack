@@ -13,6 +13,16 @@ in {
 {% else %}
 {
 {% endif %}
+
+{% if vars.devenv.stack is defined %}
+  # Stack module imported directly from the .tack submodule at Nix eval time.
+  # Set vars.devenv.stack in tackrc.yml to select the stack, e.g.:
+  #   vars:
+  #     devenv:
+  #       stack: localgov-multisite
+  imports = [ ./.tack/configs/{{ vars.devenv.stack }}/devenv.nix ];
+
+{% endif %}
   # packages lists additional system-level tools available in the dev shell.
   # Add entries here for tools not managed by proto.
   # PHP, Composer, and services are added when configs/php is consumed.
