@@ -168,6 +168,27 @@ Sqlite offers a potential 25–33% speed improvement for kernel tests but is
 deferred until compatibility with LocalGov's Group schema is confirmed.
 See [issue #21](https://github.com/tomdavidson/tack/issues/21).
 
+### LocalGov Microsites: local hostnames
+
+Local microsite hostnames follow `{microsite}.{project}.localhost:{port}`.
+`*.localhost` resolves to `127.0.0.1` in all modern browsers — no `/etc/hosts`
+entries or DNS configuration needed.
+
+**Caddy** does not need to know about individual microsites. FrankenPHP listens
+on the devenv-allocated port with a catch-all site address; every hostname on
+that port is accepted.
+
+**Drupal** maps hostnames to microsites via the Domain, Domain Alias, and Group
+Context Domain modules. Path-based URLs are not an option — LocalGov's group
+context resolver depends on the `Host` header.
+
+**Dynamic port.** Domain counts the port as part of the hostname, so
+`mysite.myproject.localhost` and `mysite.myproject.localhost:8080` are treated
+as different domains. A port-wildcard Domain Alias fixes this: add a record
+with the pattern `*.*.localhost:*` (or `*.myproject.localhost:*`) so the alias
+matches regardless of which port devenv allocates. No alias update is needed
+when the port changes.
+
 ### Workspace globs
 
 Add these globs to the consumer's `.moon/workspace.yml` so moon discovers
