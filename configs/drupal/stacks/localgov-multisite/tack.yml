@@ -3,7 +3,8 @@
 # Delivers:
 #   - post-install.sh        -> scripts/drupal/post-install.sh  (via path_prefix)
 #   - Caddyfile              -> Caddyfile                        (files target override, overwrite: false)
-#   - localgov-microsite.yml -> .moon/tasks/localgov-microsite.yml (files target override)
+#   - localgov-microsite.yml -> .moon/tasks/drupal/localgov-multisite/microsite.yml (files target override)
+#   - templates/localgov-microsite/ -> .moon/templates/localgov-microsite/ (moon generate)
 #
 # Add this package to pkgs in tackrc.yml alongside configs/drupal:
 #
@@ -14,8 +15,9 @@
 #     - configs/drupal/stacks/localgov-multisite
 #
 # path_prefix places post-install.sh under scripts/drupal/ in the consumer.
-# The Caddyfile and localgov-microsite.yml use files.<src>.target to bypass
-# path_prefix and land at their correct consumer paths.
+# The other files use files.<src>.target to bypass path_prefix and land at
+# their correct consumer paths. Moon task files follow ADR 0008:
+# .moon/tasks/<package>/<variant>/<scope>.yml.
 #
 # Caddyfile is delivered once (overwrite: false) — the consumer checks it in
 # and owns it. Re-running tack will not clobber edits.
@@ -26,4 +28,8 @@ files:
     target: Caddyfile
     overwrite: false
   localgov-microsite.yml:
-    target: .moon/tasks/localgov-microsite.yml
+    target: .moon/tasks/drupal/localgov-multisite/microsite.yml
+  templates/localgov-microsite/template.yml:
+    target: .moon/templates/localgov-microsite/template.yml
+  templates/localgov-microsite/moon.yml.tera:
+    target: .moon/templates/localgov-microsite/moon.yml.tera

@@ -32,6 +32,14 @@
 # composer.merge.json: deep-merged into the consumer's composer.json via
 # tack's *.merge.json dispatch. Adds a path repository for packages/drupal/*
 # and sets minimum-stability: dev / prefer-stable: true.
+#
+# MOON TASKS AND TEMPLATES (ADR 0008)
+# -----------------------------------
+# moon/all.yml  -> .moon/tasks/drupal/all.yml  (tack-owned; tags: drupal)
+# moon/app.yml  -> .moon/tasks/drupal/app.yml  (tack-owned; drupal + application)
+# templates/app.moon.yml -> moon.yml           (seed, overwrite: false)
+# templates/drupal-module/ -> .moon/templates/drupal-module/
+#   (moon generate drupal-module; scaffolds packages/drupal/<name>/moon.yml)
 
 ignore:
   - stacks/**
@@ -46,3 +54,14 @@ files:
   phpunit.xml.dist:
     target: phpunit.xml.dist
     overwrite: false
+  moon/all.yml:
+    target: .moon/tasks/drupal/all.yml
+  moon/app.yml:
+    target: .moon/tasks/drupal/app.yml
+  templates/app.moon.yml:
+    target: moon.yml
+    overwrite: false
+  templates/drupal-module/template.yml:
+    target: .moon/templates/drupal-module/template.yml
+  templates/drupal-module/moon.yml.tera:
+    target: .moon/templates/drupal-module/moon.yml.tera

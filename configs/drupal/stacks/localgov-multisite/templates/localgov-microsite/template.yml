@@ -1,0 +1,20 @@
+# moon generate localgov-microsite
+# Delivered by configs/drupal/stacks/localgov-multisite to
+# .moon/templates/localgov-microsite/.
+#
+# Placeholder: the microsite package design (gitops module) is not settled.
+# This only scaffolds a tagged moon project so it inherits
+# .moon/tasks/drupal/localgov-multisite/microsite.yml.
+# The folder name is the microsite name (used for local hostnames).
+
+$schema: "https://moonrepo.dev/schemas/template.json"
+
+title: "LocalGov microsite (placeholder)"
+description: "moon project for a LocalGov microsite config/content package."
+destination: "microsites/[name]"
+
+variables:
+  name:
+    type: "string"
+    required: true
+    prompt: "Microsite name (folder name, lowercase-hyphenated)"

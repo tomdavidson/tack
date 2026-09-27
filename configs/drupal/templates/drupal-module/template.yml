@@ -1,0 +1,16 @@
+# moon generate drupal-module
+# Delivered by configs/drupal to .moon/templates/drupal-module/.
+# Scaffolds a moon project for a custom Drupal module under
+# packages/drupal/<name>. Tasks come from .moon/tasks/drupal/all.yml.
+
+$schema: "https://moonrepo.dev/schemas/template.json"
+
+title: "Drupal module"
+description: "moon project for a custom Drupal module (layer: library, tag: drupal)."
+destination: "packages/drupal/[name]"
+
+variables:
+  name:
+    type: "string"
+    required: true
+    prompt: "Module machine name (e.g. my_module)"
