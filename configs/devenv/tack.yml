@@ -4,6 +4,8 @@ files:
     overwrite: false
   devenv.tera.yaml:
     overwrite: false
+  .envrc:
+    overwrite: true
 
 # bwrap-run.sh and bwrap-apparmor.sh stay inside tack's namespace:
 # consumers execute them through the .tack submodule path, so their
@@ -14,3 +16,4 @@ ignore:
   - bwrap-run.sh
   - bwrap-apparmor.sh
   - tests/**
+
