@@ -28,6 +28,7 @@ let
   # Single source for dev credentials — referenced by both services and env.
   # Override in the consumer devenv.nix after the import.
   dbName      = "drupal";
+  dbTestName  = "drupal_test";
   dbUser      = "drupal";
   dbPassword  = "drupal";
   s3AccessKey = "devadmin";
@@ -93,9 +94,11 @@ in
     AWS_REQUEST_CHECKSUM_CALCULATION = lib.mkDefault "when_required";
     AWS_RESPONSE_CHECKSUM_VALIDATION = lib.mkDefault "when_required";
 
-    # PHPUnit
+    # PHPUnit — SIMPLETEST_DB points at the dedicated test database so kernel
+    # and functional tests never touch the dev database. drupal_test is created
+    # by the db:user task alongside the drupal database.
     SIMPLETEST_BASE_URL          = lib.mkDefault "http://127.0.0.1:${toString webPort}";
-    SIMPLETEST_DB                = lib.mkDefault "mysql://${dbUser}:${dbPassword}@127.0.0.1:${toString dbPort}/${dbName}";
+    SIMPLETEST_DB                = lib.mkDefault "mysql://${dbUser}:${dbPassword}@127.0.0.1:${toString dbPort}/${dbTestName}";
     BROWSERTEST_OUTPUT_DIRECTORY = lib.mkDefault "/tmp/browser_output";
     SYMFONY_DEPRECATIONS_HELPER  = lib.mkDefault "disabled";
 
@@ -131,7 +134,7 @@ in
   # MariaDB
   # devenv's service is always services.mysql regardless of the package used.
   # No initialDatabases/ensureUsers: devenv skips those during `devenv up`
-  # (cachix/devenv#2852). The db:user task creates the database and user.
+  # (cachix/devenv#2852). The db:user task creates both databases and the user.
   # ---------------------------------------------------------------------------
   services.mysql = {
     enable  = true;
@@ -188,28 +191,33 @@ in
 
   # ---------------------------------------------------------------------------
   # Tasks
-  # All scripts live in .tack/configs/drupal/scripts/ (via the submodule).
-  # post-install.sh for LocalGov-specific setup (role grant, demo module) lives
-  # in .tack/configs/drupal/stacks/localgov-multisite/ and must be symlinked or
-  # copied to scripts/drupal/post-install.sh in the consumer project.
+  # All scripts live in scripts/drupal/ (delivered by tack from configs/drupal).
+  # post-install.sh for LocalGov-specific setup lives in
+  # configs/drupal/stacks/localgov-multisite/ and is delivered via path_prefix
+  # to scripts/drupal/post-install.sh in the consumer project.
   # ---------------------------------------------------------------------------
   tasks."app:composer" = {
     description = "composer install (scaffolds web/ and vendor/)";
-    status      = "test -f vendor/autoload.php";
-    exec        = "${tackScripts}/drupal/../../../scripts/drupal/install.sh";
-    before      = [ "devenv:processes:web" ];
-  };
-
-  tasks."app:composer" = {
-    description = "composer install";
     status      = "test -f vendor/autoload.php";
     exec        = "composer install --no-interaction";
     before      = [ "devenv:processes:web" ];
   };
 
   tasks."db:user" = {
-    description = "Create the ${dbName} database and ${dbUser} user (idempotent)";
-    exec        = "${tackScripts}/db/ensure-user.sh";
+    description = "Create ${dbName} and ${dbTestName} databases and ${dbUser} user (idempotent)";
+    exec        = ''
+      mysql -u root -h 127.0.0.1 -P ${toString dbPort} -e "
+        CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        CREATE DATABASE IF NOT EXISTS \`${dbTestName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        CREATE USER IF NOT EXISTS '${dbUser}'@'localhost' IDENTIFIED BY '${dbPassword}';
+        CREATE USER IF NOT EXISTS '${dbUser}'@'127.0.0.1' IDENTIFIED BY '${dbPassword}';
+        GRANT ALL ON \`${dbName}\`.* TO '${dbUser}'@'localhost';
+        GRANT ALL ON \`${dbName}\`.* TO '${dbUser}'@'127.0.0.1';
+        GRANT ALL ON \`${dbTestName}\`.* TO '${dbUser}'@'localhost';
+        GRANT ALL ON \`${dbTestName}\`.* TO '${dbUser}'@'127.0.0.1';
+        FLUSH PRIVILEGES;
+      "
+    '';
     after       = [ "devenv:processes:mysql@ready" ];
     before      = [ "devenv:processes:web" ];
   };
