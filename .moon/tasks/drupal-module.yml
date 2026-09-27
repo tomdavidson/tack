@@ -1,0 +1,91 @@
+# .moon/tasks/drupal-module.yml
+#
+# Inherited by all projects tagged "drupal-module" (packages/drupal/*).
+# PHP and Composer binaries come from devenv; moon does not manage the toolchain.
+#
+# ┌──────────────┬─────────────────────────────────────────────┐
+# │ Use case     │ Command                                     │
+# ├──────────────┼─────────────────────────────────────────────┤
+# │ Lint check   │ moon run ~:lint                             │
+# │ Lint fix     │ moon run ~:lint-fix                         │
+# │ Static anal  │ moon run ~:analyse                          │
+# │ Unit tests   │ moon run ~:test                             │
+# │ All checks   │ moon run ~:check                            │
+# │ CI (affected)│ moon ci                                     │
+# └──────────────┴─────────────────────────────────────────────┘
+#
+# Per-module overrides go in the module's moon.yml, e.g.:
+#   tasks:
+#     test:
+#       args: ["--testsuite=unit", "--configuration=phpunit.xml"]
+
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+inheritedBy:
+  tags: ["drupal-module"]
+  order: 10
+
+fileGroups:
+  sources:
+    - "src/**/*"
+    - "*.info.yml"
+    - "*.module"
+    - "*.install"
+    - "*.theme"
+  tests:
+    - "tests/**/*"
+  configs:
+    - "phpunit.xml"
+    - "phpstan.neon"
+    - "phpcs.xml"
+
+tasks:
+  lint:
+    command: phpcs
+    args:
+      - "src/"
+      - "--standard=$workspaceRoot/phpcs.xml.dist"
+    inputs:
+      - "@group(sources)"
+      - "/phpcs.xml.dist"
+
+  lint-fix:
+    extends: lint
+    args:
+      - "src/"
+      - "--standard=$workspaceRoot/phpcs.xml.dist"
+      - "--fix"
+    options:
+      runInCI: false
+
+  analyse:
+    command: phpstan
+    args:
+      - analyse
+      - "src/"
+      - "--no-progress"
+      - "--configuration=$workspaceRoot/phpstan.neon.dist"
+    inputs:
+      - "@group(sources)"
+      - "/phpstan.neon.dist"
+
+  test:
+    command: phpunit
+    args:
+      - "--configuration=$workspaceRoot/phpunit.xml.dist"
+      - "--no-coverage"
+      - "--testsuite=unit"
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "/phpunit.xml.dist"
+    env:
+      SIMPLETEST_BASE_URL: "$SIMPLETEST_BASE_URL"
+      SIMPLETEST_DB: "$SIMPLETEST_DB"
+
+  check:
+    command: noop
+    deps:
+      - "~:lint"
+      - "~:analyse"
+      - "~:test"

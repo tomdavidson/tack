@@ -1,0 +1,118 @@
+# .moon/tasks/drupal-site.yml
+#
+# Inherited by all projects tagged "drupal-site" (microsites/*, or the repo root
+# when the whole repo is a single Drupal site).
+#
+# Extends drupal-module tasks: same lint/analyse/check, but test defaults to
+# the kernel testsuite and adds deploy/reset wrappers around the tack scripts.
+# Sites that need browser tests or a different suite override `test.args` in
+# their own moon.yml.
+#
+# ┌──────────────┬─────────────────────────────────────────────────────────────┐
+# │ Use case     │ Command                                                     │
+# ├──────────────┼─────────────────────────────────────────────────────────────┤
+# │ Lint check   │ moon run ~:lint                                             │
+# │ Lint fix     │ moon run ~:lint-fix                                         │
+# │ Static anal  │ moon run ~:analyse                                          │
+# │ Kernel tests │ moon run ~:test                                             │
+# │ All checks   │ moon run ~:check                                            │
+# │ Deploy       │ moon run ~:deploy                                           │
+# │ Reset (dev)  │ moon run ~:reset                                            │
+# └──────────────┴─────────────────────────────────────────────────────────────┘
+#
+# Minimal per-site moon.yml example:
+#   tags: ["drupal-site"]
+#   tasks:
+#     test:
+#       args: ["--testsuite=functional", "--configuration=phpunit.xml.dist"]
+
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+inheritedBy:
+  tags: ["drupal-site"]
+  order: 10
+
+fileGroups:
+  sources:
+    - "web/modules/custom/**/*"
+    - "web/themes/custom/**/*"
+  tests:
+    - "tests/**/*"
+    - "web/modules/custom/**/tests/**/*"
+  configs:
+    - "phpunit.xml"
+    - "phpunit.xml.dist"
+    - "phpstan.neon"
+    - "phpcs.xml"
+    - "config/sync/**/*"
+
+tasks:
+  lint:
+    command: phpcs
+    args:
+      - "web/modules/custom"
+      - "web/themes/custom"
+      - "--standard=$workspaceRoot/phpcs.xml.dist"
+    inputs:
+      - "@group(sources)"
+      - "/phpcs.xml.dist"
+
+  lint-fix:
+    extends: lint
+    args:
+      - "web/modules/custom"
+      - "web/themes/custom"
+      - "--standard=$workspaceRoot/phpcs.xml.dist"
+      - "--fix"
+    options:
+      runInCI: false
+
+  analyse:
+    command: phpstan
+    args:
+      - analyse
+      - "web/modules/custom"
+      - "web/themes/custom"
+      - "--no-progress"
+      - "--configuration=$workspaceRoot/phpstan.neon.dist"
+    inputs:
+      - "@group(sources)"
+      - "/phpstan.neon.dist"
+
+  test:
+    command: phpunit
+    args:
+      - "--configuration=$workspaceRoot/phpunit.xml.dist"
+      - "--no-coverage"
+      - "--testsuite=kernel"
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+      - "/phpunit.xml.dist"
+    env:
+      SIMPLETEST_BASE_URL: "$SIMPLETEST_BASE_URL"
+      SIMPLETEST_DB: "$SIMPLETEST_DB"
+
+  deploy:
+    script: ".tack/configs/drupal/scripts/drupal/deploy.sh"
+    inputs:
+      - "@group(configs)"
+      - "config/sync/**/*"
+    options:
+      runInCI: false
+      runFromWorkspaceRoot: true
+
+  reset:
+    script: ".tack/configs/drupal/scripts/drupal/install.sh --force"
+    options:
+      runInCI: false
+      runFromWorkspaceRoot: true
+      cache: false
+
+  check:
+    command: noop
+    deps:
+      - "~:lint"
+      - "~:analyse"
+      - "~:test"
