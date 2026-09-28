@@ -17,8 +17,8 @@ pkgs:
   - .github
   - .moon
 
-pkgs-exclude:
-  - configs/direnv
+#pkgs-exclude:
+
 
 vars:
   # devcontainer vars: consumed by configs/devcontainer.
@@ -41,9 +41,9 @@ vars:
   #
   # variant selects the devenv Nix module to import. The rendered devenv.nix
   # will contain:
-  #   imports = [ ./.tack/configs/drupal/variants/<variant>.nix ];
+  #   imports = [ ./.tack/configs/drupal/variant/<stack>.nix ];
   #
-  # Available variants (configs/drupal/variants/):
+  # Available variant (configs/drupal/variant/):
   #   localgov-multisite  FrankenPHP + MariaDB 11.4 + PHP 8.3 + Drupal tasks
   #
   # Uncomment to enable:

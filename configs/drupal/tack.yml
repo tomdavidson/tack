@@ -1,7 +1,15 @@
-# configs/drupal: Drupal application tooling and deployment scaffolding.
+# configs/drupal: Drupal project tooling and devenv variant modules.
 #
-# Consumer usage in tackrc.yml:
+# DEVENV variant SELECTION
+# ----------------------
+# Select a devenv variant by setting vars.drupal.variant in tackrc.yml.
+# The rendered devenv.nix imports the corresponding Nix module directly
+# from the .tack submodule at Nix eval time (never materialized).
 #
+# Available variants (configs/drupal/variants/):
+#   localgov-multisite  FrankenPHP + MariaDB 11.4 + PHP 8.3 + Drupal tasks
+#
+# Consumer tackrc.yml example:
 #   pkgs:
 #     - configs/common
 #     - configs/devenv
@@ -12,6 +20,8 @@
 #       name: your-org/your-project
 #     drupal:
 #       variant: localgov-multisite
+#     bwrap:
+#       enabled: false   # disable until Drupal dir writes + sockets tested
 #
 # Override variant defaults in the consumer devenv.nix after the import:
 #   imports = [ ./.tack/configs/drupal/variants/localgov-multisite.nix ];
@@ -47,40 +57,3 @@
 
 ignore:
   - variants/**
-
-files:
-  phpcs.xml.dist:
-    target: phpcs.xml.dist
-    overwrite: false
-  phpstan.neon.dist:
-    target: phpstan.neon.dist
-    overwrite: false
-  phpunit.xml.dist:
-    target: phpunit.xml.dist
-    overwrite: false
-  moon/all.yml:
-    target: .moon/tasks/drupal/all.yml
-  moon/app.yml:
-    target: .moon/tasks/drupal/app.yml
-  templates/app.moon.yml:
-    target: apps/hub/moon.yml
-    overwrite: false
-  templates/drupal-module/template.yml:
-    target: .moon/templates/drupal-module/template.yml
-  templates/drupal-module/moon.yml.tera:
-    target: .moon/templates/drupal-module/moon.yml.tera
-  services/cron/Containerfile:
-    target: services/cron/Containerfile
-    overwrite: false
-  services/cron/backup-db.sh:
-    target: services/cron/backup-db.sh
-    overwrite: false
-  services/cron/crontab:
-    target: services/cron/crontab
-    overwrite: false
-  services/cron/fly.toml:
-    target: services/cron/fly.toml
-    overwrite: false
-  services/db/fly.toml:
-    target: services/db/fly.toml
-    overwrite: false

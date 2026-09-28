@@ -1,57 +1,43 @@
 # configs/drupal/variants
 
 Devenv variant modules for Drupal projects. Each variant is a Nix module
-imported by the consumer's `devenv.nix`. The import is automated by the
-tack tera renderer — the consumer does not write the `imports` line manually.
+imported by the consumer's `devenv.nix` at eval time via the `.tack`
+submodule — never materialized into the project.
 
 ## Available variants
 
-| Variant | Path | Description |
+| variant | Path | Description |
 |---|---|---|
-| `localgov-multisite` | `configs/drupal/variants/localgov-multisite.nix` | FrankenPHP + MariaDB 11.4 + PHP 8.3 + LocalGov Drupal multisite |
+| `localgov-multisite` | `configs/drupal/variants/localgov-multisite` | FrankenPHP + MariaDB 11.4 + PHP 8.3 + LocalGov Drupal multisite |
 
-## Variant selection
+## variant selection
 
-A variant requires two entries in `tackrc.yml` — one to select the devenv
-Nix module, one to deliver the variant's extra scripts:
+In `tackrc.yml`, add the variant package alongside `configs/drupal`:
 
 ```yaml
 pkgs:
+  - configs/common
+  - configs/devenv
   - configs/drupal
-  - configs/drupal/variants/localgov-multisite   # delivers post-install.sh
-
-vars:
-  drupal:
-    variant: localgov-multisite                  # renders the devenv.nix import
+  - configs/drupal/variants/localgov-multisite
 ```
 
-`vars.drupal.variant` is read by `configs/devenv/devenv.tera.nix` and renders
-to:
-
-```nix
-imports = [ ./.tack/configs/drupal/variants/localgov-multisite.nix ];
-```
-
-The consumer's `devenv.nix` only needs overrides — no manual import line:
+In `devenv.nix`, import the variant module:
 
 ```nix
 { pkgs, config, ... }:
 {
-  # Variant imported automatically via vars.drupal.variant in tackrc.yml.
+  imports = [ ./.tack/configs/drupal/variants/localgov-multisite.nix ];
+
   # Override variant defaults here:
   env.HASH_SALT = "your-project-specific-value";
 }
 ```
 
-Tack has no dependency mechanism so the two entries are intentionally
-separate: `pkgs` controls file delivery, `vars` controls tera rendering.
-Variants are permitted to be slightly wet rather than forcing an abstraction
-tack doesn't have.
-
 ## Post-install hook
 
-The `localgov-multisite` variant package delivers a post-install hook via tack's
-`path_prefix` mechanism:
+The `localgov-multisite` variant package also delivers a post-install hook
+script via tack:
 
 ```
 configs/drupal/variants/localgov-multisite/
@@ -59,10 +45,10 @@ configs/drupal/variants/localgov-multisite/
   post-install.sh   # linked -> scripts/drupal/post-install.sh in consumer
 ```
 
-`scripts/drupal/install.sh` (from `configs/drupal`) calls
+The generic `scripts/drupal/install.sh` (from `configs/drupal`) calls
 `scripts/drupal/post-install.sh` if it exists after Drupal installation
-completes. For LocalGov this enables the demo module and configures multisite.
-Override or replace it in the consumer project.
+completes. For LocalGov this enables the demo module, creates multisite
+config, etc. Override or replace it in the consumer project.
 
 To enable the demo module on `reset`:
 
@@ -140,10 +126,9 @@ reuses the existing services.
 | `deploy` | must be up | ✗ | ✗ |
 | `reset` | must be up | ✗ | ✗ |
 
-`moon ci` is the primary task runner. It runs `check` by default: lint +
-analyse + test-unit. Fast, cacheable, no service spin-up. `runInCI: true`
-is the default. Devenv manages services. Use `check-full` for the full
-integration suite locally or in a dedicated CI job.
+`moon ci` runs `check` by default: lint + analyse + test-unit. Fast,
+cacheable, no service spin-up. Use `check-full` for the full integration
+suite locally or in a dedicated CI job.
 
 ### Per-project overrides
 
@@ -155,39 +140,16 @@ tags: ["drupal-module"]
 tasks:
   test-unit:
     args: ["--testsuite=unit,kernel", "--configuration=phpunit.xml.dist"]
+
+# microsites/my-council/moon.yml
+tags: ["drupal-site"]
+tasks:
+  test-integration:
+    args: ["--testsuite=kernel,custom", "--configuration=phpunit.xml.dist"]
+  reset:
+    env:
+      LOCALGOV_DEMO: "1"
 ```
-
-### LocalGov Microsites: MariaDB required for tests
-
-Use MariaDB for `SIMPLETEST_DB` when running tests against a LocalGov
-Microsites platform. LocalGov's Group module schema has not been validated
-against sqlite. Drupal kernel tests install a fresh Drupal into `drupal_test`
-using random table prefixes — no clone of the dev database is involved.
-
-Sqlite offers a potential 25–33% speed improvement for kernel tests but is
-deferred until compatibility with LocalGov's Group schema is confirmed.
-See [issue #21](https://github.com/tomdavidson/tack/issues/21).
-
-### LocalGov Microsites: local hostnames
-
-Local microsite hostnames follow `{microsite}.{project}.localhost:{port}`.
-`*.localhost` resolves to `127.0.0.1` in all modern browsers — no `/etc/hosts`
-entries or DNS configuration needed.
-
-**Caddy** does not need to know about individual microsites. FrankenPHP listens
-on the devenv-allocated port with a catch-all site address; every hostname on
-that port is accepted.
-
-**Drupal** maps hostnames to microsites via the Domain, Domain Alias, and Group
-Context Domain modules. Path-based URLs are not an option — LocalGov's group
-context resolver depends on the `Host` header.
-
-**Dynamic port.** Domain counts the port as part of the hostname, so
-`mysite.myproject.localhost` and `mysite.myproject.localhost:8080` are treated
-as different domains. A port-wildcard Domain Alias fixes this: add a record
-with the pattern `*.*.localhost:*` (or `*.myproject.localhost:*`) so the alias
-matches regardless of which port devenv allocates. No alias update is needed
-when the port changes.
 
 ### Workspace globs
 
