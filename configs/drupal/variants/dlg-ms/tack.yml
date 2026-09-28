@@ -3,11 +3,14 @@
 # Assumed: configs/drupal is also in pkgs (delivers base tasks and scripts).
 #
 # Delivers:
-#   composer.tera.json      -> composer.json           (rendered once, overwrite: false)
 #   Caddyfile               -> Caddyfile               (overwrite: false)
 #   post-install.sh         -> scripts/drupal/post-install.sh  (overwrite: false)
 #   microsite.yml           -> .moon/tasks/drupal/dlg-ms/microsite.yml  (tack-owned)
 #   templates/dlg-ms/       -> .moon/templates/dlg-ms/  (moon generate dlg-ms)
+#
+# composer.json is NOT delivered by tack. It is scaffolded per-app by:
+#   moon generate dlg-ms -- --name hub
+# Each app owns its own composer.json, composer.lock and vendor/.
 #
 # Consumer tackrc.yml:
 #
@@ -30,9 +33,6 @@
 #   moon generate dlg-ms -- --name hub
 
 files:
-  composer.tera.json:
-    target: composer.json
-    overwrite: false
   Caddyfile:
     target: Caddyfile
     overwrite: false
@@ -45,3 +45,5 @@ files:
     target: .moon/templates/dlg-ms/template.yml
   templates/dlg-ms/moon.yml.tera:
     target: .moon/templates/dlg-ms/moon.yml.tera
+  templates/dlg-ms/composer.json:
+    target: .moon/templates/dlg-ms/composer.json
