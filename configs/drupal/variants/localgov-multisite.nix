@@ -197,8 +197,32 @@ in
     ${printUrls}
   '';
 
-  # `urls` shell command — print service URLs and credentials at any time.
+  # ---------------------------------------------------------------------------
+  # Scripts
+  # ---------------------------------------------------------------------------
+
+  # Print service URLs and credentials at any time.
   scripts.urls.exec = printUrls;
+
+  # Dump the last 50 lines of every devenv process log — useful after a failed
+  # `devenv up` where the TUI output has scrolled away or the process exited.
+  scripts.logs.exec = ''
+    logsdir="$DEVENV_STATE/processes"
+    if [ ! -d "$logsdir" ]; then
+      echo "No process logs found in $DEVENV_STATE/processes"
+      echo "(Has devenv up been run at least once?)"
+      exit 0
+    fi
+    found=0
+    for f in "$logsdir"/*.log; do
+      [ -f "$f" ] || continue
+      found=1
+      echo ""
+      echo "━━━ $(basename "$f" .log) ━━━"
+      tail -n 50 "$f"
+    done
+    if [ "$found" -eq 0 ]; then echo "No .log files found in $logsdir"; fi
+  '';
 
   # ---------------------------------------------------------------------------
   # Tasks
@@ -273,5 +297,6 @@ in
     echo "  devenv tasks run drupal:deploy  -> apply config changes"
     echo "  devenv test                     -> run the CI suite locally"
     echo "  urls                            -> show service URLs"
+    echo "  logs                            -> tail last 50 lines of each process log"
   '';
 }
