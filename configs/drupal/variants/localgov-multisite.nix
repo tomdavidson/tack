@@ -59,6 +59,47 @@ let
     echo "  Drupal admin      admin / $DRUPAL_ADMIN_PASSWORD   (or: drush uli)"
     echo ""
   '';
+
+  # Reusable log-dump logic: tails non-empty stderr logs (+ stdout with -a).
+  # Used by both `logs` and `up` scripts so the behaviour is identical.
+  dumpLogs = ''
+    logsdir="$DEVENV_ROOT/.devenv/run/processes/logs"
+    streams="stderr"
+    n=50
+    proc="*"
+
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -a|--all) streams="stderr stdout" ;;
+        -n) shift; n="$1" ;;
+        *) proc="$1" ;;
+      esac
+      shift
+    done
+
+    if [ ! -d "$logsdir" ]; then
+      echo "No process logs found at $logsdir"
+      echo "devenv up likely failed before any process started (eval/build/task error)."
+      echo "Try: devenv tasks run db:user"
+      return 0
+    fi
+
+    found=0
+    for s in $streams; do
+      for f in "$logsdir"/$proc.$s.log; do
+        [ -s "$f" ] || continue
+        found=1
+        echo ""
+        echo "━━━ $(basename "$f" .log) ━━━"
+        tail -n "$n" "$f"
+      done
+    done
+
+    if [ "$found" -eq 0 ]; then
+      echo "No output captured in $logsdir"
+      echo "Try: logs -a"
+    fi
+  '';
 in
 {
   # ---------------------------------------------------------------------------
@@ -204,59 +245,29 @@ in
   # Print service URLs and credentials at any time.
   scripts.urls.exec = printUrls;
 
-  # Tail native devenv process logs from .devenv/run/processes/logs/.
-  # The native process manager (default since devenv 2.0) writes per-process
-  # stdout/stderr to separate files — there is no combined processes.log.
-  #
-  # Usage:
-  #   logs          -> stderr only (crash causes: FrankenPHP, MariaDB, RustFS)
-  #   logs -a       -> stderr + stdout (urls process, any tool that errors to stdout)
-  #   logs web      -> filter to a single process
-  #   logs -a web   -> stdout+stderr for one process
-  #   logs -n 200   -> show last 200 lines instead of 100
-  #
-  # Note: these files only exist for processes that actually started. If
-  # devenv up fails during eval, build, or a setup task (app:composer,
-  # db:user, s3:buckets) the directory will be missing or empty. In that
-  # case run the task directly: devenv tasks run db:user
-  scripts.logs.exec = ''
-    logsdir="$DEVENV_ROOT/.devenv/run/processes/logs"
-    streams="stderr"
-    n=100
-    proc="*"
-
-    while [ $# -gt 0 ]; do
-      case "$1" in
-        -a|--all) streams="stderr stdout" ;;
-        -n) shift; n="$1" ;;
-        *) proc="$1" ;;
-      esac
-      shift
-    done
-
-    if [ ! -d "$logsdir" ]; then
-      echo "No process logs found at $logsdir"
-      echo "devenv up likely failed before any process started (eval/build/task error)."
-      echo "Try: devenv tasks run db:user"
-      exit 0
+  # Wrapper around `devenv up` that automatically dumps stderr logs on failure.
+  # devenv has no built-in on-failure log hook; this fills that gap.
+  # Runs without the TUI so output streams live to the terminal, which also
+  # means Ctrl-C stops the processes rather than detaching.
+  # Pass any extra flags through to devenv up, e.g.: up -d
+  scripts.up.exec = ''
+    devenv up --no-tui "$@"
+    exit_code=$?
+    if [ "$exit_code" -ne 0 ]; then
+      echo ""
+      echo "━━━━━━━━ devenv up failed (exit $exit_code) — process stderr logs ━━━━━━━━"
+      ${dumpLogs}
     fi
-
-    found=0
-    for s in $streams; do
-      for f in "$logsdir"/$proc.$s.log; do
-        [ -s "$f" ] || continue
-        found=1
-        echo ""
-        echo "━━━ $(basename "$f" .log) ━━━"
-        tail -n "$n" "$f"
-      done
-    done
-
-    if [ "$found" -eq 0 ]; then
-      echo "No output captured in $logsdir"
-      echo "Try: logs -a"
-    fi
+    exit "$exit_code"
   '';
+
+  # Tail native devenv process logs.
+  # Usage: logs [-a] [proc] [-n N]
+  #   logs          -> stderr only (crash causes: FrankenPHP, MariaDB, RustFS)
+  #   logs -a       -> stderr + stdout (urls process, tools that error to stdout)
+  #   logs web      -> filter to a single process
+  #   logs -n 200   -> show last 200 lines instead of 50
+  scripts.logs.exec = dumpLogs;
 
   # ---------------------------------------------------------------------------
   # Tasks
@@ -326,7 +337,7 @@ in
   enterShell = ''
     export PATH="$DEVENV_ROOT/vendor/bin:$PATH"
     echo "localgov-multisite devenv: php $(php -r 'echo PHP_VERSION;') (APP_ENV=$APP_ENV)"
-    echo "  devenv up                       -> start services (prints URLs)"
+    echo "  up                              -> devenv up (dumps logs on failure)"
     echo "  devenv tasks run drupal:setup   -> first-time install (+ demo)"
     echo "  devenv tasks run drupal:deploy  -> apply config changes"
     echo "  devenv test                     -> run the CI suite locally"
