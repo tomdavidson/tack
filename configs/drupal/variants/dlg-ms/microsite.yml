@@ -1,0 +1,86 @@
+# .moon/tasks/drupal/dlg-ms/microsite.yml
+# Delivered by configs/drupal/variants/dlg-ms (tack-owned).
+# See docs/adrs/0008-moon-task-organization.md.
+#
+# Inherited by all projects tagged "dlg-ms-microsite".
+# Microsite dirs are config/content packages (YAML, Markdown, schema files).
+# No PHP, no Drupal install, no test suite. Placeholder: the microsite
+# package design (gitops module) is not settled yet.
+
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+inheritedBy:
+  tags: ["dlg-ms-microsite"]
+  order: 10
+
+fileGroups:
+  sources:
+    - "**/*.yml"
+    - "**/*.yaml"
+    - "**/*.md"
+    - "**/*.json"
+  configs:
+    - ".prettierrc*"
+    - ".markdownlint*"
+    - ".vale.ini"
+
+tasks:
+  lint-yaml:
+    command: prettier
+    args: ["--check", "**/*.yml", "**/*.yaml"]
+    inputs: ["@group(sources)"]
+
+  lint-md:
+    command: markdownlint
+    args: ["**/*.md"]
+    inputs: ["@group(sources)"]
+
+  lint:
+    command: noop
+    deps: ["~:lint-yaml", "~:lint-md"]
+
+  lint-yaml-fix:
+    extends: lint-yaml
+    args: ["--write", "**/*.yml", "**/*.yaml"]
+    options:
+      runInCI: false
+
+  lint-md-fix:
+    extends: lint-md
+    args: ["**/*.md", "--fix"]
+    options:
+      runInCI: false
+
+  lint-fix:
+    command: noop
+    deps: ["~:lint-yaml-fix", "~:lint-md-fix"]
+    options:
+      runInCI: false
+
+  validate-schema:
+    command: noop
+    options:
+      runInCI: true
+
+  validate-prose:
+    command: vale
+    args: ["."]
+    inputs: ["@group(sources)", "/.vale.ini"]
+
+  analyse:
+    command: noop
+    deps: ["~:validate-schema", "~:validate-prose"]
+
+  check:
+    command: noop
+    deps: ["~:lint", "~:analyse"]
+
+  plan:
+    command: noop
+    options:
+      runInCI: false
+
+  apply:
+    command: noop
+    options:
+      runInCI: false

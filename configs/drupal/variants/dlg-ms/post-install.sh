@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+#
+# LocalGov DLG-MS post-install hook.
+# Called by configs/drupal/scripts/drupal/install.sh after site:install
+# succeeds, before deploy.sh runs.
+#
+# - Grants microsites_controller to admin.
+# - Enables localgov_microsites_domain_alias.
+# - Runs drush lmda:regenerate to create aliases for existing microsites.
+# - Enables the demo module if LOCALGOV_DEMO=1 (set by drupal:setup task).
+#
+# Env (optional): LOCALGOV_DEMO (0)
+
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/../../../scripts/lib/env.sh"
+source "${TACK_LIB_DIR}/drupal.sh"
+
+log "Granting microsites_controller role to admin."
+drush user:role:add microsites_controller admin
+
+log "Enabling localgov_microsites_domain_alias."
+drush pm:enable -y localgov_microsites_domain_alias
+drush cache:rebuild
+
+log "Regenerating domain aliases for existing microsites (idempotent)."
+drush lmda:regenerate --yes
+
+if [[ "${LOCALGOV_DEMO:-0}" == "1" ]]; then
+  log "Enabling localgov_microsites_demo (LOCALGOV_DEMO=1)."
+  drush pm:enable -y localgov_microsites_demo
+  drush cache:rebuild
+  log "Before exporting config: drush pm:uninstall -y localgov_microsites_demo && drush cex -y"
+fi

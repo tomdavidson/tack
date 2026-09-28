@@ -1,0 +1,25 @@
+# moon generate dlg-ms
+# Delivered by configs/drupal/variants/dlg-ms to .moon/templates/dlg-ms/.
+#
+# Scaffolds a LocalGov DLG-MS Drupal app under apps/<name>.
+# The generated directory contains moon.yml, composer.json, Caddyfile,
+# config/sync/, web/sites/default/settings.php, and a patches/ placeholder.
+#
+# Usage:
+#   moon generate dlg-ms -- --name hub
+
+$schema: "https://moonrepo.dev/schemas/template.json"
+
+title: "LocalGov DLG-MS Drupal app"
+description: "Scaffold a LocalGov Microsites Drupal hub app (FrankenPHP + MariaDB + S3)."
+destination: "apps/[name]"
+
+variables:
+  name:
+    type: string
+    required: true
+    prompt: "App name (folder name under apps/, lowercase-hyphenated)"
+  project:
+    type: string
+    default: ""
+    prompt: "Composer project name (e.g. your-org/your-project, or enter to skip)"

@@ -1,0 +1,47 @@
+# configs/drupal/variants/dlg-ms: LocalGov DLG Microsites variant extras.
+#
+# Assumed: configs/drupal is also in pkgs (delivers base tasks and scripts).
+#
+# Delivers:
+#   composer.tera.json      -> composer.json           (rendered once, overwrite: false)
+#   Caddyfile               -> Caddyfile               (overwrite: false)
+#   post-install.sh         -> scripts/drupal/post-install.sh  (overwrite: false)
+#   microsite.yml           -> .moon/tasks/drupal/dlg-ms/microsite.yml  (tack-owned)
+#   templates/dlg-ms/       -> .moon/templates/dlg-ms/  (moon generate dlg-ms)
+#
+# Consumer tackrc.yml:
+#
+#   pkgs:
+#     - configs/common
+#     - configs/devenv
+#     - configs/drupal
+#     - configs/drupal/variants/dlg-ms
+#   vars:
+#     project:
+#       name: your-org/your-project
+#
+# Consumer devenv.nix:
+#
+#   imports = [ ./.tack/configs/drupal/variants/dlg-ms.nix ];
+#   env.APP_ROOT  = "${config.devenv.root}/apps/hub";
+#   env.HASH_SALT = "your-project-specific-value";
+#
+# After tack.sh, scaffold the Drupal app:
+#   moon generate dlg-ms -- --name hub
+
+files:
+  composer.tera.json:
+    target: composer.json
+    overwrite: false
+  Caddyfile:
+    target: Caddyfile
+    overwrite: false
+  post-install.sh:
+    target: scripts/drupal/post-install.sh
+    overwrite: false
+  microsite.yml:
+    target: .moon/tasks/drupal/dlg-ms/microsite.yml
+  templates/dlg-ms/template.yml:
+    target: .moon/templates/dlg-ms/template.yml
+  templates/dlg-ms/moon.yml.tera:
+    target: .moon/templates/dlg-ms/moon.yml.tera
