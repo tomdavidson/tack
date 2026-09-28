@@ -1,0 +1,16 @@
+# moon.yml — LocalGov microsite {{ name }}.
+# Generated from the localgov-microsite template (placeholder). You own this file.
+# Tasks are inherited from .moon/tasks/drupal/localgov-multisite/microsite.yml.
+
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+id: "microsite-{{ name }}"
+layer: configuration
+tags: ["localgov-microsite"]
+
+# If apply must run after the site's e2e tests in the same moon run:
+# tasks:
+#   apply:
+#     deps: ["#drupal-app:test-e2e"]
+#     options:
+#       mergeDeps: append

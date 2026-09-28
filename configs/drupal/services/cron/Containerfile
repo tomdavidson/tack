@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1.7
+#
+# Drupal cron machine. Deliberately NOT the Drupal image: no PHP, no
+# Composer, no vendor. It only schedules HTTP calls to the web app's cron
+# endpoint over Fly's private network and runs the nightly database backup.
+#
+# Build context is the repository root so the image can share scripts/lib/env.sh:
+#   fly deploy . -c services/cron/fly.toml
+# (flyctl resolves `dockerfile` relative to fly.toml; the context is the path given.)
+#
+# Delivered by configs/drupal (tack-owned: overwrite: false).
+# Check this file in and edit freely; re-running tack will not clobber your changes.
+
+FROM alpine:3.22
+
+# Pinned supercronic release; verify the SHA1 against
+# https://github.com/aptible/supercronic/releases when bumping.
+ARG SUPERCRONIC_VERSION=v0.2.49
+ARG SUPERCRONIC_SHA1SUM=e63c11a9726b775a6a11801e81af4f3fb926aa68
+
+RUN set -eux; \
+    apk add --no-cache ca-certificates curl bash gzip mariadb-client coreutils tzdata; \
+    curl -fsSLo /usr/local/bin/supercronic \
+      "https://github.com/aptible/supercronic/releases/download/${SUPERCRONIC_VERSION}/supercronic-linux-amd64"; \
+    echo "${SUPERCRONIC_SHA1SUM}  /usr/local/bin/supercronic" | sha1sum -c -; \
+    chmod +x /usr/local/bin/supercronic; \
+    addgroup -S cron && adduser -S -G cron -h /app cron
+
+COPY --chmod=0755 scripts/lib/env.sh /app/scripts/lib/env.sh
+COPY --chmod=0755 services/cron/backup-db.sh /app/services/cron/backup-db.sh
+COPY --chmod=0644 services/cron/crontab /app/crontab
+
+USER cron
+WORKDIR /app
+
+CMD ["supercronic", "-passthrough-logs", "/app/crontab"]

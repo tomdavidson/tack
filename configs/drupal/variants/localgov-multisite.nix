@@ -1,7 +1,7 @@
-# Opinionated devenv module for LocalGov Drupal multisite projects.
-# Imported by the consumer's devenv.nix via the tack stack-import pattern:
+# Opinionated devenv variant for LocalGov Drupal multisite projects.
+# Imported by the consumer's devenv.nix via the tack variant-import pattern:
 #
-#   imports = [ ./.tack/configs/drupal/stacks/localgov-multisite.nix ];
+#   imports = [ ./.tack/configs/drupal/variants/localgov-multisite.nix ];
 #
 # Override any value with a plain assignment (or lib.mkForce) after the import
 # in the consumer's devenv.nix. lib.mkDefault is used throughout so consumer
@@ -28,6 +28,7 @@ let
   # Single source for dev credentials — referenced by both services and env.
   # Override in the consumer devenv.nix after the import.
   dbName      = "drupal";
+  dbTestName  = "drupal_test";
   dbUser      = "drupal";
   dbPassword  = "drupal";
   s3AccessKey = "devadmin";
@@ -73,7 +74,9 @@ in
 
     PLATFORM_HOST = lib.mkDefault "${platformHost}.localhost";
     PLATFORM_URI  = lib.mkDefault "http://${platformHost}.localhost:${toString webPort}";
-    TRUSTED_HOSTS = lib.mkDefault "localhost,127.0.0.1,*.localhost,*.ddev.site";
+    # *.localhost covers all microsite subdomains locally. No *.ddev.site —
+    # this variant is devenv-only. Add extra patterns in the consumer devenv.nix.
+    TRUSTED_HOSTS = lib.mkDefault "localhost,127.0.0.1,*.localhost";
     WEB_PORT      = lib.mkDefault (toString webPort);
 
     DB_HOST     = lib.mkDefault "127.0.0.1";
@@ -93,14 +96,25 @@ in
     AWS_REQUEST_CHECKSUM_CALCULATION = lib.mkDefault "when_required";
     AWS_RESPONSE_CHECKSUM_VALIDATION = lib.mkDefault "when_required";
 
-    # PHPUnit
+    # PHPUnit — SIMPLETEST_DB points at the dedicated test database so kernel
+    # and functional tests never touch the dev database. drupal_test is created
+    # by the db:user task alongside the drupal database.
+    #
+    # SIMPLETEST_BASE_URL uses 127.0.0.1 with the base port. In shells outside
+    # devenv up the real allocated port is in $DEVENV_STATE/web.port; scripts
+    # that need the live port (e.g. deploy.sh --uri) read that file directly.
+    # PHPUnit only needs a reachable base URL — the base port is stable and
+    # correct for the devenv process that runs tests.
     SIMPLETEST_BASE_URL          = lib.mkDefault "http://127.0.0.1:${toString webPort}";
-    SIMPLETEST_DB                = lib.mkDefault "mysql://${dbUser}:${dbPassword}@127.0.0.1:${toString dbPort}/${dbName}";
+    SIMPLETEST_DB                = lib.mkDefault "mysql://${dbUser}:${dbPassword}@127.0.0.1:${toString dbPort}/${dbTestName}";
     BROWSERTEST_OUTPUT_DIRECTORY = lib.mkDefault "/tmp/browser_output";
     SYMFONY_DEPRECATIONS_HELPER  = lib.mkDefault "disabled";
 
-    # FrankenPHP / Caddy: listen on the devenv-allocated port; no TLS locally.
-    # SERVER_NAME drives the `{$SERVER_NAME::8080}` block in the Caddyfile.
+    # FrankenPHP / Caddy: SERVER_NAME is set to ":PORT" (e.g. ":8081").
+    # The Caddyfile uses {$SERVER_NAME::8080} which expands to :8081 —
+    # Caddy's catch-all "bind all hosts on this port" syntax.
+    # Do NOT prefix with another colon in the Caddyfile (:{$SERVER_NAME}
+    # would produce ::8081, which is invalid Caddy syntax).
     SERVER_NAME = lib.mkDefault ":${toString webPort}";
     # Empty defaults so Caddyfile interpolation never hits an unset variable.
     # Set these in the consumer devenv.nix to inject extra Caddy config.
@@ -131,7 +145,7 @@ in
   # MariaDB
   # devenv's service is always services.mysql regardless of the package used.
   # No initialDatabases/ensureUsers: devenv skips those during `devenv up`
-  # (cachix/devenv#2852). The db:user task creates the database and user.
+  # (cachix/devenv#2852). The db:user task creates both databases and the user.
   # ---------------------------------------------------------------------------
   services.mysql = {
     enable  = true;
@@ -158,9 +172,9 @@ in
 
   # ---------------------------------------------------------------------------
   # Web server — FrankenPHP with the project Caddyfile.
-  # SERVER_NAME drives the Caddyfile `{$SERVER_NAME::8080}` block so it
-  # listens on the devenv-allocated port. The port is also written to
-  # $DEVENV_STATE/web.port so other shells and `urls` can find it.
+  # SERVER_NAME=":PORT" drives {$SERVER_NAME::8080} in the Caddyfile.
+  # The port is also written to $DEVENV_STATE/web.port so other shells
+  # and the `urls` script can find it without parsing env.
   # ---------------------------------------------------------------------------
   processes.web = {
     ports.http.allocate = lib.mkDefault 8080;
@@ -188,28 +202,33 @@ in
 
   # ---------------------------------------------------------------------------
   # Tasks
-  # All scripts live in .tack/configs/drupal/scripts/ (via the submodule).
-  # post-install.sh for LocalGov-specific setup (role grant, demo module) lives
-  # in .tack/configs/drupal/stacks/localgov-multisite/ and must be symlinked or
-  # copied to scripts/drupal/post-install.sh in the consumer project.
+  # All scripts live in scripts/drupal/ (delivered by tack from configs/drupal).
+  # post-install.sh for LocalGov-specific setup lives in
+  # configs/drupal/variants/localgov-multisite/ and is delivered via path_prefix
+  # to scripts/drupal/post-install.sh in the consumer project.
   # ---------------------------------------------------------------------------
   tasks."app:composer" = {
     description = "composer install (scaffolds web/ and vendor/)";
-    status      = "test -f vendor/autoload.php";
-    exec        = "${tackScripts}/drupal/../../../scripts/drupal/install.sh";
-    before      = [ "devenv:processes:web" ];
-  };
-
-  tasks."app:composer" = {
-    description = "composer install";
     status      = "test -f vendor/autoload.php";
     exec        = "composer install --no-interaction";
     before      = [ "devenv:processes:web" ];
   };
 
   tasks."db:user" = {
-    description = "Create the ${dbName} database and ${dbUser} user (idempotent)";
-    exec        = "${tackScripts}/db/ensure-user.sh";
+    description = "Create ${dbName} and ${dbTestName} databases and ${dbUser} user (idempotent)";
+    exec        = ''
+      mysql -u root -h 127.0.0.1 -P ${toString dbPort} -e "
+        CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        CREATE DATABASE IF NOT EXISTS \`${dbTestName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        CREATE USER IF NOT EXISTS '${dbUser}'@'localhost' IDENTIFIED BY '${dbPassword}';
+        CREATE USER IF NOT EXISTS '${dbUser}'@'127.0.0.1' IDENTIFIED BY '${dbPassword}';
+        GRANT ALL ON \`${dbName}\`.* TO '${dbUser}'@'localhost';
+        GRANT ALL ON \`${dbName}\`.* TO '${dbUser}'@'127.0.0.1';
+        GRANT ALL ON \`${dbTestName}\`.* TO '${dbUser}'@'localhost';
+        GRANT ALL ON \`${dbTestName}\`.* TO '${dbUser}'@'127.0.0.1';
+        FLUSH PRIVILEGES;
+      "
+    '';
     after       = [ "devenv:processes:mysql@ready" ];
     before      = [ "devenv:processes:web" ];
   };

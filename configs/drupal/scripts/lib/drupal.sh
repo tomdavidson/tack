@@ -3,7 +3,7 @@
 # Drush helpers shared by configs/drupal/scripts/*.
 # Source after lib/env.sh; do not run directly.
 #
-# DEV_ONLY_MODULES is intentionally empty here — stacks that need to guard
+# DEV_ONLY_MODULES is intentionally empty here — variants that need to guard
 # against dev-only modules in the export should set it before sourcing this
 # file, or extend it after sourcing:
 #

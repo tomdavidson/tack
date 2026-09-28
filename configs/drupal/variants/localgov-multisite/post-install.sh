@@ -6,6 +6,12 @@
 #
 # - Grants microsites_controller to admin (hook_install is patched out in this
 #   profile, so the grant must happen explicitly after install).
+# - Enables localgov_microsites_domain_alias so every microsite created via
+#   the UI automatically gets Domain Alias records for configured environments
+#   (local, stage, prod). Configure alias environments at:
+#   /admin/config/domain/microsite-alias
+# - Runs drush lmda:regenerate to create aliases for any microsites that
+#   already exist (idempotent; safe on first install with no microsites).
 # - Enables the demo module if LOCALGOV_DEMO=1 (set by drupal:setup task).
 #
 # Env (optional): LOCALGOV_DEMO (0)
@@ -16,6 +22,13 @@ source "${TACK_LIB_DIR}/drupal.sh"
 
 log "Granting microsites_controller role to admin."
 drush user:role:add microsites_controller admin
+
+log "Enabling localgov_microsites_domain_alias."
+drush pm:enable -y localgov_microsites_domain_alias
+drush cache:rebuild
+
+log "Regenerating domain aliases for existing microsites (idempotent)."
+drush lmda:regenerate --yes
 
 if [[ "${LOCALGOV_DEMO:-0}" == "1" ]]; then
   log "Enabling localgov_microsites_demo (LOCALGOV_DEMO=1)."

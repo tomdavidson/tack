@@ -1,0 +1,29 @@
+# moon.yml — Drupal module {{ name }}.
+# Generated from the drupal-module template. You own this file.
+# Tasks are inherited from .moon/tasks/drupal/all.yml (tack-owned).
+# The default fileGroups (src/, tests/) already match the module layout.
+
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+id: "{{ name }}"
+layer: library
+tags: ["drupal"]
+
+# Scope PHPUnit to this module's tests instead of the site-wide suites.
+# Remove an entry if the module has no tests of that tier.
+tasks:
+  test-unit:
+    env:
+      PHPUNIT_TARGET: "tests/src/Unit"
+    options:
+      mergeEnv: append
+  test-integration:
+    env:
+      PHPUNIT_TARGET: "tests/src/Kernel"
+    options:
+      mergeEnv: append
+  test-e2e:
+    env:
+      PHPUNIT_TARGET: "tests/src/Functional"
+    options:
+      mergeEnv: append

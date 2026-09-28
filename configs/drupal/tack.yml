@@ -1,28 +1,86 @@
-# configs/drupal: Drupal project tooling and devenv stack modules.
+# configs/drupal: Drupal application tooling and deployment scaffolding.
 #
-# DEVENV STACK SELECTION
-# ----------------------
-# Select a devenv stack by setting vars.drupal.stack in tackrc.yml.
-# The rendered devenv.nix imports the corresponding Nix module directly
-# from the .tack submodule at Nix eval time (never materialized).
+# Consumer usage in tackrc.yml:
 #
-# Available stacks (configs/drupal/stacks/):
-#   localgov-multisite  FrankenPHP + MariaDB 11.4 + PHP 8.3 + Drupal tasks
-#
-# Consumer tackrc.yml example:
 #   pkgs:
 #     - configs/common
 #     - configs/devenv
 #     - configs/drupal
+#     - configs/drupal/variants/localgov-multisite
 #   vars:
+#     project:
+#       name: your-org/your-project
 #     drupal:
-#       stack: localgov-multisite
-#     bwrap:
-#       enabled: false   # disable until Drupal dir writes + sockets tested
+#       variant: localgov-multisite
 #
-# Override stack defaults in the consumer devenv.nix after the import:
-#   imports = [ ./.tack/configs/drupal/stacks/localgov-multisite.nix ];
+# Override variant defaults in the consumer devenv.nix after the import:
+#   imports = [ ./.tack/configs/drupal/variants/localgov-multisite.nix ];
 #   env.HASH_SALT = "your-project-specific-value";
+#
+# DELIVERED FILES
+# ---------------
+# phpcs.xml.dist, phpstan.neon.dist, phpunit.xml.dist: delivered once
+# (overwrite: false) to the consumer repo root. Check them in and edit
+# freely; re-running tack will not clobber your changes.
+#
+# composer.merge.json: deep-merged into the consumer's composer.json via
+# tack's *.merge.json dispatch. Adds a path repository for packages/drupal/*
+# and sets minimum-stability: dev / prefer-stable: true.
+#
+# MOON TASKS AND TEMPLATES (ADR 0008)
+# -----------------------------------
+# moon/all.yml  -> .moon/tasks/drupal/all.yml  (tack-owned; tags: drupal)
+# moon/app.yml  -> .moon/tasks/drupal/app.yml  (tack-owned; drupal + application)
+# templates/app.moon.yml -> apps/hub/moon.yml  (seed, overwrite: false)
+# templates/drupal-module/ -> .moon/templates/drupal-module/
+#   (moon generate drupal-module; scaffolds packages/drupal/<name>/moon.yml)
+#
+# SERVICES (Fly.io deployment scaffolding)
+# ----------------------------------------
+# services/cron/ -> services/cron/  (seeded once, overwrite: false)
+#   Containerfile  alpine + supercronic cron worker (no PHP)
+#   backup-db.sh   dump MariaDB -> gzip -> S3 backup bucket
+#   crontab        Drupal cron every 15 min + nightly DB backup
+#   fly.toml       Fly app config template
+# services/db/ -> services/db/  (seeded once, overwrite: false)
+#   fly.toml       Fly app config for MariaDB 11.4 on a Fly Volume
 
 ignore:
-  - stacks/**
+  - variants/**
+
+files:
+  phpcs.xml.dist:
+    target: phpcs.xml.dist
+    overwrite: false
+  phpstan.neon.dist:
+    target: phpstan.neon.dist
+    overwrite: false
+  phpunit.xml.dist:
+    target: phpunit.xml.dist
+    overwrite: false
+  moon/all.yml:
+    target: .moon/tasks/drupal/all.yml
+  moon/app.yml:
+    target: .moon/tasks/drupal/app.yml
+  templates/app.moon.yml:
+    target: apps/hub/moon.yml
+    overwrite: false
+  templates/drupal-module/template.yml:
+    target: .moon/templates/drupal-module/template.yml
+  templates/drupal-module/moon.yml.tera:
+    target: .moon/templates/drupal-module/moon.yml.tera
+  services/cron/Containerfile:
+    target: services/cron/Containerfile
+    overwrite: false
+  services/cron/backup-db.sh:
+    target: services/cron/backup-db.sh
+    overwrite: false
+  services/cron/crontab:
+    target: services/cron/crontab
+    overwrite: false
+  services/cron/fly.toml:
+    target: services/cron/fly.toml
+    overwrite: false
+  services/db/fly.toml:
+    target: services/db/fly.toml
+    overwrite: false

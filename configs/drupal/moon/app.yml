@@ -1,0 +1,82 @@
+# .moon/tasks/drupal/app.yml
+# Delivered by configs/drupal (tack-owned: re-running tack overwrites it).
+# See docs/adrs/0008-moon-task-organization.md.
+#
+# Inherited only by the Drupal application: tagged "drupal" AND layer
+# "application". Modules (layer: library) never get these tasks.
+# order: 20 applies this file after drupal/all.yml (order: 10).
+#
+# ┌──────────────────┬───────────────────────────────────────────────┐
+# │ Use case         │ Command                                          │
+# ├──────────────────┼───────────────────────────────────────────────┤
+# │ Start services   │ moon run :services-up    (devenv up --detach)    │
+# │ Prepare for test │ moon run :test-prepare   (install or deploy)     │
+# │ Full devenv CI   │ moon run :test           (devenv test; ci.sh)    │
+# │ Deploy (dev)     │ moon run :deploy         (services must be up)   │
+# │ Reset (dev)      │ moon run :reset          (services must be up)   │
+# └──────────────────┴───────────────────────────────────────────────┘
+#
+# Set LOCALGOV_DEMO=1 on reset in the app moon.yml to enable the demo
+# module via the post-install hook.
+
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+inheritedBy:
+  tags: ["drupal"]
+  layers: ["application"]
+  order: 20
+
+tasks:
+  services-up:
+    script: "devenv up --detach"
+    options:
+      cache: false
+      runInCI: false
+      runFromWorkspaceRoot: true
+
+  # Installs Drupal if settings.php is missing; otherwise deploys
+  # (updatedb + config:import + cr). devenv's task DAG starts MariaDB and
+  # the web process before drupal:setup / drupal:deploy run.
+  test-prepare:
+    script: |
+      if [ ! -f web/sites/default/settings.php ]; then
+        devenv tasks run drupal:setup
+      else
+        devenv tasks run drupal:deploy
+      fi
+    options:
+      cache: false
+      runInCI: false
+      runFromWorkspaceRoot: true
+
+  # Refines test from drupal/all.yml: the app runs the full devenv test
+  # lifecycle (install + smoke + idempotence + PHPUnit custom suite)
+  # instead of the per-tier aggregate. Explicit merge per ADR 0008.
+  test:
+    command: devenv
+    args: ["test"]
+    deps: []
+    options:
+      mergeArgs: replace
+      mergeDeps: replace
+      cache: false
+      runInCI: false
+      runFromWorkspaceRoot: true
+
+  # Dev-only: run against already-running services.
+  deploy:
+    script: "scripts/drupal/deploy.sh"
+    inputs:
+      - "@group(configs)"
+    options:
+      cache: false
+      runInCI: false
+      runFromWorkspaceRoot: true
+
+  # Dev-only: drop and reinstall.
+  reset:
+    script: "scripts/drupal/install.sh --force"
+    options:
+      cache: false
+      runInCI: false
+      runFromWorkspaceRoot: true

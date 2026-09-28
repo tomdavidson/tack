@@ -1,0 +1,41 @@
+# moon.yml — Drupal application project.
+# Seeded once by tack (configs/drupal, overwrite: false). You own this file.
+#
+# Tasks are inherited from the tack-owned files:
+#   .moon/tasks/drupal/all.yml   (tags: drupal)
+#   .moon/tasks/drupal/app.yml   (tags: drupal + layer: application)
+# Set project facts here. Don't redefine inherited tasks; refine them with
+# an explicit merge strategy if you must (ADR 0008 decisions 4 and 6).
+
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+layer: application
+tags: ["drupal", "drupal-app"]
+
+# Site layout. These replace the module-layout defaults from drupal/all.yml.
+fileGroups:
+  sourceDirs:
+    - "web/modules/custom"
+    - "web/themes/custom"
+  sources:
+    - "web/modules/custom/**/*"
+    - "web/themes/custom/**/*"
+  tests:
+    - "tests/**/*"
+    - "web/modules/custom/**/tests/**/*"
+    - "web/themes/custom/**/tests/**/*"
+  configs:
+    - "/phpcs.xml.dist"
+    - "/phpstan.neon.dist"
+    - "/phpunit.xml.dist"
+    - "/composer.json"
+    - "/composer.lock"
+    - "config/sync/**/*"
+
+# Common refinements:
+# tasks:
+#   reset:
+#     env:
+#       LOCALGOV_DEMO: "1"
+#     options:
+#       mergeEnv: append

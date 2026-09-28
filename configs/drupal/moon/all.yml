@@ -1,0 +1,183 @@
+# .moon/tasks/drupal/all.yml
+# Delivered by configs/drupal (tack-owned: re-running tack overwrites it).
+# See docs/adrs/0008-moon-task-organization.md.
+#
+# Inherited by every project tagged "drupal":
+#   - the Drupal app   (layer: application, also tagged drupal-app)
+#   - custom modules   (layer: library, packages/drupal/*)
+# App-only lifecycle tasks live in .moon/tasks/drupal/app.yml.
+#
+# ┌──────────────────┬───────────────────────────────────────────────┐
+# │ Use case         │ Command                                          │
+# ├──────────────────┼───────────────────────────────────────────────┤
+# │ Lint check       │ moon run :lint                                   │
+# │ Lint fix         │ moon run :lint-fix                               │
+# │ Static analysis  │ moon run :analyse                                │
+# │ Unit tests       │ moon run :test-unit        (no services, cached) │
+# │ Integration      │ moon run :test-integration (after test-prepare)  │
+# │ E2E              │ moon run :test-e2e         (after test-prepare)  │
+# │ All test tiers   │ moon run :test                                   │
+# │ Fast CI          │ moon run :check   (no services; moon ci default) │
+# │ Full CI          │ moon run :check-full                             │
+# └──────────────────┴───────────────────────────────────────────────┘
+#
+# Paths come from fileGroups, not task copies. Defaults match the module
+# layout (src/, tests/). The Drupal app's moon.yml overrides sourceDirs,
+# sources, tests and configs for the site layout.
+#
+# PHPUnit scope: test tasks run a phpunit.xml.dist testsuite by default
+# (site-wide). Projects scope to their own tests by setting PHPUNIT_TARGET
+# in moon.yml, e.g. PHPUNIT_TARGET: "tests/src/Kernel" (see the
+# drupal-module template in .moon/templates/drupal-module).
+#
+# Service readiness: test-integration and test-e2e depend on the app's
+# test-prepare (#drupal-app:test-prepare), which installs or deploys the
+# site. test-e2e reads the real port from $DEVENV_STATE/web.port.
+
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+inheritedBy:
+  tags: ["drupal"]
+  order: 10
+
+fileGroups:
+  sourceDirs:
+    - "src"
+  sources:
+    - "src/**/*"
+    - "*.info.yml"
+    - "*.module"
+    - "*.install"
+    - "*.theme"
+  tests:
+    - "tests/**/*"
+  configs:
+    - "/phpcs.xml.dist"
+    - "/phpstan.neon.dist"
+    - "/phpunit.xml.dist"
+    - "/composer.json"
+    - "/composer.lock"
+
+tasks:
+  lint:
+    command: "$workspaceRoot/vendor/bin/phpcs"
+    args:
+      - "--standard=$workspaceRoot/phpcs.xml.dist"
+      - "@dirs(sourceDirs)"
+    inputs:
+      - "@group(sources)"
+      - "@group(configs)"
+    options:
+      runInCI: true
+
+  lint-fix:
+    command: "$workspaceRoot/vendor/bin/phpcbf"
+    args:
+      - "--standard=$workspaceRoot/phpcs.xml.dist"
+      - "@dirs(sourceDirs)"
+    options:
+      cache: false
+      runInCI: false
+
+  analyse:
+    command: "$workspaceRoot/vendor/bin/phpstan"
+    args:
+      - "analyse"
+      - "--no-progress"
+      - "--configuration=$workspaceRoot/phpstan.neon.dist"
+      - "@dirs(sourceDirs)"
+    inputs:
+      - "@group(sources)"
+      - "@group(configs)"
+    options:
+      runInCI: true
+
+  # No services. Cached by moon. Fast inner dev loop.
+  test-unit:
+    script: |
+      "$workspaceRoot/vendor/bin/phpunit" \
+        --configuration="$workspaceRoot/phpunit.xml.dist" \
+        --no-coverage \
+        ${PHPUNIT_TARGET:---testsuite=unit}
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+    options:
+      runInCI: true
+
+  # Kernel tests. Needs MariaDB (SIMPLETEST_DB); test-prepare ensures the
+  # services and site are up. Table-prefix isolation makes parallel safe.
+  test-integration:
+    script: |
+      "$workspaceRoot/vendor/bin/phpunit" \
+        --configuration="$workspaceRoot/phpunit.xml.dist" \
+        --no-coverage \
+        ${PHPUNIT_TARGET:---testsuite=kernel}
+    deps:
+      - "#drupal-app:test-prepare"
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+    env:
+      SIMPLETEST_DB: "$SIMPLETEST_DB"
+    options:
+      cache: false
+      runInCI: false
+
+  # Functional/browser tests against the live site. SIMPLETEST_BASE_URL is
+  # resolved from the web process's allocated port, not the Nix base port.
+  test-e2e:
+    script: |
+      port=$(cat "$DEVENV_STATE/web.port" 2>/dev/null || echo "${WEB_PORT:-8080}")
+      export SIMPLETEST_BASE_URL="http://127.0.0.1:${port}"
+      "$workspaceRoot/vendor/bin/phpunit" \
+        --configuration="$workspaceRoot/phpunit.xml.dist" \
+        --no-coverage \
+        ${PHPUNIT_TARGET:---testsuite=functional}
+    deps:
+      - "#drupal-app:test-prepare"
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+    env:
+      SIMPLETEST_DB: "$SIMPLETEST_DB"
+      BROWSERTEST_OUTPUT_DIRECTORY: "$BROWSERTEST_OUTPUT_DIRECTORY"
+    options:
+      cache: false
+      runInCI: false
+
+  # All test tiers for this project. The app refines this in app.yml to run
+  # the full devenv test lifecycle instead.
+  test:
+    command: noop
+    deps:
+      - "~:test-unit"
+      - "~:test-integration"
+      - "~:test-e2e"
+    options:
+      runInCI: false
+
+  # Default CI target: static + unit. No services. Cached.
+  check:
+    command: noop
+    deps:
+      - "~:lint"
+      - "~:analyse"
+      - "~:test-unit"
+    options:
+      runInCI: true
+
+  # Full CI: all tiers. Explicit opt-in.
+  check-full:
+    command: noop
+    deps:
+      - "~:lint"
+      - "~:analyse"
+      - "~:test-unit"
+      - "~:test-integration"
+      - "~:test-e2e"
+    options:
+      runInCI: false

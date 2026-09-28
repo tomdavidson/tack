@@ -1,0 +1,45 @@
+# Drupal cron app for Fly.io.
+# Delivered by configs/drupal (tack-owned: overwrite: false).
+# Check this file in and edit freely; re-running tack will not clobber your changes.
+#
+# Separate Fly app rather than a process group of the web app: process
+# groups share one image and this machine must not carry PHP. It reaches the
+# web app over the private 6PN network.
+#
+# First-time setup:
+#   fly apps create <app>-cron
+#   fly secrets set CRON_KEY=... DB_PASSWORD=... S3_ACCESS_KEY=... \
+#     S3_SECRET_KEY=... S3_ENDPOINT=... BACKUP_BUCKET=... -a <app>-cron
+#   fly deploy . -c services/cron/fly.toml -a <app>-cron
+#
+# Build context is the repository root (the image copies scripts/lib/env.sh).
+# Legacy AWS_* secrets from `fly storage create` keep working via env_shim.
+
+app = "<app>-cron"
+primary_region = "den"
+kill_signal = "SIGTERM"
+kill_timeout = "30s"
+
+[build]
+  dockerfile = "services/cron/Containerfile"
+
+[env]
+  TZ = "UTC"
+  WEB_INTERNAL_URL = "http://<app>-web.internal:8080"
+  WEB_HOST = "<app>-web.fly.dev"
+  DB_HOST = "<app>-db.internal"
+  DB_PORT = "3306"
+  DB_NAME = "drupal"
+  DB_USER = "drupal"
+  BACKUP_PREFIX = "<app>-db"
+  S3_REGION = "auto"
+
+[processes]
+  cron = "supercronic -passthrough-logs /app/crontab"
+
+[[vm]]
+  processes = ["cron"]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+
+# No [http_service]: this machine is never publicly routable.

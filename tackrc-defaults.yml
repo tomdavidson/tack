@@ -39,16 +39,16 @@ vars:
 
   # drupal vars: consumed by configs/drupal + configs/devenv.
   #
-  # stack selects the devenv Nix module to import. The rendered devenv.nix
+  # variant selects the devenv Nix module to import. The rendered devenv.nix
   # will contain:
-  #   imports = [ ./.tack/configs/drupal/stacks/<stack>.nix ];
+  #   imports = [ ./.tack/configs/drupal/variants/<variant>.nix ];
   #
-  # Available stacks (configs/drupal/stacks/):
+  # Available variants (configs/drupal/variants/):
   #   localgov-multisite  FrankenPHP + MariaDB 11.4 + PHP 8.3 + Drupal tasks
   #
   # Uncomment to enable:
   # drupal:
-  #   stack: localgov-multisite
+  #   variant: localgov-multisite
 
   # bwrap sandbox vars: consumed by configs/devenv.
   # enabled: render bwrap-run wrappers and add pkgs.bubblewrap/apparmor-utils.

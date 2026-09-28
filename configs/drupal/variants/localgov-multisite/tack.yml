@@ -1,0 +1,47 @@
+# configs/drupal/variants/localgov-multisite: LocalGov Drupal Microsites variant extras.
+#
+# Delivers:
+#   - composer.tera.json     -> composer.json                             (rendered, overwrite: false)
+#   - post-install.sh        -> scripts/drupal/post-install.sh            (called by install.sh hook)
+#   - Caddyfile              -> services/web/Caddyfile                    (overwrite: false)
+#   - localgov-microsite.yml -> .moon/tasks/drupal/localgov-multisite/microsite.yml
+#   - templates/localgov-microsite/ -> .moon/templates/localgov-microsite/
+#
+# Add this package to pkgs in tackrc.yml alongside configs/drupal:
+#
+#   pkgs:
+#     - configs/common
+#     - configs/devenv
+#     - configs/drupal
+#     - configs/drupal/variants/localgov-multisite
+#   vars:
+#     project:
+#       name: your-org/your-project
+#
+# composer.tera.json is rendered once (overwrite: false) — the consumer
+# checks in composer.json and owns it. vars.project.name is substituted
+# at render time from the consumer's tackrc.yml vars.
+#
+# Caddyfile is delivered once (overwrite: false) — the consumer checks it
+# in and owns it.
+#
+# post-install.sh is delivered once (overwrite: false). install.sh calls
+# scripts/drupal/post-install.sh if it exists after site:install completes.
+# Customise it for LocalGov-specific setup: demo module, role grants, etc.
+
+files:
+  composer.tera.json:
+    target: composer.json
+    overwrite: false
+  post-install.sh:
+    target: scripts/drupal/post-install.sh
+    overwrite: false
+  Caddyfile:
+    target: services/web/Caddyfile
+    overwrite: false
+  localgov-microsite.yml:
+    target: .moon/tasks/drupal/localgov-multisite/microsite.yml
+  templates/localgov-microsite/template.yml:
+    target: .moon/templates/localgov-microsite/template.yml
+  templates/localgov-microsite/moon.yml.tera:
+    target: .moon/templates/localgov-microsite/moon.yml.tera

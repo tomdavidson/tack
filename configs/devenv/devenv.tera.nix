@@ -14,16 +14,16 @@ in {
 {
 {% endif %}
 
-{% if vars.drupal.stack is defined %}
-  # Drupal devenv stack module imported directly from the .tack submodule.
-  # Set vars.drupal.stack in tackrc.yml to select the stack. Available stacks
-  # are in configs/drupal/stacks/. Override any default after this import.
-  imports = [ ./.tack/configs/drupal/stacks/{{ vars.drupal.stack }}.nix ];
+{% if vars.drupal.variant is defined %}
+  # Drupal devenv variant module imported directly from the .tack submodule.
+  # Set vars.drupal.variant in tackrc.yml to select the variant. Available variants
+  # are in configs/drupal/variants/. Override any default after this import.
+  imports = [ ./.tack/configs/drupal/variants/{{ vars.drupal.variant }}.nix ];
 
 {% endif %}
   # packages lists additional system-level tools available in the dev shell.
   # Add entries here for tools not managed by proto.
-  # PHP, Composer, and services are added by the drupal stack module.
+  # PHP, Composer, and services are added by the drupal variant module.
   packages = with pkgs; [
 {% for pkg in vars.devenv.packages | default(value=[]) %}
     {{ pkg }}
