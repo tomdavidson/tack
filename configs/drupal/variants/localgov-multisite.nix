@@ -204,18 +204,58 @@ in
   # Print service URLs and credentials at any time.
   scripts.urls.exec = printUrls;
 
-  # Tail the combined overmind process log written to .devenv/processes.log.
-  # Useful after a failed `devenv up` where TUI output has scrolled away or
-  # a process exited. Use `overmind connect <process>` for live streaming while
-  # devenv up is running.
+  # Tail native devenv process logs from .devenv/run/processes/logs/.
+  # The native process manager (default since devenv 2.0) writes per-process
+  # stdout/stderr to separate files — there is no combined processes.log.
+  #
+  # Usage:
+  #   logs          -> stderr only (crash causes: FrankenPHP, MariaDB, RustFS)
+  #   logs -a       -> stderr + stdout (urls process, any tool that errors to stdout)
+  #   logs web      -> filter to a single process
+  #   logs -a web   -> stdout+stderr for one process
+  #   logs -n 200   -> show last 200 lines instead of 100
+  #
+  # Note: these files only exist for processes that actually started. If
+  # devenv up fails during eval, build, or a setup task (app:composer,
+  # db:user, s3:buckets) the directory will be missing or empty. In that
+  # case run the task directly: devenv tasks run db:user
   scripts.logs.exec = ''
-    log="$DEVENV_ROOT/.devenv/processes.log"
-    if [ ! -f "$log" ]; then
-      echo "No process log found at $log"
-      echo "(Has devenv up been run at least once?)"
+    logsdir="$DEVENV_ROOT/.devenv/run/processes/logs"
+    streams="stderr"
+    n=100
+    proc="*"
+
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -a|--all) streams="stderr stdout" ;;
+        -n) shift; n="$1" ;;
+        *) proc="$1" ;;
+      esac
+      shift
+    done
+
+    if [ ! -d "$logsdir" ]; then
+      echo "No process logs found at $logsdir"
+      echo "devenv up likely failed before any process started (eval/build/task error)."
+      echo "Try: devenv tasks run db:user"
       exit 0
     fi
-    tail -n 100 "$log"
+
+    found=0
+    for s in $streams; do
+      for f in "$logsdir"/$proc.$s.log; do
+        [ -s "$f" ] || continue
+        found=1
+        echo ""
+        echo "━━━ $(basename "$f" .log) ━━━"
+        tail -n "$n" "$f"
+      done
+    done
+
+    if [ "$found" -eq 0 ]; then
+      echo "No output captured in $logsdir"
+      echo "Try: logs -a"
+    fi
   '';
 
   # ---------------------------------------------------------------------------
@@ -291,6 +331,6 @@ in
     echo "  devenv tasks run drupal:deploy  -> apply config changes"
     echo "  devenv test                     -> run the CI suite locally"
     echo "  urls                            -> show service URLs"
-    echo "  logs                            -> tail .devenv/processes.log (overmind)"
+    echo "  logs [-a] [proc]                -> tail process stderr (-a: +stdout)"
   '';
 }
