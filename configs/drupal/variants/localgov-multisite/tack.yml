@@ -2,7 +2,7 @@
 #
 # Delivers:
 #   - composer.tera.json     -> composer.json                             (rendered, overwrite: false)
-#   - post-install.sh        -> apps/hub/scripts/post-install.sh          (via path_prefix)
+#   - post-install.sh        -> scripts/drupal/post-install.sh            (called by install.sh hook)
 #   - Caddyfile              -> services/web/Caddyfile                    (overwrite: false)
 #   - localgov-microsite.yml -> .moon/tasks/drupal/localgov-multisite/microsite.yml
 #   - templates/localgov-microsite/ -> .moon/templates/localgov-microsite/
@@ -24,12 +24,17 @@
 #
 # Caddyfile is delivered once (overwrite: false) — the consumer checks it
 # in and owns it.
-
-path_prefix: apps/hub/scripts
+#
+# post-install.sh is delivered once (overwrite: false). install.sh calls
+# scripts/drupal/post-install.sh if it exists after site:install completes.
+# Customise it for LocalGov-specific setup: demo module, role grants, etc.
 
 files:
   composer.tera.json:
     target: composer.json
+    overwrite: false
+  post-install.sh:
+    target: scripts/drupal/post-install.sh
     overwrite: false
   Caddyfile:
     target: services/web/Caddyfile
