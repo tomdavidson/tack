@@ -1,4 +1,8 @@
-# configs/drupal: Drupal application tooling and deployment scaffolding.
+# configs/drupal: Base Drupal application tooling and deployment scaffolding.
+#
+# Provides PHP scripts, Moon task files, Moon templates, and service
+# scaffolding common to all Drupal projects. Does NOT provide a database or
+# S3 service — add a variant package for those (e.g. configs/drupal/variants/dlg-ms).
 #
 # Consumer usage in tackrc.yml:
 #
@@ -6,15 +10,21 @@
 #     - configs/common
 #     - configs/devenv
 #     - configs/drupal
-#     - configs/drupal/variants/localgov-multisite
+#     - configs/drupal/variants/dlg-ms   # LocalGov DLG-MS (MariaDB + RustFS)
 #   vars:
 #     project:
 #       name: your-org/your-project
-#     drupal:
-#       variant: localgov-multisite
 #
-# Override variant defaults in the consumer devenv.nix after the import:
-#   imports = [ ./.tack/configs/drupal/variants/localgov-multisite.nix ];
+# Consumer devenv.nix:
+#
+#   # Base Drupal only (bring your own database):
+#   imports = [ ./.tack/configs/drupal/drupal.nix ];
+#
+#   # LocalGov DLG-MS (includes drupal.nix via import):
+#   imports = [ ./.tack/configs/drupal/variants/dlg-ms.nix ];
+#
+#   # Override defaults after the import:
+#   env.APP_ROOT  = "${config.devenv.root}/apps/hub";
 #   env.HASH_SALT = "your-project-specific-value";
 #
 # DELIVERED FILES
@@ -27,13 +37,20 @@
 # tack's *.merge.json dispatch. Adds a path repository for packages/drupal/*
 # and sets minimum-stability: dev / prefer-stable: true.
 #
-# MOON TASKS AND TEMPLATES (ADR 0008)
-# -----------------------------------
+# MOON TASKS (ADR 0008)
+# ---------------------
 # moon/all.yml  -> .moon/tasks/drupal/all.yml  (tack-owned; tags: drupal)
 # moon/app.yml  -> .moon/tasks/drupal/app.yml  (tack-owned; drupal + application)
-# templates/app.moon.yml -> apps/hub/moon.yml  (seed, overwrite: false)
+#
+# MOON TEMPLATES (ADR 0008)
+# -------------------------
 # templates/drupal-module/ -> .moon/templates/drupal-module/
-#   (moon generate drupal-module; scaffolds packages/drupal/<name>/moon.yml)
+#   Run: moon generate drupal-module
+#   Scaffolds packages/drupal/<name>/moon.yml for a Drupal module project.
+#
+# For the DLG-MS app template (apps/hub), use the variant template:
+#   Run: moon generate dlg-ms
+#   Delivered by configs/drupal/variants/dlg-ms.
 #
 # SERVICES (Fly.io deployment scaffolding)
 # ----------------------------------------
@@ -62,9 +79,6 @@ files:
     target: .moon/tasks/drupal/all.yml
   moon/app.yml:
     target: .moon/tasks/drupal/app.yml
-  templates/app.moon.yml:
-    target: apps/hub/moon.yml
-    overwrite: false
   templates/drupal-module/template.yml:
     target: .moon/templates/drupal-module/template.yml
   templates/drupal-module/moon.yml.tera:
