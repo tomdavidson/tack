@@ -6,6 +6,9 @@
 #
 # Provides:
 #   REPO_ROOT           repository root, derived from this file's location
+#   APP_ROOT            Drupal application root (defaults to REPO_ROOT).
+#                       Set APP_ROOT in the environment or devenv.nix when
+#                       Drupal lives in a subdirectory (e.g. apps/hub).
 #   log / die           prefixed stderr logging; die exits 1
 #   env_require VAR...  fail listing every missing variable
 #   env_shim            map AWS_*/BUCKET_NAME onto neutral S3_* names
@@ -18,10 +21,14 @@ readonly TACK_ENV_SH_LOADED=1
 
 TACK_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(cd "${TACK_LIB_DIR}/../.." && pwd)}"
+# APP_ROOT: Drupal application root. Defaults to REPO_ROOT so consumers
+# with Drupal at the repo root require no change. Consumers that place
+# Drupal in a subdirectory (e.g. apps/hub) set this before sourcing.
+APP_ROOT="${APP_ROOT:-${REPO_ROOT}}"
 SCRIPT_NAME="${SCRIPT_NAME:-$(basename "${0}" .sh)}"
-readonly TACK_LIB_DIR REPO_ROOT SCRIPT_NAME
+readonly TACK_LIB_DIR REPO_ROOT APP_ROOT SCRIPT_NAME
 
-export PATH="${REPO_ROOT}/vendor/bin:${PATH}"
+export PATH="${APP_ROOT}/vendor/bin:${PATH}"
 
 # If devenv recorded an allocated database port, adopt it so scripts and Drush
 # always connect to the active port rather than an out-of-date static default.

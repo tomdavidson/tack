@@ -14,14 +14,16 @@ if [[ -n "${TACK_DRUPAL_SH_LOADED:-}" ]]; then
 fi
 readonly TACK_DRUPAL_SH_LOADED=1
 
-readonly CONFIG_SYNC_DIR="${REPO_ROOT}/config/sync"
+# APP_ROOT is set by env.sh (defaults to REPO_ROOT). Config sync and the
+# Drupal webroot live under the app root, not necessarily the repo root.
+readonly CONFIG_SYNC_DIR="${APP_ROOT}/config/sync"
 readonly CORE_EXTENSION_FILE="${CONFIG_SYNC_DIR}/core.extension.yml"
 
 # Stacks extend this array before sourcing this lib, or after via +=.
 DEV_ONLY_MODULES=()
 
 drush() {
-  "${REPO_ROOT}/vendor/bin/drush" --root="${REPO_ROOT}/web" --no-interaction "$@"
+  "${APP_ROOT}/vendor/bin/drush" --root="${APP_ROOT}/web" --no-interaction "$@"
 }
 
 has_exported_config() { [[ -f "${CORE_EXTENSION_FILE}" ]]; }
@@ -39,7 +41,7 @@ refuse_dev_only_modules_in_export() {
   local module
   for module in "${DEV_ONLY_MODULES[@]:-}"; do
     if grep -qE "^\s+${module}:" "${CORE_EXTENSION_FILE}"; then
-      die "${CORE_EXTENSION_FILE#"${REPO_ROOT}"/} enables ${module} (dev-only). Run: drush pm:uninstall -y ${module} && drush cex -y"
+      die "${CORE_EXTENSION_FILE#"${APP_ROOT}"/} enables ${module} (dev-only). Run: drush pm:uninstall -y ${module} && drush cex -y"
     fi
   done
 }
