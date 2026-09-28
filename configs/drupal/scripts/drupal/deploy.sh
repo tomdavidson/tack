@@ -10,7 +10,7 @@
 #
 # Env (required): HASH_SALT DB_HOST DB_NAME DB_USER DB_PASSWORD TRUSTED_HOSTS
 #                 S3_BUCKET S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY
-# Env (optional): CRON_KEY, APP_ENV
+# Env (optional): CRON_KEY APP_ENV APP_ROOT
 
 set -euo pipefail
 # shellcheck source=scripts/lib/env.sh
@@ -19,7 +19,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/env.sh"
 source "${TACK_LIB_DIR}/drupal.sh"
 
 main() {
-  cd "${REPO_ROOT}"
+  cd "${APP_ROOT}"
   env_shim
   env_require HASH_SALT DB_HOST DB_NAME DB_USER DB_PASSWORD TRUSTED_HOSTS \
     S3_BUCKET S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY

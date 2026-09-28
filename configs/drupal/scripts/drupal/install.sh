@@ -26,7 +26,7 @@
 # Env (required): HASH_SALT DB_HOST DB_NAME DB_USER DB_PASSWORD PLATFORM_HOST
 #                 TRUSTED_HOSTS S3_BUCKET S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY
 # Env (optional): PLATFORM_URI APP_ENV DB_PORT CRON_KEY DRUPAL_ADMIN_PASSWORD
-#                 DRUPAL_INSTALL_LOG
+#                 DRUPAL_INSTALL_LOG APP_ROOT
 
 set -euo pipefail
 # shellcheck source=scripts/lib/env.sh
@@ -35,7 +35,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/env.sh"
 source "${TACK_LIB_DIR}/drupal.sh"
 
 readonly DEPLOY_SCRIPT="${TACK_LIB_DIR}/../drupal/deploy.sh"
-readonly POST_INSTALL_SCRIPT="${REPO_ROOT}/scripts/drupal/post-install.sh"
+# POST_INSTALL_SCRIPT is app-relative: variants place it under
+# APP_ROOT/scripts/drupal/post-install.sh via tack's path_prefix.
+readonly POST_INSTALL_SCRIPT="${APP_ROOT}/scripts/drupal/post-install.sh"
 readonly APP_ENV="${APP_ENV:-production}"
 readonly INSTALL_LOG="${DRUPAL_INSTALL_LOG:-${DEVENV_STATE:-/tmp}/drupal-install.log}"
 
@@ -113,7 +115,7 @@ drop_database() {
 # Run install without PHP memory/time limits — large module sets (e.g.
 # LocalGov Microsites) can exhaust defaults and die silently part-way.
 drush_unlimited() {
-  php -d memory_limit=-1 -d max_execution_time=0 "${REPO_ROOT}/vendor/bin/drush.php" "$@"
+  php -d memory_limit=-1 -d max_execution_time=0 "${APP_ROOT}/vendor/bin/drush.php" "$@"
 }
 
 install_from_config() {
@@ -143,7 +145,7 @@ install_from_config() {
 
 run_post_install_hook() {
   if [[ -x "${POST_INSTALL_SCRIPT}" ]]; then
-    log "Running post-install hook: ${POST_INSTALL_SCRIPT#"${REPO_ROOT}"/}"
+    log "Running post-install hook: ${POST_INSTALL_SCRIPT#"${APP_ROOT}"/}"
     "${POST_INSTALL_SCRIPT}"
   fi
 }
@@ -160,7 +162,7 @@ main() {
   local state
 
   parse_args "$@"
-  cd "${REPO_ROOT}"
+  cd "${APP_ROOT}"
   env_shim
   env_require HASH_SALT DB_HOST DB_NAME DB_USER DB_PASSWORD PLATFORM_HOST TRUSTED_HOSTS \
     S3_BUCKET S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY
