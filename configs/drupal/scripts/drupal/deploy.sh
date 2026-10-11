@@ -26,7 +26,7 @@ main() {
 
   has_exported_config || die "Refusing to run config:import with an empty ${CONFIG_SYNC_DIR}."
   refuse_dev_only_modules_in_export
-  is_site_installed   || die "Drupal is not installed; run scripts/drupal/install.sh first."
+  is_site_installed || die "Drupal is not installed; run scripts/drupal/install.sh first."
 
   log "Running updatedb, config:import, cache:rebuild and deploy hooks."
   drush deploy -y

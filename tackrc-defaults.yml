@@ -19,7 +19,6 @@ pkgs:
 
 #pkgs-exclude:
 
-
 vars:
   # devcontainer vars: consumed by configs/devcontainer.
   # image and digest must be set by the consumer; they have no default because

@@ -21,25 +21,25 @@ kill_signal = "SIGTERM"
 kill_timeout = "30s"
 
 [build]
-  dockerfile = "services/cron/Containerfile"
+dockerfile = "services/cron/Containerfile"
 
 [env]
-  TZ = "UTC"
-  WEB_INTERNAL_URL = "http://<app>-web.internal:8080"
-  WEB_HOST = "<app>-web.fly.dev"
-  DB_HOST = "<app>-db.internal"
-  DB_PORT = "3306"
-  DB_NAME = "drupal"
-  DB_USER = "drupal"
-  BACKUP_PREFIX = "<app>-db"
-  S3_REGION = "auto"
+TZ = "UTC"
+WEB_INTERNAL_URL = "http://<app>-web.internal:8080"
+WEB_HOST = "<app>-web.fly.dev"
+DB_HOST = "<app>-db.internal"
+DB_PORT = "3306"
+DB_NAME = "drupal"
+DB_USER = "drupal"
+BACKUP_PREFIX = "<app>-db"
+S3_REGION = "auto"
 
 [processes]
-  cron = "supercronic -passthrough-logs /app/crontab"
+cron = "supercronic -passthrough-logs /app/crontab"
 
 [[vm]]
-  processes = ["cron"]
-  size = "shared-cpu-1x"
-  memory = "256mb"
+processes = ["cron"]
+size = "shared-cpu-1x"
+memory = "256mb"
 
 # No [http_service]: this machine is never publicly routable.

@@ -6,8 +6,8 @@ tack tera renderer — the consumer does not write the `imports` line manually.
 
 ## Available variants
 
-| Variant | Path | Description |
-|---|---|---|
+| Variant              | Path                                             | Description                                                     |
+| -------------------- | ------------------------------------------------ | --------------------------------------------------------------- |
 | `localgov-multisite` | `configs/drupal/variants/localgov-multisite.nix` | FrankenPHP + MariaDB 11.4 + PHP 8.3 + LocalGov Drupal multisite |
 
 ## Variant selection
@@ -18,11 +18,11 @@ Nix module, one to deliver the variant's extra scripts:
 ```yaml
 pkgs:
   - configs/drupal
-  - configs/drupal/variants/localgov-multisite   # delivers post-install.sh
+  - configs/drupal/variants/localgov-multisite # delivers post-install.sh
 
 vars:
   drupal:
-    variant: localgov-multisite                  # renders the devenv.nix import
+    variant: localgov-multisite # renders the devenv.nix import
 ```
 
 `vars.drupal.variant` is read by `configs/devenv/devenv.tera.nix` and renders
@@ -126,19 +126,19 @@ reuses the existing services.
 
 ### CI defaults
 
-| Task | Services | Cached | Runs in CI |
-|---|---|---|---|
-| `lint` | ✗ | ✓ | ✓ |
-| `lint-fix` | ✗ | ✓ | ✗ |
-| `analyse` | ✗ | ✓ | ✓ |
-| `test-unit` | ✗ | ✓ | ✓ |
-| `test-integration` | ✓ via devenv | ✗ | ✗ |
-| `test-e2e` | ✓ via devenv | ✗ | ✗ |
-| `test` | ✓ via devenv | ✗ | ✓ |
-| `check` | ✗ | ✓ | ✓ (moon ci default) |
-| `check-full` | ✓ | ✗ | ✗ (explicit opt-in) |
-| `deploy` | must be up | ✗ | ✗ |
-| `reset` | must be up | ✗ | ✗ |
+| Task               | Services     | Cached | Runs in CI          |
+| ------------------ | ------------ | ------ | ------------------- |
+| `lint`             | ✗            | ✓      | ✓                   |
+| `lint-fix`         | ✗            | ✓      | ✗                   |
+| `analyse`          | ✗            | ✓      | ✓                   |
+| `test-unit`        | ✗            | ✓      | ✓                   |
+| `test-integration` | ✓ via devenv | ✗      | ✗                   |
+| `test-e2e`         | ✓ via devenv | ✗      | ✗                   |
+| `test`             | ✓ via devenv | ✗      | ✓                   |
+| `check`            | ✗            | ✓      | ✓ (moon ci default) |
+| `check-full`       | ✓            | ✗      | ✗ (explicit opt-in) |
+| `deploy`           | must be up   | ✗      | ✗                   |
+| `reset`            | must be up   | ✗      | ✗                   |
 
 `moon ci` is the primary task runner. It runs `check` by default: lint +
 analyse + test-unit. Fast, cacheable, no service spin-up. `runInCI: true`

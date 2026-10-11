@@ -9,7 +9,7 @@
 #
 #   DEV_ONLY_MODULES+=(my_demo_module)
 
-if [[ -n "${TACK_DRUPAL_SH_LOADED:-}" ]]; then
+if [[ -n ${TACK_DRUPAL_SH_LOADED:-} ]]; then
   return 0
 fi
 readonly TACK_DRUPAL_SH_LOADED=1
@@ -26,12 +26,12 @@ drush() {
   "${APP_ROOT}/vendor/bin/drush" --root="${APP_ROOT}/web" --no-interaction "$@"
 }
 
-has_exported_config() { [[ -f "${CORE_EXTENSION_FILE}" ]]; }
+has_exported_config() { [[ -f ${CORE_EXTENSION_FILE} ]]; }
 
 is_site_installed() {
   local bootstrap
-  bootstrap="$(drush core:status --fields=bootstrap --format=string 2>/dev/null || true)"
-  [[ "${bootstrap}" == "Successful" ]]
+  bootstrap="$(drush core:status --fields=bootstrap --format=string 2> /dev/null || true)"
+  [[ ${bootstrap} == "Successful" ]]
 }
 
 # Refuse an export that enables a dev-only module — it would break config:import
@@ -50,8 +50,8 @@ refuse_dev_only_modules_in_export() {
 # missing export or missing config_ignore pattern. Both block a rollout.
 gate_config_status() {
   local drift
-  drift="$(drush config:status --format=list 2>/dev/null || true)"
-  if [[ -n "${drift}" ]]; then
+  drift="$(drush config:status --format=list 2> /dev/null || true)"
+  if [[ -n ${drift} ]]; then
     log "Configuration drift after import:"
     printf '%s\n' "${drift}" >&2
     die "config:status is not clean. Export the change or add a config_ignore pattern."
@@ -61,10 +61,10 @@ gate_config_status() {
 
 # Sync CRON_KEY into Drupal's state so the cron endpoint matches the secret.
 sync_cron_key() {
-  if [[ -z "${CRON_KEY:-}" ]]; then
+  if [[ -z ${CRON_KEY:-} ]]; then
     log "CRON_KEY not set; leaving Drupal's generated cron key in place."
     return 0
   fi
-  drush state:set system.cron_key "${CRON_KEY}" >/dev/null
+  drush state:set system.cron_key "${CRON_KEY}" > /dev/null
   log "Cron key synced from CRON_KEY."
 }

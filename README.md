@@ -417,13 +417,13 @@ under `configs/drupal/variants/` layer a database and object store on top.
 The `.tack` submodule path is required: the nix modules and task scripts
 reference `.tack/configs/drupal/...`.
 
-| Piece                                      | What it provides                                                                                                                           |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `configs/drupal` (tack package)            | phpcs, phpstan, phpunit configs; Moon task files; `drupal-module` Moon template; Fly.io cron and db scaffolding; shell scripts             |
-| `configs/drupal/drupal.nix` (devenv)       | PHP 8.3, FrankenPHP, composer, `app:composer`, `drupal:deploy`, `drupal:reset`. **No database and no S3.** Bring your own (PostgreSQL, SQLite) |
-| `configs/drupal/variants/dlg-ms` (package) | LocalGov DLG Microsites extras: Caddyfile, post-install hook, Moon task file, `dlg-ms` Moon template                                       |
-| `configs/drupal/variants/dlg-ms.nix`       | Imports `drupal.nix`; adds MariaDB 11.4, RustFS (S3), `db:user`, `s3:buckets`, `drupal:setup`, DB and S3 env vars, `urls`                  |
-| `configs/drupal/variants/localgov-multisite.nix` | Compatibility shim that imports `dlg-ms.nix`. Update consumers to `dlg-ms.nix`                                                       |
+| Piece                                            | What it provides                                                                                                                               |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `configs/drupal` (tack package)                  | phpcs, phpstan, phpunit configs; Moon task files; `drupal-module` Moon template; Fly.io cron and db scaffolding; shell scripts                 |
+| `configs/drupal/drupal.nix` (devenv)             | PHP 8.3, FrankenPHP, composer, `app:composer`, `drupal:deploy`, `drupal:reset`. **No database and no S3.** Bring your own (PostgreSQL, SQLite) |
+| `configs/drupal/variants/dlg-ms` (package)       | LocalGov DLG Microsites extras: Caddyfile, post-install hook, Moon task file, `dlg-ms` Moon template                                           |
+| `configs/drupal/variants/dlg-ms.nix`             | Imports `drupal.nix`; adds MariaDB 11.4, RustFS (S3), `db:user`, `s3:buckets`, `drupal:setup`, DB and S3 env vars, `urls`                      |
+| `configs/drupal/variants/localgov-multisite.nix` | Compatibility shim that imports `dlg-ms.nix`. Update consumers to `dlg-ms.nix`                                                                 |
 
 MariaDB and RustFS belong to `dlg-ms` only. Other Drupal apps import
 `drupal.nix` and add their own database; not every app needs RustFS.

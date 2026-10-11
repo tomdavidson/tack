@@ -25,7 +25,7 @@ drush cache:rebuild
 log "Regenerating domain aliases for existing microsites (idempotent)."
 drush lmda:regenerate --yes
 
-if [[ "${LOCALGOV_DEMO:-0}" == "1" ]]; then
+if [[ ${LOCALGOV_DEMO:-0} == "1" ]]; then
   log "Enabling localgov_microsites_demo (LOCALGOV_DEMO=1)."
   drush pm:enable -y localgov_microsites_demo
   drush cache:rebuild
