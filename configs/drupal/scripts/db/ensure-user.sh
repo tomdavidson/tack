@@ -25,9 +25,9 @@ readonly USER_HOSTS=(localhost 127.0.0.1 '%')
 # Resolve DB_PORT dynamically: check $DEVENV_STATE/db.port first,
 # fallback to $DB_PORT env var, then 3306.
 resolve_db_port() {
-  if [[ -n "${DEVENV_STATE:-}" && -f "${DEVENV_STATE}/db.port" ]]; then
+  if [[ -n ${DEVENV_STATE:-} && -f "${DEVENV_STATE}/db.port" ]]; then
     cat "${DEVENV_STATE}/db.port"
-  elif [[ -n "${DB_PORT:-}" ]]; then
+  elif [[ -n ${DB_PORT:-} ]]; then
     printf '%s' "${DB_PORT}"
   else
     printf '3306'
@@ -37,7 +37,7 @@ resolve_db_port() {
 admin_sql() {
   local port
   port="$(resolve_db_port)"
-  if [[ -n "${MYSQL_UNIX_PORT:-}" && -S "${MYSQL_UNIX_PORT}" ]]; then
+  if [[ -n ${MYSQL_UNIX_PORT:-} && -S ${MYSQL_UNIX_PORT} ]]; then
     MYSQL_PWD="${DB_ROOT_PASSWORD:-}" mariadb --socket="${MYSQL_UNIX_PORT}" \
       --user="${DB_ROOT_USER}" --batch --skip-column-names "$@"
   else
@@ -63,8 +63,8 @@ ensure_user_statements() {
   printf 'CREATE DATABASE IF NOT EXISTS `%s`;\n' "${DB_NAME}"
   for host in "${USER_HOSTS[@]}"; do
     printf "CREATE USER IF NOT EXISTS '%s'@'%s' IDENTIFIED BY '%s';\n" "${DB_USER}" "${host}" "${DB_PASSWORD}"
-    printf "ALTER USER '%s'@'%s' IDENTIFIED BY '%s';\n"               "${DB_USER}" "${host}" "${DB_PASSWORD}"
-    printf "GRANT ALL PRIVILEGES ON \`%s\`.* TO '%s'@'%s';\n"         "${DB_NAME}" "${DB_USER}" "${host}"
+    printf "ALTER USER '%s'@'%s' IDENTIFIED BY '%s';\n" "${DB_USER}" "${host}" "${DB_PASSWORD}"
+    printf "GRANT ALL PRIVILEGES ON \`%s\`.* TO '%s'@'%s';\n" "${DB_NAME}" "${DB_USER}" "${host}"
   done
   printf 'FLUSH PRIVILEGES;\n'
 }
@@ -74,10 +74,10 @@ main() {
   wait_for mariadb 60 admin_ping
 
   # Record the live port so install.sh and drush always hit the right socket.
-  if [[ -n "${DEVENV_STATE:-}" ]]; then
+  if [[ -n ${DEVENV_STATE:-} ]]; then
     local live_port
     live_port="$(admin_sql --execute="SHOW VARIABLES LIKE 'port';" | awk '{print $2}' || true)"
-    if [[ -n "${live_port}" ]]; then
+    if [[ -n ${live_port} ]]; then
       echo "${live_port}" > "${DEVENV_STATE}/db.port"
       log "Recorded active MariaDB port ${live_port} to ${DEVENV_STATE}/db.port"
     fi

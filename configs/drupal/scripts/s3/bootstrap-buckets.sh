@@ -25,12 +25,12 @@ s3_request() {
 }
 
 endpoint_is_healthy() { curl -fsS -o /dev/null "${ENDPOINT}/health"; }
-bucket_exists()       { s3_request -o /dev/null -I "${ENDPOINT}/${1}"; }
+bucket_exists() { s3_request -o /dev/null -I "${ENDPOINT}/${1}"; }
 
 # PUT on an existing bucket returns 200 on RustFS and 409 BucketAlreadyOwnedByYou
 # on others; either way a following HEAD proves the bucket is there.
 put_or_find_bucket() {
-  s3_request -o /dev/null -X PUT "${ENDPOINT}/${1}" 2>/dev/null || bucket_exists "$1"
+  s3_request -o /dev/null -X PUT "${ENDPOINT}/${1}" 2> /dev/null || bucket_exists "$1"
 }
 
 # RustFS answers /health before its object layer is up; retry on bucket calls.
@@ -44,8 +44,8 @@ public_read_policy() {
 
 allow_anonymous_read() {
   local bucket="$1"
-  public_read_policy "${bucket}" \
-    | s3_request -o /dev/null -X PUT -H "Content-Type: application/json" --data-binary @- "${ENDPOINT}/${bucket}?policy"
+  public_read_policy "${bucket}" |
+    s3_request -o /dev/null -X PUT -H "Content-Type: application/json" --data-binary @- "${ENDPOINT}/${bucket}?policy"
   log "Anonymous read enabled on ${bucket}."
 }
 
@@ -53,7 +53,7 @@ main() {
   wait_for "S3 endpoint ${ENDPOINT}" 60 endpoint_is_healthy
   create_bucket "${FILES_BUCKET}"
   allow_anonymous_read "${FILES_BUCKET}"
-  if [[ -n "${BACKUP_BUCKET}" ]]; then
+  if [[ -n ${BACKUP_BUCKET} ]]; then
     create_bucket "${BACKUP_BUCKET}"
   else
     log "BACKUP_BUCKET unset; no backup bucket created."
