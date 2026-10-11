@@ -17,7 +17,7 @@ slightly different fork of the same baseline.
 
 `tack` is built around the opposite priority: **keep the upstream connection
 alive**. Distributing the kit as a vendored git submodule means a consumer can
-(a) pin to a specific tack commit for reproducibility, (b) edit `vendor/tack`
+(a) pin to a specific tack commit for reproducibility, (b) edit `.tack`
 in place to fix or improve a config, and (c) push that change back upstream as
 a normal PR from inside the consumer repo. Re-running `tack.sh` in the
 consumer is then just `git submodule update` plus a re-apply, with the same
@@ -29,7 +29,7 @@ incidental.
 ## 1. Mental model
 
 ```
-tack repo (this repo, often a submodule)        consumer repo
+tack repo (this repo, a submodule at .tack)     consumer repo
 --------------------------------------          -------------------
 tack.sh                                          tackrc.yml (optional)
 tackrc-defaults.yml      ---- merge ---->        ...your project...
@@ -39,8 +39,10 @@ scripts/...                                       via link/copy/render/
 ```
 
 - `tack.sh` lives in **the tack repo**.
-- The tack repo is typically vendored into the consumer as a **git submodule**
-  at a stable path (e.g. `vendor/tack` or `.tack`).
+- The tack repo is vendored into the consumer as a **git submodule at
+  `.tack`**. This path is fixed, not a suggestion: devenv modules and scripts
+  shipped by tack reference `.tack/configs/...` directly (for example
+  `imports = [ ./.tack/configs/drupal/drupal.nix ];`).
 - The consumer's `tackrc.yml` (optional) is deep-merged on top of the tack
   repo's `tackrc-defaults.yml`. The merged result is the single runtime
   controller (which packages to apply, per-package overrides, metadata) and
@@ -56,8 +58,8 @@ scripts/...                                       via link/copy/render/
 From the **consumer** repo root:
 
 ```bash
-# 1. Add the tack repo as a submodule. Pin to a stable path.
-git submodule add https://github.com/tomdavidson/tack vendor/tack
+# 1. Add the tack repo as a submodule at .tack (this path is required).
+git submodule add https://github.com/tomdavidson/tack .tack
 
 # 2. Initialize and fetch.
 git submodule update --init --recursive
@@ -73,7 +75,7 @@ vars: {}
 YAML
 
 # 4. Commit.
-git add .gitmodules vendor/tack tackrc.yml
+git add .gitmodules .tack tackrc.yml
 git commit -m "Vendor tack and add tackrc"
 ```
 
@@ -90,12 +92,12 @@ git submodule update --init --recursive
 The submodule pins a specific commit. To advance:
 
 ```bash
-cd vendor/tack
+cd .tack
 git fetch origin
 git checkout main           # or a tag, e.g. v0.1.0
 git pull origin main
-cd ../..
-git add vendor/tack
+cd ..
+git add .tack
 git commit -m "Bump tack to <short-sha>"
 ```
 
@@ -122,13 +124,13 @@ actionable message if any are missing.
 From the **consumer** repo root:
 
 ```bash
-vendor/tack/tack.sh                       # apply pkgs from merged tackrc
-vendor/tack/tack.sh --dry-run             # print actions, change nothing
-vendor/tack/tack.sh --target some/dir     # apply into a different target
-vendor/tack/tack.sh configs/rust scripts  # apply specific packages, ignoring tackrc pkgs
-vendor/tack/tack.sh -- --weird-pkg-name   # end-of-options sentinel
-vendor/tack/tack.sh --version             # tack <git-describe> (<branch>)
-vendor/tack/tack.sh --help                # full usage
+.tack/tack.sh                       # apply pkgs from merged tackrc
+.tack/tack.sh --dry-run             # print actions, change nothing
+.tack/tack.sh --target some/dir     # apply into a different target
+.tack/tack.sh configs/rust scripts  # apply specific packages, ignoring tackrc pkgs
+.tack/tack.sh -- --weird-pkg-name   # end-of-options sentinel
+.tack/tack.sh --version             # tack <git-describe> (<branch>)
+.tack/tack.sh --help                # full usage
 ```
 
 ### CLI options
@@ -361,11 +363,11 @@ for a specific file.
 
 ## 8. End-to-end example
 
-Consumer repo `myproj` with `vendor/tack` as a submodule.
+Consumer repo `myproj` with `.tack` as a submodule.
 
 ```
 myproj/
-  vendor/tack/                    (submodule)
+  .tack/                          (submodule)
     tack.sh
     tackrc-defaults.yml
     configs/
@@ -379,7 +381,7 @@ myproj/
   tackrc.yml                      (consumer override)
 ```
 
-`vendor/tack/tackrc-defaults.yml`:
+`.tack/tackrc-defaults.yml`:
 
 ```yaml
 pkgs:
@@ -402,13 +404,98 @@ Run:
 
 ```bash
 cd myproj
-vendor/tack/tack.sh --target $HOME
+.tack/tack.sh --target $HOME
 ```
 
 Result: `~/.gitconfig` rendered, `~/.cargo/config.toml` copied, and
 `~/rust-toolchain.toml` symlinked back to the package.
 
-## 9. Testing
+## 9. Drupal stacks
+
+The `configs/drupal` package is a base for any Drupal application. Variants
+under `configs/drupal/variants/` layer a database and object store on top.
+The `.tack` submodule path is required: the nix modules and task scripts
+reference `.tack/configs/drupal/...`.
+
+| Piece                                      | What it provides                                                                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `configs/drupal` (tack package)            | phpcs, phpstan, phpunit configs; Moon task files; `drupal-module` Moon template; Fly.io cron and db scaffolding; shell scripts             |
+| `configs/drupal/drupal.nix` (devenv)       | PHP 8.3, FrankenPHP, composer, `app:composer`, `drupal:deploy`, `drupal:reset`. **No database and no S3.** Bring your own (PostgreSQL, SQLite) |
+| `configs/drupal/variants/dlg-ms` (package) | LocalGov DLG Microsites extras: Caddyfile, post-install hook, Moon task file, `dlg-ms` Moon template                                       |
+| `configs/drupal/variants/dlg-ms.nix`       | Imports `drupal.nix`; adds MariaDB 11.4, RustFS (S3), `db:user`, `s3:buckets`, `drupal:setup`, DB and S3 env vars, `urls`                  |
+| `configs/drupal/variants/localgov-multisite.nix` | Compatibility shim that imports `dlg-ms.nix`. Update consumers to `dlg-ms.nix`                                                       |
+
+MariaDB and RustFS belong to `dlg-ms` only. Other Drupal apps import
+`drupal.nix` and add their own database; not every app needs RustFS.
+
+### Base Drupal (bring your own database)
+
+```yaml
+# tackrc.yml
+pkgs:
+  - configs/common
+  - configs/devenv
+  - configs/drupal
+```
+
+```nix
+# devenv.nix
+{ pkgs, lib, config, ... }:
+{
+  imports = [ ./.tack/configs/drupal/drupal.nix ];
+
+  env.APP_ROOT = "${config.devenv.root}/apps/my-app";
+
+  # Add your own database, e.g. PostgreSQL:
+  services.postgres.enable = true;
+}
+```
+
+### LocalGov DLG Microsites (`dlg-ms`)
+
+```yaml
+# tackrc.yml
+pkgs:
+  - configs/common
+  - configs/devenv
+  - configs/drupal
+  - configs/drupal/variants/dlg-ms
+vars:
+  project:
+    name: your-org/your-project
+```
+
+```nix
+# devenv.nix
+{ pkgs, lib, config, ... }:
+{
+  imports = [ ./.tack/configs/drupal/variants/dlg-ms.nix ];
+
+  env.APP_ROOT  = "${config.devenv.root}/apps/hub";
+  env.HASH_SALT = "your-project-specific-value";
+}
+```
+
+```bash
+.tack/tack.sh                         # deliver nix, tasks, templates, Caddyfile
+moon generate dlg-ms -- --name hub    # scaffold apps/hub/
+devenv up                             # MariaDB, RustFS, composer, FrankenPHP
+devenv tasks run drupal:setup         # first-time install (+ demo content)
+```
+
+### Layout and `APP_ROOT`
+
+`APP_ROOT` defaults to the repo root. Set it in `devenv.nix` when Drupal
+lives in a subdirectory such as `apps/hub`. Scripts, drush, composer, and the
+web server all resolve relative to it.
+
+Each Drupal app owns its own `composer.json`, `composer.lock`, and `vendor/`;
+there is no shared root manifest. `composer.json` is not delivered by tack.
+`moon generate dlg-ms` creates it per app, with a `../../packages/drupal/*`
+path repository (symlinked) for local modules. Running the generator again
+with a different `--name` creates an independent app.
+
+## 10. Testing
 
 ```bash
 bats tests/                # full suite
@@ -418,7 +505,7 @@ shellcheck tack.sh         # static lint
 The bats suite shapes isolated `ALT_ROOT` / `CONSUMER` trees per test, so
 running the suite does not touch your real configs.
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 - **`[tack] aborted: exit=N line=L cmd=...`** — the diagnostic EXIT trap
   fired. `cmd` is the last command before the abort. Run with
@@ -438,8 +525,10 @@ running the suite does not touch your real configs.
   Python `yq` installed, not Mike Farah's Go `yq`. Replace it.
 - **Submodule directory empty after clone** — run
   `git submodule update --init --recursive`.
+- **devenv import fails with `.tack/... No such file`** — the submodule must
+  be checked out at exactly `.tack`. Move it with `git mv <old-path> .tack`.
 
-## 11. Shell discipline (for contributors)
+## 12. Shell discipline (for contributors)
 
 `tack.sh` runs under `set -euo pipefail`. The header in `tack.sh` documents
 the rules; the short version:
