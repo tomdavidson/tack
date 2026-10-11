@@ -37,13 +37,10 @@
 # tack's *.merge.json dispatch. Adds a path repository for packages/drupal/*
 # and sets minimum-stability: dev / prefer-stable: true.
 #
-# MOON TASKS (ADR 0008)
-# ---------------------
-# moon/all.yml  -> .moon/tasks/drupal/all.yml  (tack-owned; tags: drupal)
-# moon/app.yml  -> .moon/tasks/drupal/app.yml  (tack-owned; drupal + application)
-#
-# MOON TEMPLATES (ADR 0008)
-# -------------------------
+# MOON TASKS AND TEMPLATES (ADR 0008)
+# -----------------------------------
+# .moon/tasks/drupal/all.yml -> .moon/tasks/drupal/all.yml  (tack-owned; tags: drupal)
+# .moon/tasks/drupal/app.yml -> .moon/tasks/drupal/app.yml  (tack-owned; drupal + application)
 # templates/drupal-module/ -> .moon/templates/drupal-module/
 #   Run: moon generate drupal-module
 #   Scaffolds packages/drupal/<name>/moon.yml for a Drupal module project.
@@ -75,9 +72,9 @@ files:
   phpunit.xml.dist:
     target: phpunit.xml.dist
     overwrite: false
-  moon/all.yml:
+  .moon/tasks/drupal/all.yml:
     target: .moon/tasks/drupal/all.yml
-  moon/app.yml:
+  .moon/tasks/drupal/app.yml:
     target: .moon/tasks/drupal/app.yml
   templates/drupal-module/template.yml:
     target: .moon/templates/drupal-module/template.yml
