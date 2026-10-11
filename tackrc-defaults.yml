@@ -17,8 +17,8 @@ pkgs:
   - .github
   - .moon
 
-pkgs-exclude:
-  - configs/direnv
+#pkgs-exclude:
+
 
 vars:
   # devcontainer vars: consumed by configs/devcontainer.
