@@ -10,7 +10,7 @@
 #
 # Env (required): HASH_SALT DB_HOST DB_NAME DB_USER DB_PASSWORD TRUSTED_HOSTS
 #                 S3_BUCKET S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY
-# Env (optional): CRON_KEY, APP_ENV
+# Env (optional): CRON_KEY APP_ENV APP_ROOT
 
 set -euo pipefail
 # shellcheck source=scripts/lib/env.sh
@@ -19,14 +19,14 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/env.sh"
 source "${TACK_LIB_DIR}/drupal.sh"
 
 main() {
-  cd "${REPO_ROOT}"
+  cd "${APP_ROOT}"
   env_shim
   env_require HASH_SALT DB_HOST DB_NAME DB_USER DB_PASSWORD TRUSTED_HOSTS \
     S3_BUCKET S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY
 
   has_exported_config || die "Refusing to run config:import with an empty ${CONFIG_SYNC_DIR}."
   refuse_dev_only_modules_in_export
-  is_site_installed   || die "Drupal is not installed; run scripts/drupal/install.sh first."
+  is_site_installed || die "Drupal is not installed; run scripts/drupal/install.sh first."
 
   log "Running updatedb, config:import, cache:rebuild and deploy hooks."
   drush deploy -y

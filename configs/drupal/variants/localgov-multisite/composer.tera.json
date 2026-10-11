@@ -1,5 +1,5 @@
 {
-    "name": "{% if vars.project is defined and vars.project.name is defined %}{{ vars.project.name }}{% else %}hub{% endif %}",
+    "name": "{{ vars.project.name }}",
     "description": "LocalGov Drupal Microsites hub on FrankenPHP, MariaDB and Fly.io.",
     "type": "project",
     "license": "proprietary",

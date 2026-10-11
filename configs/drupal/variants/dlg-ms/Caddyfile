@@ -1,0 +1,81 @@
+# Caddyfile for LocalGov Drupal DLG-MS on FrankenPHP.
+# Delivered by the dlg-ms tack variant to the consumer APP_ROOT.
+# Tack delivers this file once (overwrite: false) — check it in and edit
+# freely; re-running tack will not clobber your changes.
+#
+# SERVER_NAME is set by dlg-ms.nix to ":PORT" (e.g. ":8081").
+# {$SERVER_NAME::8080} falls back to :8080 if unset.
+# The catch-all site address accepts every hostname on that port; LocalGov
+# microsites are routed by Host header inside Drupal via Domain / Domain Alias
+# / Group Context Domain.
+#
+# The *.{$PLATFORM_HOST} block handles wildcard subdomain routing for
+# localgov_microsites_domain_alias. On Linux *.localhost resolves natively.
+#
+# Worker mode is OFF by default. Enable in the consumer Caddyfile if needed.
+
+{
+	{$CADDY_GLOBAL_OPTIONS}
+
+	frankenphp
+
+	order php_server before file_server
+	order php before file_server
+}
+
+# Wildcard block for localgov_microsites_domain_alias subdomains.
+*.{$PLATFORM_HOST} {
+	tls internal
+	reverse_proxy {$SERVER_NAME::8080}
+}
+
+{$SERVER_NAME::8080} {
+	root * web
+	encode zstd br gzip
+
+	request_body {
+		max_size 64MB
+	}
+
+	@hiddenFilesRegexp path_regexp (^|/)\.
+	error @hiddenFilesRegexp 403
+
+	@hiddenPhpFilesRegexp path_regexp \..*/.*\.php$
+	error @hiddenPhpFilesRegexp 403
+
+	@notFoundPhpFiles path_regexp /vendor/.*\.php$
+	error @notFoundPhpFiles 404
+
+	@notFoundPhpFilesRegexp path_regexp ^/sites/[^/]+/files/.*\.php$
+	error @notFoundPhpFilesRegexp 404
+
+	@privateDirRegexp path_regexp ^/sites/.*/private/
+	error @privateDirRegexp 403
+
+	@protectedFilesRegexp {
+		not path /.well-known*
+		path_regexp \.(engine|inc|install|make|module|profile|po|sh|.*sql|theme|twig|tpl(\.php)?|xtmpl|yml)(~|\.sw[op]|\.bak|\.orig|\.save)?$|^/(\..*|Entries.*|Repository|Root|Tag|Template|composer\.(json|lock)|web\.config|yarn\.lock|package\.json)$|^\/#.*#$|\.php(~|\.sw[op]|\.bak|\.orig|\.save)$
+	}
+	error @protectedFilesRegexp 403
+
+	@blockedEntryPoints path /update.php /install.php /rebuild.php
+	error @blockedEntryPoints 404
+
+	@static {
+		file
+		path *.avif *.css *.eot *.gif *.gz *.ico *.jpg *.jpeg *.js *.otf *.pdf *.png *.svg *.ttf *.webp *.woff *.woff2
+	}
+	header @static Cache-Control "max-age=31536000,public,immutable"
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+		-X-Powered-By
+	}
+
+	{$CADDY_SERVER_EXTRA_DIRECTIVES}
+
+	php_server
+}

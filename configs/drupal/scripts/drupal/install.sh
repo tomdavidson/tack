@@ -26,7 +26,7 @@
 # Env (required): HASH_SALT DB_HOST DB_NAME DB_USER DB_PASSWORD PLATFORM_HOST
 #                 TRUSTED_HOSTS S3_BUCKET S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY
 # Env (optional): PLATFORM_URI APP_ENV DB_PORT CRON_KEY DRUPAL_ADMIN_PASSWORD
-#                 DRUPAL_INSTALL_LOG
+#                 DRUPAL_INSTALL_LOG APP_ROOT
 
 set -euo pipefail
 # shellcheck source=scripts/lib/env.sh
@@ -35,7 +35,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/env.sh"
 source "${TACK_LIB_DIR}/drupal.sh"
 
 readonly DEPLOY_SCRIPT="${TACK_LIB_DIR}/../drupal/deploy.sh"
-readonly POST_INSTALL_SCRIPT="${REPO_ROOT}/scripts/drupal/post-install.sh"
+# POST_INSTALL_SCRIPT is app-relative: variants place it under
+# APP_ROOT/scripts/drupal/post-install.sh via tack's path_prefix.
+readonly POST_INSTALL_SCRIPT="${APP_ROOT}/scripts/drupal/post-install.sh"
 readonly APP_ENV="${APP_ENV:-production}"
 readonly INSTALL_LOG="${DRUPAL_INSTALL_LOG:-${DEVENV_STATE:-/tmp}/drupal-install.log}"
 
@@ -46,7 +48,10 @@ parse_args() {
   for arg in "$@"; do
     case "${arg}" in
       --force) FORCE=1 ;;
-      -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "${BASH_SOURCE[0]}"; exit 0 ;;
+      -h | --help)
+        awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "${BASH_SOURCE[0]}"
+        exit 0
+        ;;
       *) die "Unknown argument: ${arg}" ;;
     esac
   done
@@ -54,9 +59,9 @@ parse_args() {
 }
 
 resolve_db_port() {
-  if [[ -n "${DEVENV_STATE:-}" && -f "${DEVENV_STATE}/db.port" ]]; then
+  if [[ -n ${DEVENV_STATE:-} && -f "${DEVENV_STATE}/db.port" ]]; then
     cat "${DEVENV_STATE}/db.port"
-  elif [[ -n "${DB_PORT:-}" ]]; then
+  elif [[ -n ${DB_PORT:-} ]]; then
     printf '%s' "${DB_PORT}"
   else
     printf '3306'
@@ -66,7 +71,7 @@ resolve_db_port() {
 # The URI seeds domain.record.default, so it must carry the port the web
 # server actually listens on.
 resolve_platform_uri() {
-  if [[ -n "${DEVENV_STATE:-}" && -f "${DEVENV_STATE}/web.port" ]]; then
+  if [[ -n ${DEVENV_STATE:-} && -f "${DEVENV_STATE}/web.port" ]]; then
     printf 'http://%s:%s' "${PLATFORM_HOST}" "$(cat "${DEVENV_STATE}/web.port")"
   else
     printf '%s' "${PLATFORM_URI:-https://${PLATFORM_HOST}}"
@@ -80,7 +85,7 @@ db_exec() {
     --user="${DB_USER}" --batch --skip-column-names --execute="$1" "${DB_NAME}"
 }
 
-database_is_reachable() { db_exec 'SELECT 1' >/dev/null; }
+database_is_reachable() { db_exec 'SELECT 1' > /dev/null; }
 
 export_profile() {
   sed -n 's/^profile:[[:space:]]*//p' "${CORE_EXTENSION_FILE}" | tr -d "'\"[:space:]"
@@ -90,15 +95,15 @@ export_profile() {
 site_state() {
   local tables modules profile
   tables="$(db_exec 'SHOW TABLES' | wc -l)"
-  if (( tables == 0 )); then
+  if ((tables == 0)); then
     echo empty
     return
   fi
   profile="$(export_profile)"
-  modules="$(drush config:get core.extension module --format=yaml 2>/dev/null || true)"
-  if [[ -n "${profile}" ]] \
-     && grep -qE "^[[:space:]]*${profile}:" <<<"${modules}" \
-     && grep -qE '^[[:space:]]*user:' <<<"${modules}"; then
+  modules="$(drush config:get core.extension module --format=yaml 2> /dev/null || true)"
+  if [[ -n ${profile} ]] &&
+    grep -qE "^[[:space:]]*${profile}:" <<< "${modules}" &&
+    grep -qE '^[[:space:]]*user:' <<< "${modules}"; then
     echo installed
   else
     echo partial
@@ -113,23 +118,23 @@ drop_database() {
 # Run install without PHP memory/time limits — large module sets (e.g.
 # LocalGov Microsites) can exhaust defaults and die silently part-way.
 drush_unlimited() {
-  php -d memory_limit=-1 -d max_execution_time=0 "${REPO_ROOT}/vendor/bin/drush.php" "$@"
+  php -d memory_limit=-1 -d max_execution_time=0 "${APP_ROOT}/vendor/bin/drush.php" "$@"
 }
 
 install_from_config() {
   local uri profile
   uri="$(resolve_platform_uri)"
   local args=(--existing-config -y -v --account-name=admin --uri="${uri}")
-  [[ -n "${DRUPAL_ADMIN_PASSWORD:-}" ]] && args+=(--account-pass="${DRUPAL_ADMIN_PASSWORD}")
+  [[ -n ${DRUPAL_ADMIN_PASSWORD:-} ]] && args+=(--account-pass="${DRUPAL_ADMIN_PASSWORD}")
 
-  has_exported_config \
-    || die "${CONFIG_SYNC_DIR} has no exported config. Export it (drush cex) and commit it before installing."
+  has_exported_config ||
+    die "${CONFIG_SYNC_DIR} has no exported config. Export it (drush cex) and commit it before installing."
   profile="$(export_profile)"
-  [[ -n "${profile}" ]] || die "No profile: key in ${CORE_EXTENSION_FILE}."
+  [[ -n ${profile} ]] || die "No profile: key in ${CORE_EXTENSION_FILE}."
 
   mkdir -p "$(dirname "${INSTALL_LOG}")"
   log "Installing ${profile} from config/sync with --uri=${uri} (log: ${INSTALL_LOG})."
-  if ! drush_unlimited site:install "${args[@]}" >"${INSTALL_LOG}" 2>&1; then
+  if ! drush_unlimited site:install "${args[@]}" > "${INSTALL_LOG}" 2>&1; then
     tail -n 40 "${INSTALL_LOG}" >&2
     die "drush site:install failed; full log in ${INSTALL_LOG}."
   fi
@@ -142,8 +147,8 @@ install_from_config() {
 }
 
 run_post_install_hook() {
-  if [[ -x "${POST_INSTALL_SCRIPT}" ]]; then
-    log "Running post-install hook: ${POST_INSTALL_SCRIPT#"${REPO_ROOT}"/}"
+  if [[ -x ${POST_INSTALL_SCRIPT} ]]; then
+    log "Running post-install hook: ${POST_INSTALL_SCRIPT#"${APP_ROOT}"/}"
     "${POST_INSTALL_SCRIPT}"
   fi
 }
@@ -160,7 +165,7 @@ main() {
   local state
 
   parse_args "$@"
-  cd "${REPO_ROOT}"
+  cd "${APP_ROOT}"
   env_shim
   env_require HASH_SALT DB_HOST DB_NAME DB_USER DB_PASSWORD PLATFORM_HOST TRUSTED_HOSTS \
     S3_BUCKET S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY
@@ -168,14 +173,14 @@ main() {
   refuse_dev_only_modules_in_export
   wait_for "database ${DB_NAME}@${DB_HOST}" 60 database_is_reachable
 
-  if (( FORCE )) && [[ "${APP_ENV}" == "production" ]]; then
+  if ((FORCE)) && [[ ${APP_ENV} == "production" ]]; then
     die "--force is refused when APP_ENV=production."
   fi
 
   state="$(site_state)"
   log "Database state: ${state} (APP_ENV=${APP_ENV})."
 
-  if (( FORCE )); then
+  if ((FORCE)); then
     drop_database
     install_from_config
     run_post_install_hook
@@ -185,8 +190,8 @@ main() {
         log "Drupal already installed; running the deploy path."
         ;;
       partial)
-        [[ "${APP_ENV}" == "production" ]] \
-          && die "Half-installed in production; refusing to drop ${DB_NAME} automatically."
+        [[ ${APP_ENV} == "production" ]] &&
+          die "Half-installed in production; refusing to drop ${DB_NAME} automatically."
         log "Half-installed site detected; dropping and reinstalling."
         drop_database
         install_from_config

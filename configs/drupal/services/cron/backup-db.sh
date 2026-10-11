@@ -64,7 +64,7 @@ main() {
   log "Dumping ${DB_NAME}@${DB_HOST} (${LABEL})."
   dump_database "${dumpfile}"
   size="$(stat -c %s "${dumpfile}")"
-  [[ "${size}" -gt 1024 ]] || die "Dump is suspiciously small (${size} bytes); refusing to upload."
+  [[ ${size} -gt 1024 ]] || die "Dump is suspiciously small (${size} bytes); refusing to upload."
 
   log "Uploading ${size} bytes to ${BACKUP_BUCKET}/${key}."
   upload_to_bucket "${dumpfile}" "${key}"

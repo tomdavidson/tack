@@ -1,3 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
 repo="tomdavidson/$(basename "$PWD")"
 
 gh repo create "$repo" \
