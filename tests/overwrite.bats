@@ -26,6 +26,53 @@ run_tack() {
   TACK_ROOT="$ALT_ROOT" run "$ALT_ROOT/tack.sh" --target "$CONSUMER" configs/demo
 }
 
+run_tack_overwrite() {
+  TACK_ROOT="$ALT_ROOT" run "$ALT_ROOT/tack.sh" --overwrite --target "$CONSUMER" configs/demo
+}
+
+# ----- symlinked destination is never "seeded" -----
+
+@test "overwrite false: a symlink into the package is replaced, not written through" {
+  # Older link-mode applies left dest as a symlink into the package. That
+  # holds no consumer edits, so overwrite:false must not protect it, and
+  # the copy must land in the consumer rather than follow the link back
+  # into the package source.
+  printf 'pkg-content\n' > "$ALT_ROOT/configs/demo/cfg.copy.json"
+  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+files:
+  cfg.copy.json:
+    overwrite: false
+EOF
+  ln -s "$ALT_ROOT/configs/demo/cfg.copy.json" "$CONSUMER/cfg.json"
+  run_tack
+  [ "$status" -eq 0 ]
+  [ ! -L "$CONSUMER/cfg.json" ]
+  [ -f "$CONSUMER/cfg.json" ]
+  [ "$(cat "$CONSUMER/cfg.json")" = "pkg-content" ]
+  # package source untouched
+  [ "$(cat "$ALT_ROOT/configs/demo/cfg.copy.json")" = "pkg-content" ]
+}
+
+# ----- --overwrite -----
+
+@test "--overwrite re-seeds an overwrite:false file, discarding consumer edits" {
+  printf 'pkg-content\n' > "$ALT_ROOT/configs/demo/cfg.copy.json"
+  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+files:
+  cfg.copy.json:
+    overwrite: false
+EOF
+  run_tack
+  [ "$status" -eq 0 ]
+  printf 'consumer-edit\n' > "$CONSUMER/cfg.json"
+  run_tack
+  [ "$status" -eq 0 ]
+  [ "$(cat "$CONSUMER/cfg.json")" = "consumer-edit" ]
+  run_tack_overwrite
+  [ "$status" -eq 0 ]
+  [ "$(cat "$CONSUMER/cfg.json")" = "pkg-content" ]
+}
+
 # ----- copy mode -----
 
 @test "overwrite false: copy creates first run, skips second when target exists" {

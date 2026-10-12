@@ -53,5 +53,20 @@ tasks:
 
   test:
     command: bats --jobs ${MOON_THREADS:-$(nproc)} tests/ configs/devenv/tests/
+    # Root-level tasks default to NO inputs (moon >= 1.24), so without this
+    # list the task hash never changes and moon replays the cached result
+    # regardless of edits to tack.sh or the suite.
+    inputs:
+      - "tack.sh"
+      - "tackrc.yml"
+      - "tackrc-defaults.yml"
+      - "tests/**/*"
+      - "tests/**/.*"
+      - "configs/**/*"
+      - "configs/**/.*"
+      - ".moon/tack.yml"
+      - ".moon/*.yml"
+      - ".moon/tasks/**/*"
+      - ".moon/templates/**/*"
     options:
       runFromWorkspaceRoot: true

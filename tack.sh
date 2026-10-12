@@ -120,6 +120,7 @@ trap 'exit 143' TERM
 
 TACK_ROOT="${TACK_ROOT:-$(cd "$(dirname "$0")" && pwd)}"
 DRY_RUN=0
+FORCE_OVERWRITE=0
 TARGET="$PWD"
 TACK_CONSUMER_ROOT="${TACK_CONSUMER_ROOT:-}"
 MERGED_TACKRC=""
@@ -533,6 +534,22 @@ manifest_no_overwrite() {
   [ "$v" = "false" ]
 }
 
+# seeded DEST MANIFEST SRC_REL -- exit 0 when DEST must be left alone: the
+# manifest says files.<src>.overwrite: false, DEST exists, and DEST is a
+# regular file the consumer may have edited. A symlink never counts as
+# seeded: a link into the .tack package tree (from an older link-mode
+# apply) holds no consumer edits, so it is replaced by a real copy.
+# --overwrite disables the check entirely (re-seed, discarding edits).
+seeded() {
+  s_dest=$1
+  s_manifest=$2
+  s_rel=$3
+  [ "$FORCE_OVERWRITE" -eq 0 ] || return 1
+  [ -e "$s_dest" ] || return 1
+  [ ! -L "$s_dest" ] || return 1
+  manifest_no_overwrite "$s_manifest" "$s_rel"
+}
+
 # apply_prefix REL -- echoes REL with CURRENT_PKG_PATH_PREFIX prepended
 # when set; otherwise echoes REL unchanged. Centralizes the one place
 # where derived target paths get prefixed.
@@ -597,6 +614,29 @@ resolve_mode() {
   printf 'link'
 }
 
+# materialize DEST -- if DEST is a symlink (typically into the .tack
+# package tree from an earlier link-mode apply), replace it with a regular
+# file holding the same content. copy/render/concat must write to the
+# consumer, never through a link into the package source: cp onto a
+# symlink follows it ("are the same file" at best, silently overwriting
+# the package file at worst), and tera --out / >> do the same.
+materialize() {
+  m_dest=$1
+  [ -L "$m_dest" ] || return 0
+  if [ "$DRY_RUN" -eq 1 ]; then
+    printf '[dry-run] replace symlink %s with a regular file\n' "$m_dest"
+    return 0
+  fi
+  if [ -f "$m_dest" ]; then
+    m_tmp=$(mktemp)
+    cat "$m_dest" > "$m_tmp"
+    rm -f "$m_dest"
+    mv "$m_tmp" "$m_dest"
+  else
+    rm -f "$m_dest"
+  fi
+}
+
 copy_pkg_file() {
   src=$1
   pkg_dir=$2
@@ -615,12 +655,13 @@ copy_pkg_file() {
     target_rel=$(apply_prefix "$target_rel")
   fi
   dest="$target/$target_rel"
-  if [ -e "$dest" ] && manifest_no_overwrite "${CURRENT_PKG_MANIFEST:-}" "$src_rel"; then
+  if seeded "$dest" "${CURRENT_PKG_MANIFEST:-}" "$src_rel"; then
     log "skip (overwrite: false): $target_rel"
     return 0
   fi
   log "copy: $src_rel -> $target_rel"
   run mkdir -p "$(dirname "$dest")"
+  materialize "$dest"
   run cp "$src" "$dest"
 }
 
@@ -805,7 +846,7 @@ render_file() {
     target_rel=$(apply_prefix "$target_rel")
   fi
   dest="$target/$target_rel"
-  if [ -e "$dest" ] && manifest_no_overwrite "$manifest" "$src_rel"; then
+  if seeded "$dest" "$manifest" "$src_rel"; then
     log "skip (overwrite: false): $target_rel"
     return 0
   fi
@@ -813,6 +854,7 @@ render_file() {
   post=$(manifest_get "$manifest" "$src_rel" post)
   log "render: $src_rel -> $target_rel"
   run mkdir -p "$(dirname "$dest")"
+  materialize "$dest"
   if [ -n "$vars_from" ]; then
     ctx=$(resolve_vars_from "$vars_from" "$src_rel")
   else
@@ -847,6 +889,7 @@ copy_file() {
   dest="$target/$target_rel"
   log "copy: $src_rel -> $target_rel"
   run mkdir -p "$(dirname "$dest")"
+  materialize "$dest"
   run cp "$src" "$dest"
 }
 
@@ -889,11 +932,12 @@ concat_file() {
     concat_target=$(apply_prefix "$concat_target")
   fi
   dest="$target/$concat_target"
-  if [ -f "$dest" ] && manifest_no_overwrite "$manifest" "$src_rel"; then
+  if seeded "$dest" "$manifest" "$src_rel"; then
     log "skip (overwrite: false): $concat_target"
     return 0
   fi
   log "concat: $src_rel -> $concat_target"
+  materialize "$dest"
   if [ ! -f "$dest" ]; then
     if [ "$DRY_RUN" -eq 1 ]; then
       printf '[dry-run] create %s from %s\n' "$dest" "$src"
@@ -945,7 +989,7 @@ merge_file() {
   fi
   dest="$target/$merge_target"
 
-  if [ -f "$dest" ] && manifest_no_overwrite "$manifest" "$src_rel"; then
+  if seeded "$dest" "$manifest" "$src_rel"; then
     log "skip (overwrite: false): $merge_target"
     return 0
   fi
@@ -1090,6 +1134,8 @@ Usage: ./tack.sh [options] [--] [<package-path>...]
 
 Options:
   --dry-run        Print actions without executing
+  --overwrite      Ignore files.<src>.overwrite: false and re-seed those
+                   files, discarding consumer edits to them
   --target DIR     Target directory (default: \$PWD)
   --               End of options; remaining args are package paths
   -V, --version    Print version (git describe + branch when available)
@@ -1150,6 +1196,7 @@ cli_pkgs=""
 while [ $# -gt 0 ]; do
   case $1 in
     --dry-run) DRY_RUN=1 ;;
+    --overwrite) FORCE_OVERWRITE=1 ;;
     --target)
       shift
       [ $# -gt 0 ] || die "--target requires a DIR"
