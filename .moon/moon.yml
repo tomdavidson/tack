@@ -22,6 +22,10 @@ tasks:
       - "/**/.*"
       - "/**/.*/**/*"
       - "!**/*.tera*"
+      # Workspace-rooted /**/* returns pnpm's dependency symlinks under
+      # packages/*/node_modules despite .gitignore; the hasher then warns
+      # "only files can be hashed" for each. See #32.
+      - "!**/node_modules/**"
     options:
       runInCI: false
       runFromWorkspaceRoot: true
@@ -34,6 +38,7 @@ tasks:
       - "/**/.*"
       - "/**/.*/**/*"
       - "!**/*.tera*"
+      - "!**/node_modules/**"
     options:
       runFromWorkspaceRoot: true
       affectedFiles: true
