@@ -24,14 +24,26 @@ teardown() {
   rm -rf "$TARGET"
 }
 
+# path_without BIN -- PATH with BIN unreachable. A dir that holds BIN is
+# replaced by a stub dir symlinking everything else in it, so hiding yq
+# when it lives in /usr/bin (GitHub runner images) does not also remove
+# bash and coreutils. Stubs live under TARGET and go with teardown.
 path_without() {
   bin=$1
   out=""
   IFS=':'
   for p in $PATH; do
-    if [ -n "$p" ] && [ ! -x "$p/$bin" ]; then
-      out="${out:+$out:}$p"
+    [ -n "$p" ] || continue
+    if [ -x "$p/$bin" ]; then
+      stub="$(mktemp -d "${TARGET:-${TMPDIR:-/tmp}}/pathstub.XXXXXX")"
+      for f in "$p"/*; do
+        name=${f##*/}
+        [ "$name" = "$bin" ] && continue
+        [ -x "$f" ] && ln -s "$f" "$stub/$name"
+      done
+      p=$stub
     fi
+    out="${out:+$out:}$p"
   done
   unset IFS
   printf '%s' "$out"
