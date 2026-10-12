@@ -8,8 +8,6 @@
 # by the root-detection tests below (skipped when bwrap is unavailable);
 # full sandbox behavior is a host acceptance step in docs/bwrap.md.
 
-export BATS_LIB_PATH=/usr/lib/bats
-
 setup() {
   bats_load_library bats-support
   bats_load_library bats-assert

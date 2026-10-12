@@ -5,6 +5,11 @@ packages:
   - "plugins/*"
   - "website"
 catalog:
+  bats: ^1.11.0
+  bats-assert: ^2.2.4
+  # npm's bats-file is a 0.0.1-security placeholder (name was hijacked); pin the official tag
+  bats-file: github:bats-core/bats-file#v0.4.0
+  bats-support: ^0.3.0
   eslint: ^9.0.0
   fast-check: ^3.0.0
   oxlint: ^1.58.0

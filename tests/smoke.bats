@@ -2,8 +2,6 @@
 # tests/smoke.bats - end-to-end smoke test of tack.sh dispatch passes
 # bats --verbose-run tests/smoke.bats
 
-export BATS_LIB_PATH=/usr/lib/bats
-
 setup() {
   bats_load_library bats-support
   bats_load_library bats-assert

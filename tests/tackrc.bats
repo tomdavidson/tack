@@ -2,8 +2,6 @@
 # tests/tackrc.bats - tackrc merge, link.unfold, default tera ctx
 # bats --verbose-run tests/tackrc.bats
 
-export BATS_LIB_PATH=/usr/lib/bats
-
 setup() {
   bats_load_library bats-support
   bats_load_library bats-assert
