@@ -114,11 +114,10 @@ EOF
   rm -rf "$ALT_ROOT"
 }
 
-# ---------- yq is now a core dep ----------
+# ---------- yq is a core dep (PATH fallback: fixture root has no pinfile) ----------
 
 @test "missing yq binary produces actionable error" {
   stub_dir="$(mktemp -d)"
-  ln -s "$(command -v lnko)" "$stub_dir/lnko"
   ln -s "$(command -v tera)" "$stub_dir/tera"
   new_path=$(path_without yq)
   PATH="$stub_dir:$new_path" run "$TACK_SH" --target "$TARGET" configs/example

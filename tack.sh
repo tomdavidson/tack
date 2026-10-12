@@ -50,6 +50,13 @@
 #   *.copy.*           copy verbatim (target = strip_marker(src)); also
 #                      treated as a fallback signal by resolve_mode
 #   everything else    routed by resolve_mode: copy or link (default)
+#
+# Dependencies:
+#   proto is the only hard prerequisite. yq and tera are provisioned by
+#   proto from <tack>/configs/common/.prototools (never from the consumer:
+#   the consumer's .prototools does not exist until tack has run).
+#   TACK_SKIP_BOOTSTRAP=1, or a TACK_ROOT with no pinfile (the bats
+#   fixtures), falls back to whatever yq/tera are on PATH.
 
 set -euo pipefail
 
@@ -138,11 +145,88 @@ require_bin() {
   command -v "$1" > /dev/null 2>&1 || die "$1 not found on PATH ($2)"
 }
 
-require_core_deps() {
-  require_bin lnko "install from https://github.com/tomdavidson/lnko releases"
-  require_bin tera "install with: cargo install tera-cli"
-  require_bin yq "install Go yq from https://github.com/mikefarah/yq"
+# ---- dependency bootstrap ------------------------------------------------
+# proto is required. yq and tera are installed by proto at the versions
+# pinned in tack's own configs/common/.prototools, so consumers never
+# install them by hand and never pick up the wrong yq (Python yq is a
+# different tool with the same name).
+TACK_PINFILE_DIR="$TACK_ROOT/configs/common"
+YQ=""
+TERA=""
+
+require_proto() {
+  command -v proto > /dev/null 2>&1 && return 0
+  printf '[tack] error: proto not found on PATH.\n' >&2
+  printf '[tack] tack uses proto to provision yq and tera (pinned in configs/common/.prototools).\n' >&2
+  printf '[tack] Install proto:\n' >&2
+  printf '[tack]   curl -fsSL https://moonrepo.dev/install/proto.sh | bash\n' >&2
+  printf '[tack] then open a new shell, or for this session:\n' >&2
+  printf '[tack]   export PATH="${PROTO_HOME:-$HOME/.proto}/bin:$PATH"\n' >&2
+  printf '[tack] Docs: https://moonrepo.dev/docs/proto/install\n' >&2
+  exit 1
 }
+
+# proto >= 0.63 ignores [plugins], [settings], and version pins for
+# non-builtin tools in untrusted configs. configs/common/.prototools has
+# all three, so without trust `proto install` silently installs nothing.
+# Trust is recorded by path. Older proto has no `trust` subcommand and
+# needs nothing. proto auto-trusts when CI is set.
+proto_trust_pinfile() {
+  [ -n "${CI:-}" ] && return 0
+  if proto trust --help > /dev/null 2>&1; then
+    proto trust "$TACK_PINFILE_DIR/.prototools" > /dev/null 2>&1 ||
+      die "proto trust failed for $TACK_PINFILE_DIR/.prototools"
+  fi
+  return 0
+}
+
+# proto has no --config flag; config is discovered from cwd. Run every
+# proto call from the pinfile dir with -c local so the consumer's or the
+# user's other .prototools cannot change which versions tack gets.
+proto_in_pinfile_dir() {
+  (cd "$TACK_PINFILE_DIR" && proto -c local "$@")
+}
+
+# PATH fallback: used when TACK_SKIP_BOOTSTRAP=1 or when TACK_ROOT has no
+# pinfile (bats fixture roots). type -P, not command -v: the yq/tera
+# wrapper functions below would otherwise shadow the lookup.
+resolve_deps_from_path() {
+  YQ=$(type -P yq || true)
+  TERA=$(type -P tera || true)
+  [ -n "$YQ" ] || die "yq not found on PATH (install Go yq from https://github.com/mikefarah/yq, or unset TACK_SKIP_BOOTSTRAP to let proto install it)"
+  [ -n "$TERA" ] || die "tera not found on PATH (install with: cargo install tera-cli, or unset TACK_SKIP_BOOTSTRAP to let proto install it)"
+}
+
+require_core_deps() {
+  if [ "${TACK_SKIP_BOOTSTRAP:-0}" = "1" ]; then
+    resolve_deps_from_path
+    return 0
+  fi
+  if [ ! -f "$TACK_PINFILE_DIR/.prototools" ]; then
+    log "no pinfile at $TACK_PINFILE_DIR/.prototools; using yq/tera from PATH"
+    resolve_deps_from_path
+    return 0
+  fi
+  require_proto
+  proto_trust_pinfile
+  # One tool per call: `proto install <tool> [version]` treats a second
+  # positional as a version spec, so `proto install yq tera` fails with
+  # "Failed to resolve tera to a valid supported version for yq".
+  log "proto install yq, tera (from configs/common/.prototools)"
+  for tool in yq tera; do
+    proto_in_pinfile_dir install "$tool" > /dev/null ||
+      die "proto could not install $tool; run: (cd $TACK_PINFILE_DIR && proto install $tool)"
+  done
+  YQ=$(proto_in_pinfile_dir bin yq) || die "proto bin yq failed"
+  TERA=$(proto_in_pinfile_dir bin tera) || die "proto bin tera failed"
+  [ -x "$YQ" ] || die "yq binary not executable: $YQ"
+  [ -x "$TERA" ] || die "tera binary not executable: $TERA"
+}
+
+# Shadow the bare commands so existing call sites stay untouched.
+yq() { "$YQ" "$@"; }
+tera() { "$TERA" "$@"; }
+# ---- end dependency bootstrap -------------------------------------------
 
 strip_marker() { printf '%s\n' "$1" | sed -E 's/\.(tera|copy|concat|merge)\./\./'; }
 rel_in_pkg() { printf '%s\n' "${1#"$2"/}"; }
@@ -540,6 +624,52 @@ copy_pkg_file() {
   run cp "$src" "$dest"
 }
 
+# abs_dir DIR -- logical absolute path of DIR. If DIR does not exist yet
+# (dry-run never creates it), return it unchanged when already absolute,
+# else anchor it at $PWD.
+abs_dir() {
+  d=$1
+  if [ -d "$d" ]; then
+    (cd "$d" && pwd)
+  else
+    case "$d" in
+      /*) printf '%s\n' "$d" ;;
+      *) printf '%s/%s\n' "$PWD" "$d" ;;
+    esac
+  fi
+}
+
+# relpath FROM_DIR TO_PATH -- TO_PATH expressed relative to FROM_DIR. Both
+# absolute, no '.'/'..' components. Pure string ops on purpose: `ln -sr`
+# and `realpath --relative-to` are GNU-only.
+relpath() {
+  from=$1
+  to=$2
+  up=""
+  common=$from
+  while [ "$common" != "/" ] && [ "$to" != "$common" ] && [ "${to#"$common"/}" = "$to" ]; do
+    common=$(dirname "$common")
+    up="${up}../"
+  done
+  if [ "$to" = "$common" ]; then
+    printf '%s\n' "${up%/}"
+  elif [ "$common" = "/" ]; then
+    printf '%s%s\n' "$up" "${to#/}"
+  else
+    printf '%s%s\n' "$up" "${to#"$common"/}"
+  fi
+}
+
+# relative_link_target SRC DEST -- the symlink text to store at DEST so it
+# points at SRC, relative to DEST's directory. Consumers commit these
+# links; a relative target survives clone, CI, and moving the checkout,
+# an absolute one encodes this machine's filesystem.
+relative_link_target() {
+  src_dir=$(abs_dir "$(dirname "$1")")
+  dest_dir=$(abs_dir "$(dirname "$2")")
+  relpath "$dest_dir" "$src_dir/$(basename "$1")"
+}
+
 apply_link_or_copy() {
   pkg_dir=$1
   target=$2
@@ -611,14 +741,21 @@ apply_link_or_copy() {
       [ -n "$rel" ] || continue
       src="$pkg_dir/$rel"
       dest="$link_target/$rel"
-      # If dest already resolves to src (e.g., a parent directory was
-      # symlinked into the package by a prior run), skip silently. ln
-      # would otherwise abort with 'are the same file'.
-      if [ -e "$dest" ] && [ "$src" -ef "$dest" ]; then
+      run mkdir -p "$(dirname "$dest")"
+      link_to=$(relative_link_target "$src" "$dest")
+      if [ -L "$dest" ]; then
+        # Correct link already in place: leave it (quiet, idempotent).
+        # A different target (e.g. an absolute path written by an earlier
+        # tack) falls through and is replaced.
+        if [ "$(readlink "$dest")" = "$link_to" ]; then
+          continue
+        fi
+      elif [ -e "$dest" ] && [ "$src" -ef "$dest" ]; then
+        # dest reaches src through a symlinked parent directory (legacy
+        # whole-directory link). ln would abort with 'are the same file'.
         continue
       fi
-      run mkdir -p "$(dirname "$dest")"
-      run ln -sfn "$src" "$dest"
+      run ln -sfn "$link_to" "$dest"
     done < "$link_list"
   fi
   rm -f "$link_list" "$copy_list"
@@ -984,7 +1121,7 @@ Dispatch by filename marker (always wins over mode rules):
   *.merge.yml|.yaml  deep-merge via yq (default: strip marker; override in tack.yml)
   *.merge.toml       refused; use *.concat.toml instead
   *.copy.*           copy verbatim (default target: strip marker)
-  (other)            routed by mode rules; default link via lnko
+  (other)            routed by mode rules; default link via ln -sfn
 
 Mode rules (link vs copy) in tack.yml:
   mode:
@@ -1003,7 +1140,9 @@ Exit codes:
   130 interrupted (SIGINT)
   143 terminated (SIGTERM)
 
-Requires: bash 4+, and lnko, tera, yq (Go yq) on PATH.
+Requires: bash 4+ and proto on PATH. yq and tera are installed by proto
+from configs/common/.prototools. TACK_SKIP_BOOTSTRAP=1 uses yq/tera from
+PATH instead.
 EOF
 }
 

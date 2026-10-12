@@ -61,7 +61,10 @@ restricted() {
 }
 
 works() {
-  "$BWRAP" --unshare-user --ro-bind / /true 2> /dev/null
+  # Probe: can this bwrap create a user namespace at all? Needs a real
+  # command after the bind args; without one bwrap exits non-zero on
+  # usage, which made this probe always report "blocked".
+  "$BWRAP" --unshare-user --ro-bind / / true > /dev/null 2>&1
 }
 
 cmd_check() {

@@ -53,14 +53,27 @@ path_without() {
   assert_success
 }
 
-@test "plain file becomes a symlink in target" {
+@test "plain file becomes a relative symlink in target" {
   "$TACK_SH" --target "$TARGET" configs/example
   [ -L "$TARGET/plain.txt" ]
   resolved=$(readlink "$TARGET/plain.txt")
   case "$resolved" in
+    /*) printf 'link target must be relative (consumers commit these): %s\n' "$resolved" >&2; return 1 ;;
     *configs/example/plain.txt) : ;;
     *) printf 'unexpected link target: %s\n' "$resolved" >&2; return 1 ;;
   esac
+  # and the relative target actually resolves from the link's directory
+  [ -f "$TARGET/plain.txt" ]
+}
+
+@test "re-apply replaces a stale absolute symlink with a relative one" {
+  ln -sfn "$TACK_ROOT/configs/example/plain.txt" "$TARGET/plain.txt"
+  "$TACK_SH" --target "$TARGET" configs/example
+  resolved=$(readlink "$TARGET/plain.txt")
+  case "$resolved" in
+    /*) printf 'stale absolute link was not repaired: %s\n' "$resolved" >&2; return 1 ;;
+  esac
+  [ -f "$TARGET/plain.txt" ]
 }
 
 @test "tera file renders to marker-stripped target" {
@@ -211,10 +224,10 @@ EOF
 }
 
 @test "missing tera binary produces actionable error" {
-  # Strip tera from PATH, then re-provide lnko (and yq if available) via a
-  # stub dir so we isolate the failure to tera.
+  # The fixture tack-root has no configs/common/.prototools, so tack takes
+  # the PATH fallback. Strip tera from PATH, then re-provide yq (if
+  # available) via a stub dir so we isolate the failure to tera.
   stub_dir="$(mktemp -d)"
-  ln -s "$(command -v lnko)" "$stub_dir/lnko"
   if command -v yq >/dev/null 2>&1; then
     ln -s "$(command -v yq)" "$stub_dir/yq"
   fi
@@ -225,17 +238,32 @@ EOF
   rm -rf "$stub_dir"
 }
 
-@test "missing lnko binary produces actionable error" {
-  stub_dir="$(mktemp -d)"
-  ln -s "$(command -v tera)" "$stub_dir/tera"
-  if command -v yq >/dev/null 2>&1; then
-    ln -s "$(command -v yq)" "$stub_dir/yq"
-  fi
-  new_path=$(path_without lnko)
-  PATH="$stub_dir:$new_path" run "$TACK_SH" --target "$TARGET" configs/example
+@test "missing proto with a pinfile present produces install directions" {
+  # When TACK_ROOT carries configs/common/.prototools, proto is required.
+  # require_core_deps runs before load_tackrc, so ALT_ROOT only needs the
+  # pinfile for this path to be exercised.
+  ALT_ROOT="$(mktemp -d -t tack-noproto.XXXXXX)"
+  mkdir -p "$ALT_ROOT/configs/common"
+  printf 'yq = "4.53.3"\ntera = "0.5.0"\n' > "$ALT_ROOT/configs/common/.prototools"
+  cp "$TACK_SH" "$ALT_ROOT/tack.sh"
+  new_path=$(path_without proto)
+  TACK_ROOT="$ALT_ROOT" PATH="$new_path" run "$ALT_ROOT/tack.sh" --target "$TARGET" configs/example
   assert_failure
-  assert_output --partial "lnko not found"
-  rm -rf "$stub_dir"
+  assert_output --partial "proto not found"
+  assert_output --partial "moonrepo.dev/install/proto.sh"
+  rm -rf "$ALT_ROOT"
+}
+
+@test "TACK_SKIP_BOOTSTRAP=1 bypasses proto and uses PATH tools" {
+  ALT_ROOT="$(mktemp -d -t tack-skipboot.XXXXXX)"
+  cp -R "$TACK_ROOT/." "$ALT_ROOT/"
+  mkdir -p "$ALT_ROOT/configs/common"
+  printf 'yq = "4.53.3"\ntera = "0.5.0"\n' > "$ALT_ROOT/configs/common/.prototools"
+  new_path=$(path_without proto)
+  TACK_SKIP_BOOTSTRAP=1 TACK_ROOT="$ALT_ROOT" PATH="$new_path" run "$TACK_SH" --target "$TARGET" configs/example
+  assert_success
+  assert_file_exists "$TARGET/greeting.yml"
+  rm -rf "$ALT_ROOT"
 }
 
 # ---------- paths with spaces ----------

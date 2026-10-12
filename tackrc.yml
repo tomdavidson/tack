@@ -2,12 +2,37 @@
 # Tack dogfooding itself: tack's own repo-root tackrc.
 
 overrides:
+  # This repo owns its root .gitattributes/.gitignore (they are the source
+  # of the shipped copies). Consumers do get them; only tack itself skips.
   configs/common:
     exclude:
-      - .prototools
+      - .gitattributes
+      - .gitignore
+  # Root .prototools is linked from configs/common, same as every consumer.
+  # configs/javascript ships a node/pnpm-only .prototools that would win
+  # (alphabetical apply order) and clobber it, so exclude that copy.
   configs/javascript:
     exclude:
       - .prototools
+  # Same reasoning: this repo's .github/ is hand-maintained.
+  configs/renovate:
+    exclude:
+      - .github/renovate.json5
+  # Packages this repo cannot consume:
+  #   devcontainer  needs vars.project.name / vars.devcontainer.* (no defaults)
+  #   devenv, php   no devenv.nix here
+  #   drupal        would create a root composer.json via merge
+  #   rust          would create a root Cargo.toml via concat
+  configs/devcontainer:
+    exclude: ["**"]
+  configs/devenv:
+    exclude: ["**"]
+  configs/php:
+    exclude: ["**"]
+  configs/drupal:
+    exclude: ["**"]
+  configs/rust:
+    exclude: ["**"]
   configs/web:
     exclude: ["**"]
   scripts:

@@ -43,6 +43,19 @@ make_tree() {
   printf 'gitdir: ../.git/worktrees/wt\n' > "$1/wt/.git"
 }
 
+# require_bwrap -- no bwrap on PATH means the host opted out of the
+# sandbox: skip. bwrap present but unable to create a user namespace is a
+# broken sandbox, and a sandbox must never fail silently: fail with the
+# fix. Ubuntu 23.10+/KDE Neon set
+# kernel.apparmor_restrict_unprivileged_userns=1, which yields
+# "setting up uid map: Permission denied" until an AppArmor profile grants
+# userns to this bwrap binary (configs/devenv/bwrap-apparmor.sh install).
+require_bwrap() {
+  command -v bwrap >/dev/null 2>&1 || skip "bwrap not installed (sandbox not in use on this host)"
+  bwrap --unshare-user --ro-bind / / true >/dev/null 2>&1 ||
+    fail "bwrap is installed but cannot create a user namespace (kernel.apparmor_restrict_unprivileged_userns). Run: configs/devenv/bwrap-apparmor.sh install"
+}
+
 # ---------- devenv template rendering ----------
 
 @test "devenv renders bwrap-run scripts for every default tool" {
@@ -164,11 +177,17 @@ EOF
 @test "bwrap-run --print-cmd skips devenv script wrappers on PATH" {
   fake_devenv="$TARGET/proj/.devenv/state/scripts"
   real_bin="$TARGET/real-bin"
-  mkdir -p "$fake_devenv" "$real_bin"
+  # resolve_cmd consults `proto bin`, proto shims, and cargo bins before
+  # PATH. Point PROTO_HOME/CARGO_HOME at empty dirs so a node installed
+  # in the real proto store cannot win before the PATH step under test.
+  empty_proto="$TARGET/empty-proto"
+  empty_cargo="$TARGET/empty-cargo"
+  mkdir -p "$fake_devenv" "$real_bin" "$empty_proto" "$empty_cargo"
   printf '#!/bin/sh\n' > "$fake_devenv/node"
   printf '#!/bin/sh\n' > "$real_bin/node"
   chmod +x "$fake_devenv/node" "$real_bin/node"
-  PATH="$fake_devenv:$real_bin:$PATH" run bash "$BWRAP_SH" --print-cmd node
+  PROTO_HOME="$empty_proto" CARGO_HOME="$empty_cargo" \
+    PATH="$fake_devenv:$real_bin:$PATH" run bash "$BWRAP_SH" --print-cmd node
   assert_success
   assert_output "$real_bin/node"
 }
@@ -182,7 +201,7 @@ EOF
 # ---------- repo root detection (needs bwrap; skipped otherwise) ----------
 
 @test "root fallback walks past a submodule .git file to the superproject" {
-  command -v bwrap >/dev/null 2>&1 || skip "bwrap not available"
+  require_bwrap
   tree="$TARGET/tree"
   make_tree "$tree"
   (cd "$tree/mod"
@@ -192,7 +211,7 @@ EOF
 }
 
 @test "root fallback stops at a linked worktree .git file" {
-  command -v bwrap >/dev/null 2>&1 || skip "bwrap not available"
+  require_bwrap
   tree="$TARGET/tree"
   make_tree "$tree"
   (cd "$tree/wt"
@@ -209,7 +228,7 @@ EOF
 }
 
 @test "BWRAP_REPO_ROOT overrides root detection" {
-  command -v bwrap >/dev/null 2>&1 || skip "bwrap not available"
+  require_bwrap
   tree="$TARGET/tree"
   make_tree "$tree"
   (cd "$tree/mod"
