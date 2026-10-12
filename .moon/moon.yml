@@ -52,6 +52,14 @@ tasks:
       - "~:lint-sh"
 
   test:
-    command: bats --jobs ${MOON_THREADS:-$(nproc)} tests/ configs/devenv/tests/
+    command: pnpm exec bats --jobs ${MOON_THREADS:-$(nproc)} tests/ configs/devenv/tests/
+    env:
+      BATS_LIB_PATH: "$workspaceRoot/node_modules"
+    inputs:
+      - "/tack.sh"
+      - "/tests/**/*"
+      - "/configs/devenv/**/*"
+      - "/package.json"
+      - "/pnpm-lock.yaml"
     options:
       runFromWorkspaceRoot: true
