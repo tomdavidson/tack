@@ -19,5 +19,8 @@ shfmt = "https://tomdavidson.github.io/proto/shfmt.toml"
 
 [settings]
 auto-install = true
-auto-clean = true
+# proto 0.63 auto-clean deletes the pinned, freshly installed version under
+# parallel invocations (observed: yq 4.53.3 removed mid `bats --jobs`, stale
+# 4.53.2 kept). Run `proto clean` by hand until that is fixed upstream.
+auto-clean = false
 detect-strategy = "prefer-prototools"

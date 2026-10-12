@@ -227,6 +227,18 @@ main() {
   bwrap_bin=${BWRAP_BIN:-$(command -v bwrap || true)}
   [ -n "$bwrap_bin" ] || die "bwrap not found; set BWRAP_BIN or add bubblewrap to PATH"
 
+  # Preflight: a sandbox that is employed must work; never fall through to
+  # bwrap's raw "setting up uid map: Permission denied". Ubuntu 23.10+ and
+  # KDE Neon set kernel.apparmor_restrict_unprivileged_userns=1, which
+  # blocks unprivileged user namespaces unless an AppArmor profile grants
+  # userns to this exact bwrap binary. Only probe when the sysctl is on so
+  # unrestricted hosts do not pay for an extra bwrap spawn per call.
+  if [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2> /dev/null || echo 0)" = "1" ]; then
+    if ! "$bwrap_bin" --unshare-user --ro-bind / / true > /dev/null 2>&1; then
+      die "$bwrap_bin cannot create a user namespace: kernel.apparmor_restrict_unprivileged_userns=1 and no AppArmor profile grants userns to it. Run once: $(dirname "$0")/bwrap-apparmor.sh install  (or 'bwrap-apparmor install' inside the devenv shell)"
+    fi
+  fi
+
   # BWRAP_REPO_ROOT is authoritative: the devenv wrappers always pass it.
   # The ancestor walk only runs when the script is invoked directly.
   if [ -n "${BWRAP_REPO_ROOT:-}" ]; then

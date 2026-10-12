@@ -51,7 +51,7 @@ scripts/...                                       via link/copy/render/
   by filename markers (`*.tera.*`, `*.copy.*`, `*.concat.*`, `*.merge.*`)
   and, for everything else, by `mode` rules in the package's `tack.yml`
   (or in the consumer's `overrides.<pkg>.mode`). Default for unmarked
-  files is symlink via `lnko`.
+  files is a per-file symlink (`ln -sfn`).
 
 ## 2. Setting up tack as a git submodule in a consumer repo
 
@@ -109,15 +109,27 @@ the `main` branch is the rolling reference.
 Install on PATH before running tack:
 
 - `bash` (4+; `tack.sh` uses `BASH_LINENO` and `${BASH_COMMAND}`)
-- [`lnko`](https://github.com/tomdavidson/lnko) — symlink helper
-- `tera` (Rust) — install with `cargo install tera-cli`
-- `yq` (Go yq by Mike Farah) — https://github.com/mikefarah/yq, **not** the
-  Python yq
+- [`proto`](https://moonrepo.dev/docs/proto/install) — version manager.
+  `curl -fsSL https://moonrepo.dev/install/proto.sh | bash`, then open a new
+  shell (or `export PATH="${PROTO_HOME:-$HOME/.proto}/bin:$PATH"`).
 - Standard POSIX userland: `awk`, `sed`, `find`, `mktemp`, `cp`, `mv`, `cat`,
   `grep`, `tr`, `dirname`, `basename`, `printf`
 
-`tack.sh` checks for `lnko`, `tera`, and `yq` at startup and dies with an
-actionable message if any are missing.
+You do not install `yq` or `tera` by hand. On every run `tack.sh` has proto
+install the versions pinned in `configs/common/.prototools` (a no-op once
+they are present) and calls those binaries directly, so a stray Python `yq`
+on your PATH is never used. `tack.sh` dies with install directions if
+`proto` is missing.
+
+proto 0.63+ only honors `[plugins]`, `[settings]`, and third-party tool pins
+from trusted config files. `tack.sh` runs `proto trust` on
+`.tack/configs/common/.prototools` for you. After the first apply, trust the
+copy linked into your repo root too, so `moon`, `dprint`, and the other pinned
+tools resolve: `proto trust .prototools`. (`CI=1` is auto-trusted.)
+
+Escape hatch: `TACK_SKIP_BOOTSTRAP=1 .tack/tack.sh` skips proto and uses
+whatever `yq`/`tera` are on PATH. The bats suite effectively runs this way
+because fixture roots carry no pinfile.
 
 ## 4. Running tack
 
@@ -521,8 +533,16 @@ running the suite does not touch your real configs.
 - **`vars_from not found`** — the resolved path does not exist. Check the
   shorthand prefix (`@tack/`, `@consumer/`, `~/`, absolute, or bare =
   `$TACK_CONSUMER_ROOT/...`).
-- **`yq` errors complaining about syntax** — you almost certainly have the
-  Python `yq` installed, not Mike Farah's Go `yq`. Replace it.
+- **`proto not found on PATH`** — install proto (see §3) and open a new
+  shell, or `export PATH="${PROTO_HOME:-$HOME/.proto}/bin:$PATH"`.
+- **`proto could not install yq` / `... tera`** — run
+  `(cd .tack/configs/common && proto install yq && proto install tera)` to
+  see proto's own error (one tool per `proto install`; a second positional
+  is parsed as a version). On proto 0.63+ confirm `proto trust .tack/configs/common/.prototools`
+  succeeded; untrusted configs make plugin-based tools silently unavailable.
+- **`yq` errors complaining about syntax** — only possible with
+  `TACK_SKIP_BOOTSTRAP=1`; you have the Python `yq` on PATH, not Mike
+  Farah's Go `yq`. Unset the variable and let proto supply it.
 - **Submodule directory empty after clone** — run
   `git submodule update --init --recursive`.
 - **devenv import fails with `.tack/... No such file`** — the submodule must

@@ -22,5 +22,7 @@ shfmt = "https://tomdavidson.github.io/proto/shfmt.toml"
 
 [settings]
 auto-install = true
-auto-clean = true
+# proto 0.63 auto-clean deletes the pinned, freshly installed version under
+# parallel invocations. Run `proto clean` by hand until fixed upstream.
+auto-clean = false
 detect-strategy = "prefer-prototools"
