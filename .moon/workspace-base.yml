@@ -110,3 +110,7 @@ vcs:
 
 hasher:
   optimization: "accuracy"
+  # moon >= 2.6 walks pnpm workspace symlinks under packages/*/node_modules
+  # when root inputs are /**/*; they are not files and only produce warnings.
+  ignorePatterns:
+    - "**/node_modules/**"
