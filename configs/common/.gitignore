@@ -153,6 +153,15 @@ credentials.json
 *.7z
 *.rar
 
+# ---- CAD / 3D ----
+# Autosave/backup files written next to the document; never commit.
+*.FCBak
+*.FCStd1
+*.FCStd2
+*.FCStd.autosave
+*.blend1
+*.blend2
+
 # ---- devenv ----
 .devenv/
 .devenv.flake.nix

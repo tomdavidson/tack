@@ -77,6 +77,21 @@ Makefile      text eol=lf
 makefile      text eol=lf
 *.mk          text eol=lf
 
+# ---- Source: CAD / 3D text formats ----
+# Text (git delta-compresses them) but huge and noisy: -diff keeps them
+# out of `git diff`. Exported IFC is never mergeable, so -merge forces a
+# conflict. A per-directory .gitattributes may re-enable diff via a
+# textconv driver (e.g. diff=ifc) or move a large export dir to LFS.
+*.ifc       text eol=lf -diff -merge
+*.dxf       text eol=lf -diff
+*.step      text eol=lf -diff
+*.stp       text eol=lf -diff
+*.iges      text eol=lf -diff
+*.igs       text eol=lf -diff
+*.obj       text eol=lf -diff
+*.gltf      text eol=lf -diff
+*.FCMacro   text eol=lf
+
 # ---- Windows-specific: keep CRLF ----
 *.bat       text eol=crlf
 *.cmd       text eol=crlf
@@ -132,6 +147,24 @@ makefile      text eol=lf
 *.db        binary
 *.sqlite    binary
 *.sqlite3   binary
+
+# ---- Binary: CAD / 3D / design ----
+*.FCStd     binary
+*.blend     binary
+*.dwg       binary
+*.skp       binary
+*.3dm       binary
+*.stl       binary
+*.3mf       binary
+*.glb       binary
+*.fbx       binary
+*.exr       binary
+*.hdr       binary
+*.psd       binary
+*.kra       binary
+*.xcf       binary
+*.ai        binary
+*.indd      binary
 
 # ---- Lockfiles: text but exclude from diffs by default ----
 package-lock.json    text eol=lf -diff
