@@ -1,0 +1,24 @@
+# configs/common/lfs: opt-in Git LFS rules for large design assets.
+#
+# Appends LFS filter rules to the consumer's root .gitattributes (which
+# configs/common delivers as a copy). Opt-in because filter=lfs is a
+# storage policy, not a content fact: it needs git-lfs installed on every
+# machine that touches the repo, and LFS objects count against the
+# GitHub account's storage/bandwidth quota.
+#
+# Consumer tackrc.yml (order matters: common copies, then lfs appends):
+#
+#   pkgs:
+#     - configs/common
+#     - configs/common/lfs
+#
+# Consumer setup, once per clone:
+#
+#   git lfs install
+#
+# Re-running tack is idempotent: concat dedups on the fragment's first two
+# non-comment lines, and the copied .gitattributes is rewritten first.
+
+files:
+  lfs.concat.gitattributes:
+    target: .gitattributes

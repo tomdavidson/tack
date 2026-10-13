@@ -1,3 +1,15 @@
+# configs/common: universal baseline for every consumer.
+#
+# Opt-in sub-packages live in subdirectories and are ignored by this
+# package's walker (same pattern as configs/drupal/variants). Consumers
+# enable one by listing it in pkgs after configs/common:
+#
+#   pkgs:
+#     - configs/common
+#     - configs/common/lfs   # Git LFS rules appended to .gitattributes
+
+ignore:
+  - lfs/**
+
 mode:
   - copy: [ ".gitattributes", ".gitignore" ]
-

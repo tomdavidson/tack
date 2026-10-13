@@ -329,6 +329,51 @@ Semantics:
   is consistent with the consumer-side whole-package opt-out, but rarely
   useful at the package level (just don't ship the package).
 
+### 6.2 Nested opt-in packages
+
+A package may carry optional sub-packages in subdirectories. The parent
+lists them in `ignore` so its own walk skips them; a consumer enables one
+by naming it in `pkgs`. Nothing under `configs/*` is selected by the glob
+below the first level, so nested packages are always opt-in.
+
+| Package | Parent | Delivers |
+| ------- | ------ | -------- |
+| `configs/drupal/variants/dlg-ms` | `configs/drupal` | LocalGov DLG-MS extras (see §9) |
+| `configs/common/lfs` | `configs/common` | Git LFS rules appended to the root `.gitattributes` |
+
+#### `configs/common/lfs`
+
+The universal `.gitattributes` marks CAD, 3D, and design formats as
+`binary` or `text -diff`, but never sets `filter=lfs`: that is a storage
+policy, not a content fact. It requires `git-lfs` on every machine that
+touches the repo, and LFS objects count against the hosting account's
+quota. Repos that hold large assets opt in:
+
+```yaml
+pkgs:
+  - configs/common       # copies .gitattributes
+  - configs/common/lfs   # appends the LFS block (order matters)
+```
+
+Then once per clone: `git lfs install`. The fragment covers `.blend`, `.dwg`,
+`.skp`, `.3dm`, `.stl`, `.3mf`, `.glb`, `.fbx`, `.pdf`, and raster/render
+formats (`.exr`, `.hdr`, `.psd`, `.kra`, `.xcf`, `.tif`). Re-running tack
+re-copies `.gitattributes` and re-appends the block; the result is stable.
+
+To narrow or extend LFS for one directory, add a nested `.gitattributes`
+there; it overrides the root for that path. Example: keep small PNGs plain
+at the root but LFS renders under `studies/`:
+
+```gitattributes
+# studies/.gitattributes
+*.png  filter=lfs diff=lfs merge=lfs -text
+```
+
+If files matching an LFS rule were committed before the rule existed (or
+on a machine without `git-lfs`), later checkouts fail with
+`Encountered N files that should have been pointers, but weren't`. Fix with
+`git lfs migrate import --no-rewrite <paths>`.
+
 ### `vars_from` resolution shorthands
 
 | Form                                   | Resolves to                       |
