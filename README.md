@@ -336,10 +336,10 @@ lists them in `ignore` so its own walk skips them; a consumer enables one
 by naming it in `pkgs`. Nothing under `configs/*` is selected by the glob
 below the first level, so nested packages are always opt-in.
 
-| Package | Parent | Delivers |
-| ------- | ------ | -------- |
-| `configs/drupal/variants/dlg-ms` | `configs/drupal` | LocalGov DLG-MS extras (see §9) |
-| `configs/common/lfs` | `configs/common` | Git LFS rules appended to the root `.gitattributes` |
+| Package                          | Parent           | Delivers                                            |
+| -------------------------------- | ---------------- | --------------------------------------------------- |
+| `configs/drupal/variants/dlg-ms` | `configs/drupal` | LocalGov DLG-MS extras (see §9)                     |
+| `configs/common/lfs`             | `configs/common` | Git LFS rules appended to the root `.gitattributes` |
 
 #### `configs/common/lfs`
 
@@ -351,8 +351,8 @@ quota. Repos that hold large assets opt in:
 
 ```yaml
 pkgs:
-  - configs/common       # copies .gitattributes
-  - configs/common/lfs   # appends the LFS block (order matters)
+  - configs/common # copies .gitattributes
+  - configs/common/lfs # appends the LFS block (order matters)
 ```
 
 Then once per clone: `git lfs install`. The fragment covers `.blend`, `.dwg`,
