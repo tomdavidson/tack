@@ -553,7 +553,83 @@ there is no shared root manifest. `composer.json` is not delivered by tack.
 path repository (symlinked) for local modules. Running the generator again
 with a different `--name` creates an independent app.
 
-## 10. Testing
+## 10. Python projects
+
+`configs/python` is a tooling baseline, not an interpreter manager. Each
+Moon project owns its Python version and environment; the pack supplies
+uv, ruff, shared lint/format rules, and Moon tasks.
+
+| Piece                                 | What it provides                                                                                     |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `configs/python/python.nix` (devenv)  | `pkgs.uv`, `UV_MANAGED_PYTHON=1`, and a sandboxed `uv` script via `bwrap-run`. Imported from `.tack` |
+| `configs/python/ruff.toml`            | Seeded once at the repo root (`overwrite: false`); project `ruff.toml` files may `extend` it           |
+| `configs/common/.prototools`          | Pins `ruff` for `ruff check` in the Moon `lint` task (dprint formats via its own Wasm build of ruff)  |
+| `configs/common/dprint.json`          | `@dprint/ruff` plugin with a `"ruff"` block (indent 4, import sorting); excludes `.venv`, caches, `uv.lock` |
+| `configs/python/.moon/tasks/python.yml` | Delivered to `.moon/tasks/python.yml` (ADR-0008, like drupal): `lint`, `lint-fix`, `check-types`, `test`, `check` for projects tagged `python` |
+
+```yaml
+# tackrc.yml
+pkgs:
+  - configs/common
+  - configs/devenv
+  - configs/python
+  - .moon
+vars:
+  devenv:
+    imports:
+      - ./.tack/configs/python/python.nix
+```
+
+`devenv.nix` is seeded once, so existing consumers add the import by hand:
+
+```nix
+imports = [ ./.tack/configs/python/python.nix ];
+```
+
+Do not add `uv` to `vars.bwrap.tools`; `python.nix` already defines that
+script and a second definition is a module conflict.
+
+### Interpreter versions
+
+Nothing in tack pins Python. uv downloads a managed interpreter per
+project from `.python-version` / `requires-python`, so a FreeCAD helper
+on 3.11.x and a Home Assistant integration on 3.14 coexist in one repo.
+Keep incompatible projects independent (own `pyproject.toml`, `uv.lock`,
+`.venv`); do not force them into one uv workspace.
+
+```bash
+cd apps/my-tool
+uv python pin 3.14          # writes .python-version
+uv add --dev pytest basedpyright
+uv sync
+```
+
+`UV_MANAGED_PYTHON=1` forbids falling back to a host Python. Inside the
+sandbox, interpreters persist under the bwrap cache root
+(`UV_PYTHON_INSTALL_DIR`), so `.venv` symlinks resolve on the host too.
+Running a bare host `uv` outside the devenv shell uses uv's default
+interpreter directory instead and will re-download; use the shell.
+
+Scripts that run inside FreeCAD use FreeCAD's embedded interpreter; an
+external interpreter must match FreeCAD's exact patch release to import
+its modules.
+
+### Lint, format, types, tests
+
+- Format: `dprint fmt` (root task) formats `.py`/`.pyi` with the `@dprint/ruff`
+  plugin. Settings live in `dprint.json` under `"ruff"` (indent 4, import
+  sorting; line width and line endings inherit dprint's globals). The plugin
+  does not read `ruff.toml`, which is lint-only.
+- Lint: `moon run <project>:lint` runs `ruff check`; import sorting is
+  rule `I`, applied by `lint-fix`.
+- Types: `check-types` runs `uv run --frozen basedpyright` (default
+  `recommended` mode; set `[tool.basedpyright]` per project to relax).
+- Tests: `test` runs `uv run --frozen pytest`.
+
+Projects opt in with `tags: [python]` in `moon.yml`. Moon's
+`unstable_python` toolchain is intentionally not enabled.
+
+## 11. Testing
 
 ```bash
 bats tests/                # full suite
@@ -563,7 +639,7 @@ shellcheck tack.sh         # static lint
 The bats suite shapes isolated `ALT_ROOT` / `CONSUMER` trees per test, so
 running the suite does not touch your real configs.
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 - **`[tack] aborted: exit=N line=L cmd=...`** — the diagnostic EXIT trap
   fired. `cmd` is the last command before the abort. Run with
@@ -594,7 +670,7 @@ running the suite does not touch your real configs.
 - **devenv import fails with `.tack/... No such file`** — the submodule must
   be checked out at exactly `.tack`. Move it with `git mv <old-path> .tack`.
 
-## 12. Shell discipline (for contributors)
+## 13. Shell discipline (for contributors)
 
 `tack.sh` runs under `set -euo pipefail`. The header in `tack.sh` documents
 the rules; the short version:

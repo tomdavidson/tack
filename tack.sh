@@ -21,10 +21,20 @@
 # Per-package context (optional):
 #   <pkg>/tack.yml is an optional context file. It declares parameters
 #   that cannot be derived from filename and path: render vars source,
-#   concat/merge target overrides, link.unfold dirs, and mode rules
-#   (link vs copy) for non-content-marker files. If omitted, every
-#   target is derived by stripping the dispatch marker from the source
-#   basename and writing into the same relative path under TARGET.
+#   concat/merge target overrides, link.unfold dirs, mode rules
+#   (link vs copy) for non-content-marker files, and ignore/prune lists.
+#   If omitted, every target is derived by stripping the dispatch marker
+#   from the source basename and writing into the same relative path
+#   under TARGET.
+#
+# ignore vs prune (both package-relative globs, both package contracts
+# that apply under CLI selection too):
+#   ignore:  per-file filter; each skipped file is logged. For a handful
+#            of files (toolchains.yml, *.local.*).
+#   prune:   subtrees find(1) never descends into; logged once per
+#            pattern. For runtime state that exists in a dev checkout but
+#            must never reach a consumer (moon's cache/, hooks/). A
+#            trailing /* or /** is stripped; the rest is a find -path glob.
 #
 # Mode rules (link vs copy):
 #   tack.yml `mode` is an ordered list of single-key entries; each value
@@ -224,10 +234,103 @@ require_core_deps() {
   [ -x "$TERA" ] || die "tera binary not executable: $TERA"
 }
 
+# ---- sandboxed helper execution (ADR-0008) ------------------------------
+# tack.sh itself runs on the host. Everything else it executes (yq, tera,
+# tack.yml `post:` command lines) runs through bwrap-run when a sandbox is
+# possible, so a tampered pinfile or manifest inside a writable .tack
+# cannot run code on the host. Possible means: inside a devenv shell
+# (DEVENV_ROOT set; the bwrap on PATH is then the consumer's pinned
+# pkgs.bubblewrap per ADR-0007, not a system copy installed for Flatpak),
+# bwrap able to create a user namespace, not already inside a sandbox,
+# and this checkout is the consumer's .tack (the bats fixture roots live
+# in /tmp, which the sandbox hides). A fresh clone's first run is outside
+# devenv and runs direct; no dependency code has executed at that point.
+# Any run outside the devenv shell is likewise direct. A host whose
+# kernel blocks unprivileged userns (Ubuntu 23.10+/Neon without the
+# bwrap-apparmor profile) also runs direct: tack.sh must work before any
+# host setup, so the sandbox is best-effort here and mandatory only in
+# the devenv wrappers. TACK_SANDBOX=0 forces direct execution.
+#
+# BWRAP_STRICT: tack.sh never writes into TACK_ROOT, so the whole .tack
+# can stay read-only for these calls; strict mode also skips the dev-root
+# notice bwrap-run would otherwise print per invocation.
+TACK_SBX=""
+tack_sandbox_init() {
+  [ "${TACK_SANDBOX:-1}" != "0" ] || return 0
+  [ -z "${BWRAP_ACTIVE:-}" ] || return 0
+  [ -n "${DEVENV_ROOT:-}" ] || return 0
+  command -v bwrap > /dev/null 2>&1 || return 0
+  bwrap_run="$TACK_ROOT/configs/devenv/bwrap-run.sh"
+  [ -x "$bwrap_run" ] || return 0
+  consumer_abs=$(cd "$TACK_CONSUMER_ROOT" 2> /dev/null && pwd) || return 0
+  consumer_tack=$(realpath "$consumer_abs/.tack" 2> /dev/null || true)
+  if [ -z "$consumer_tack" ] || [ "$consumer_tack" != "$(realpath "$TACK_ROOT")" ]; then
+    return 0
+  fi
+  if ! bwrap --unshare-user --ro-bind / / true > /dev/null 2>&1; then
+    log "bwrap cannot create a user namespace on this host; helpers run unsandboxed (see docs/bwrap.md, bwrap-apparmor install)"
+    return 0
+  fi
+  # The sandbox /tmp is a private tmpfs: keep scratch files where the
+  # sandboxed helpers can see them. mktemp -t honours TMPDIR.
+  sbx_tmp=$(mktemp -d "$consumer_abs/.tack-tmp.XXXXXX")
+  tack_cleanup_add "$sbx_tmp"
+  export TMPDIR=$sbx_tmp
+  export BWRAP_REPO_ROOT=$consumer_abs
+  export BWRAP_STRICT=1
+  TACK_SBX=$bwrap_run
+  log "helpers (yq, tera, post) run sandboxed via bwrap-run"
+}
+
+# sbx CMD [ARGS] -- run CMD through bwrap-run when the sandbox is active,
+# otherwise directly. Absolute paths are exec'd verbatim by bwrap-run;
+# bare names resolve through its proto/shim/PATH chain.
+sbx() {
+  if [ -n "$TACK_SBX" ]; then
+    "$TACK_SBX" "$@"
+  else
+    "$@"
+  fi
+}
+
 # Shadow the bare commands so existing call sites stay untouched.
-yq() { "$YQ" "$@"; }
-tera() { "$TERA" "$@"; }
+yq() { sbx "$YQ" "$@"; }
+tera() { sbx "$TERA" "$@"; }
 # ---- end dependency bootstrap -------------------------------------------
+
+# ---- protected consumer paths (ADR-0008) --------------------------------
+# Consumer files the host executes outside any sandbox. Only sources that
+# are themselves read-only inside the sandbox (configs/devenv/**, *.nix)
+# may produce them, so a writable package manifest cannot redirect its
+# content there through files.<src>.target, path_prefix, or mode rules.
+protected_target() {
+  case "$1" in
+    .envrc | devenv.nix | devenv.yaml | devenv.lock | flake.nix | flake.lock) return 0 ;;
+    nix | nix/* | .git | .git/* | .tack | .tack/*) return 0 ;;
+    ../* | */../* | */.. | /*) return 0 ;;
+  esac
+  return 1
+}
+
+pinned_source() {
+  case "$1" in
+    "$TACK_ROOT"/configs/devenv/*) return 0 ;;
+    *.nix) return 0 ;;
+  esac
+  return 1
+}
+
+# guard_target SRC TARGET_REL -- die unless TARGET_REL is unprotected or
+# SRC is a pinned (read-only in the sandbox) source.
+guard_target() {
+  g_src=$1
+  g_rel=$2
+  protected_target "$g_rel" || return 0
+  if pinned_source "$g_src"; then
+    return 0
+  fi
+  die "refusing to write protected consumer path '$g_rel' from ${g_src#"$TACK_ROOT"/}: only configs/devenv and *.nix sources may produce host-executed files (ADR-0008)"
+}
 
 strip_marker() { printf '%s\n' "$1" | sed -E 's/\.(tera|copy|concat|merge)\./\./'; }
 rel_in_pkg() { printf '%s\n' "${1#"$2"/}"; }
@@ -289,6 +392,53 @@ manifest_ignores() {
       ;;
   esac
   yq -r '.ignore[]?' "$manifest" 2> /dev/null || true
+}
+
+# manifest_prune MANIFEST -- newline-separated globs from the package's
+# tack.yml `prune:` list, validated as a sequence like `ignore:`.
+manifest_prune() {
+  manifest=$1
+  [ -f "$manifest" ] || return 0
+  tag=$(yq -r '.prune | tag' "$manifest" 2> /dev/null || printf '!!null')
+  case "$tag" in
+    '!!seq' | '!!null') ;;
+    *)
+      die "$manifest: prune must be a YAML list (sequence) of glob strings, got $tag"
+      ;;
+  esac
+  yq -r '.prune[]?' "$manifest" 2> /dev/null || true
+}
+
+# build_prune PKG_DIR PATTERNS [QUIET] -- fills the global PRUNE_ARGS array
+# with find(1) clauses for PATTERNS (newline-separated prune globs). A
+# trailing /* or /** names the directory itself. Globs are passed to
+# find -path, so `**/node_modules` and `cache` both work. Logs each
+# pattern once unless QUIET=1 (the content-marker passes stay silent;
+# the link/copy pass logs).
+PRUNE_ARGS=()
+build_prune() {
+  bp_pkg=$1
+  bp_patterns=$2
+  bp_quiet=${3:-0}
+  PRUNE_ARGS=()
+  [ -n "$bp_patterns" ] || return 0
+  while IFS= read -r pat; do
+    [ -n "$pat" ] || continue
+    d=$pat
+    case "$d" in
+      */'**') d=${d%/\*\*} ;;
+      */'*') d=${d%/\*} ;;
+    esac
+    d=${d%/}
+    [ -n "$d" ] || continue
+    if [ "$bp_quiet" -ne 1 ]; then
+      log "prune: $pat"
+    fi
+    PRUNE_ARGS+=(-path "$bp_pkg/$d" -prune -o)
+  done << EOF
+$bp_patterns
+EOF
+  :
 }
 
 # glob_match PATTERN STRING -- exit 0 if STRING matches PATTERN as a shell
@@ -655,6 +805,7 @@ copy_pkg_file() {
     target_rel=$(apply_prefix "$target_rel")
   fi
   dest="$target/$target_rel"
+  guard_target "$src" "$target_rel"
   if seeded "$dest" "${CURRENT_PKG_MANIFEST:-}" "$src_rel"; then
     log "skip (overwrite: false): $target_rel"
     return 0
@@ -719,6 +870,7 @@ apply_link_or_copy() {
   tack_cleanup_add "$link_list"
   copy_list=$(mktemp)
   tack_cleanup_add "$copy_list"
+  build_prune "$pkg_dir" "${CURRENT_PKG_PRUNE:-}"
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     rel=${f#"$pkg_dir"/}
@@ -753,7 +905,7 @@ apply_link_or_copy() {
       link) printf '%s\n' "$rel" >> "$link_list" ;;
       *) die "resolve_mode unexpected value: $mode (rel=$rel)" ;;
     esac
-  done < <(find "$pkg_dir" -type f)
+  done < <(find "$pkg_dir" ${PRUNE_ARGS[@]+"${PRUNE_ARGS[@]}"} -type f -print)
 
   if [ -s "$copy_list" ]; then
     while IFS= read -r rel; do
@@ -782,6 +934,7 @@ apply_link_or_copy() {
       [ -n "$rel" ] || continue
       src="$pkg_dir/$rel"
       dest="$link_target/$rel"
+      guard_target "$src" "${CURRENT_PKG_PATH_PREFIX:+$CURRENT_PKG_PATH_PREFIX/}$rel"
       run mkdir -p "$(dirname "$dest")"
       link_to=$(relative_link_target "$src" "$dest")
       if [ -L "$dest" ]; then
@@ -846,6 +999,7 @@ render_file() {
     target_rel=$(apply_prefix "$target_rel")
   fi
   dest="$target/$target_rel"
+  guard_target "$src" "$target_rel"
   if seeded "$dest" "$manifest" "$src_rel"; then
     log "skip (overwrite: false): $target_rel"
     return 0
@@ -868,15 +1022,35 @@ render_file() {
   # file. Templates that need {% include %} or {% extends %} are not
   # currently supported; if needed later, add an opt-in tack.yml flag
   # that enables --include plus a sandboxed include dir.
-  run tera --template "$src" "$ctx" --out "$dest"
+  # Render into scratch, post-process there, then place (ADR-0008).
+  # tera and `post` run sandboxed inside devenv, and the sandbox mounts
+  # host-executed consumer files (.envrc, devenv.*, flake.*, nix/)
+  # read-only, so the helpers produce content and tack.sh, which already
+  # passed guard_target, does the write. Scratch lives under TMPDIR, which
+  # the sandbox can see (tack_sandbox_init moves it under the consumer).
+  if [ "$DRY_RUN" -eq 1 ]; then
+    run tera --template "$src" "$ctx" --out "$dest"
+    if [ -n "$post" ]; then
+      # shellcheck disable=SC2086
+      run sbx $post "$dest"
+    fi
+    return 0
+  fi
+  out=$(mktemp -t tack-render.XXXXXX)
+  tack_cleanup_add "$out"
+  tera --template "$src" "$ctx" --out "$out"
   if [ -n "$post" ]; then
     # `post` is a package-author command line from tack.yml
     # (e.g. "prettier --write", "shfmt -w"). Word splitting is
     # intentional so authors can pass flags. Input comes from the
     # tack repo, not the consumer or end user.
     # shellcheck disable=SC2086
-    run $post "$dest"
+    sbx $post "$out"
   fi
+  # mktemp creates 0600; rendered config should be readable like any
+  # other checked-in file.
+  chmod 0644 "$out"
+  mv "$out" "$dest"
 }
 
 copy_file() {
@@ -887,6 +1061,7 @@ copy_file() {
   target_rel=$(dirname "$src_rel")/$(strip_marker "$(basename "$src")")
   target_rel=${target_rel#./}
   dest="$target/$target_rel"
+  guard_target "$src" "$target_rel"
   log "copy: $src_rel -> $target_rel"
   run mkdir -p "$(dirname "$dest")"
   materialize "$dest"
@@ -932,6 +1107,7 @@ concat_file() {
     concat_target=$(apply_prefix "$concat_target")
   fi
   dest="$target/$concat_target"
+  guard_target "$src" "$concat_target"
   if seeded "$dest" "$manifest" "$src_rel"; then
     log "skip (overwrite: false): $concat_target"
     return 0
@@ -988,6 +1164,7 @@ merge_file() {
     merge_target=$(apply_prefix "$merge_target")
   fi
   dest="$target/$merge_target"
+  guard_target "$src" "$merge_target"
 
   if seeded "$dest" "$manifest" "$src_rel"; then
     log "skip (overwrite: false): $merge_target"
@@ -1045,7 +1222,8 @@ iterate_files() {
   shift 3
   tmp=$(mktemp)
   tack_cleanup_add "$tmp"
-  find "$pkg_dir" -type f -name "$pattern" > "$tmp"
+  build_prune "$pkg_dir" "${CURRENT_PKG_PRUNE:-}" 1
+  find "$pkg_dir" ${PRUNE_ARGS[@]+"${PRUNE_ARGS[@]}"} -type f -name "$pattern" -print > "$tmp"
   while IFS= read -r f; do
     if [ -n "${CURRENT_PKG_EXCLUDES:-}" ]; then
       rel=${f#"$pkg_dir"/}
@@ -1081,6 +1259,8 @@ apply_package() {
   # Whole-package opt-out (exclude: ["**"]) is handled earlier in
   # resolve_pkgs and never reaches apply_package via the pkgs path.
   pkg_ignores=$(manifest_ignores "$manifest")
+  # prune: subtrees never walked (package contract; see header).
+  CURRENT_PKG_PRUNE=$(manifest_prune "$manifest")
   if [ "${CLI_SELECTION:-0}" -eq 1 ]; then
     CURRENT_PKG_EXCLUDES=$pkg_ignores
   else
@@ -1101,6 +1281,7 @@ apply_package() {
   iterate_files "$pkg_dir" '*.concat.*' _h_concat "$pkg_dir" "$manifest" "$TARGET"
   iterate_files "$pkg_dir" '*.merge.*' _h_merge "$pkg_dir" "$manifest" "$TARGET"
   CURRENT_PKG_EXCLUDES=""
+  CURRENT_PKG_PRUNE=""
   CURRENT_PKG_MODE=""
   CURRENT_PKG_CONSUMER_MODE=""
   CURRENT_PKG_MANIFEST=""
@@ -1179,6 +1360,10 @@ Mode rules (link vs copy) in tack.yml:
 Environment:
   TACK_ROOT            Path to the tack repo (default: dir of tack.sh)
   TACK_CONSUMER_ROOT   Path to the consumer repo (default: --target)
+  TACK_SANDBOX         0 disables running yq/tera/post through bwrap-run
+                       (default: sandboxed inside a devenv shell when its
+                       bwrap works and TACK_ROOT is the consumer's .tack;
+                       plain execution outside devenv; ADR-0008)
 
 Exit codes:
   0   success
@@ -1222,6 +1407,7 @@ done
 
 : "${TACK_CONSUMER_ROOT:=$TARGET}"
 
+tack_sandbox_init
 require_core_deps
 load_tackrc
 

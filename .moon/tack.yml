@@ -4,9 +4,20 @@ ignore:
   - toolchains.yml
   - workspace.yml
 
+# moon runtime state. Present in a dev checkout (gitignored) and must
+# never be linked into a consumer: the consumer's moon would write its
+# cache through the links into this repo (ADR-0008). prune (not ignore)
+# so tack.sh never walks the subtree or logs its files one by one.
+prune:
+  - "cache/*"
+  - "hooks/*"
+
 files:
   moon.yml:
-    target: ../moon.yml
+    # files.<src>.target is consumer-root-relative and bypasses path_prefix
+    # (tests/path_prefix.bats). "../moon.yml" here resolved to the parent
+    # of the consumer repo; tack.sh now refuses any ".." target (ADR-0008).
+    target: moon.yml
 
 link:
   unfold:

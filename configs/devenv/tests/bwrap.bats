@@ -240,3 +240,119 @@ EOF
   assert_success
   assert_file_exists "$tree/mod/inner")
 }
+
+# ---------- ADR-0008: writable .tack, read-only host-executed surface ----------
+
+# allowed_tack_ref REL -- REL (relative to the tack root) lies inside the
+# surface bwrap-run pins read-only: tack.sh, configs/devenv/**,
+# configs/<area>/scripts/**, and *.nix modules. Anything a template or
+# module references outside this set would execute on the host from a
+# writable location.
+allowed_tack_ref() {
+  case "$1" in
+    tack.sh | configs/devenv | configs/devenv/*) return 0 ;;
+    configs/*/scripts | configs/*/scripts/*) return 0 ;;
+    *.nix) return 0 ;;
+  esac
+  return 1
+}
+
+@test "ADR-0008: templates and modules reference only the pinned .tack surface" {
+  files=$(find "$REPO/configs" \( -name node_modules -o -name tests \) -prune -o \
+    -type f \( -name '*.nix' -o -name '*.tera.*' -o -name '.envrc' \) -print)
+  [ -n "$files" ]
+  # Tera placeholders ({{ vars.drupal.variant }}.nix) are collapsed so the
+  # extension survives and the *.nix rule applies. Trailing slashes and
+  # sentence punctuation ("...python.nix." in a comment) are stripped.
+  # shellcheck disable=SC2086
+  refs=$(cat $files | sed 's/{{[^}]*}}/VAR/g' |
+    grep -oE '\.tack/[A-Za-z0-9_./-]+' | sed -e 's#^\.tack/##' -e 's#[./]*$##' | sort -u)
+  bad=""
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    allowed_tack_ref "$r" || bad="$bad $r"
+  done <<< "$refs"
+  [ -z "$bad" ] || fail "host-executed .tack references outside the pinned surface:$bad"
+}
+
+# make_consumer DIR LAYOUT -- consumer repo with a .tack checkout.
+#   submodule  DIR/.tack is a directory whose .git is a gitdir: file
+#              pointing at DIR/.git/modules/tack (hooks live there)
+#   symlink    DIR/.tack -> ../tack-src (dev-time layout); tack-src has
+#              its own .git directory
+# The checkout holds one representative of every pinned class plus two
+# data files that must stay writable.
+make_consumer() {
+  dir=$1
+  layout=$2
+  mkdir -p "$dir/.git/hooks"
+  case "$layout" in
+    submodule)
+      src="$dir/.tack"
+      mkdir -p "$src" "$dir/.git/modules/tack/hooks"
+      printf 'gitdir: ../.git/modules/tack\n' > "$src/.git"
+      printf '#!/bin/sh\n' > "$dir/.git/modules/tack/hooks/pre-push"
+      ;;
+    symlink)
+      src="$(dirname "$dir")/tack-src"
+      mkdir -p "$src/.git/hooks"
+      printf '#!/bin/sh\n' > "$src/.git/hooks/pre-push"
+      ln -s ../tack-src "$dir/.tack"
+      ;;
+  esac
+  mkdir -p "$src/configs/devenv" "$src/configs/python" "$src/configs/drupal/scripts" "$src/.moon"
+  cp "$BWRAP_SH" "$src/configs/devenv/bwrap-run.sh"
+  printf '#!/usr/bin/env bash\n' > "$src/tack.sh"
+  printf '{ ... }: { }\n' > "$src/configs/python/python.nix"
+  printf '#!/bin/sh\n' > "$src/configs/drupal/scripts/deploy.sh"
+  printf 'line-length = 100\n' > "$src/configs/python/ruff.toml"
+  printf 'ignore: []\n' > "$src/.moon/tack.yml"
+}
+
+# sbx_write DIR PATH -- append to PATH from inside the sandbox rooted at DIR.
+sbx_write() {
+  (cd "$1" && env BWRAP_REPO_ROOT="$1" bash "$BWRAP_SH" bash -c "echo x >> '$2'")
+}
+
+assert_tack_surface() {
+  dir=$1
+  hooks=$2
+  # data stays writable
+  run sbx_write "$dir" "$dir/.tack/configs/python/ruff.toml"
+  assert_success
+  run sbx_write "$dir" "$dir/.tack/.moon/tack.yml"
+  assert_success
+  # host-executed code is read-only
+  for p in tack.sh configs/devenv/bwrap-run.sh configs/python/python.nix configs/drupal/scripts/deploy.sh; do
+    run sbx_write "$dir" "$dir/.tack/$p"
+    assert_failure
+    assert_output --partial 'Read-only file system'
+  done
+  run sbx_write "$dir" "$hooks/pre-push"
+  assert_failure
+  assert_output --partial 'Read-only file system'
+}
+
+@test "ADR-0008: submodule .tack is writable except the pinned surface" {
+  require_bwrap
+  dir="$TARGET/consumer"
+  make_consumer "$dir" submodule
+  assert_tack_surface "$dir" "$dir/.git/modules/tack/hooks"
+}
+
+@test "ADR-0008: symlinked .tack is bound at its real path, writable except the pinned surface" {
+  require_bwrap
+  dir="$TARGET/consumer"
+  make_consumer "$dir" symlink
+  assert_tack_surface "$dir" "$TARGET/tack-src/.git/hooks"
+}
+
+@test "ADR-0008: BWRAP_STRICT=1 keeps all of .tack read-only" {
+  require_bwrap
+  dir="$TARGET/consumer"
+  make_consumer "$dir" submodule
+  (cd "$dir"
+  run env BWRAP_REPO_ROOT="$dir" BWRAP_STRICT=1 bash "$BWRAP_SH" bash -c "echo x >> '$dir/.tack/configs/python/ruff.toml'"
+  assert_failure
+  assert_output --partial 'Read-only file system')
+}

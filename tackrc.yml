@@ -23,7 +23,10 @@ overrides:
   #   devenv, php   no devenv.nix here
   #   drupal        would create a root composer.json via merge
   #   rust          would create a root Cargo.toml via concat
+  #   python        would seed a root ruff.toml; this repo has no Python
   configs/devcontainer:
+    exclude: ["**"]
+  configs/python:
     exclude: ["**"]
   configs/devenv:
     exclude: ["**"]
