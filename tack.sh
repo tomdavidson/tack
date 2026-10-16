@@ -884,18 +884,14 @@ apply_link_or_copy() {
       log "exclude: $rel"
       continue
     fi
-    # A files.<src>.target override forces copy mode. Link mode can't
-    # redirect a single file to a different path within a directory
-    # link, so silently honoring the override under link would produce
-    # a wrong layout. Mode rules are bypassed in this case.
-    target_override=$(manifest_get "${CURRENT_PKG_MANIFEST:-}" "$rel" target)
-    # overwrite: false also forces copy mode for unmarked files. lnko
-    # operates per-package, not per-file, so there's no way to honor a
-    # "don't replace if exists" rule under link mode. Coercing to copy
-    # lets copy_pkg_file enforce the skip-on-exists check uniformly.
-    if [ -n "$target_override" ]; then
-      mode=copy
-    elif manifest_no_overwrite "${CURRENT_PKG_MANIFEST:-}" "$rel"; then
+    # overwrite: false forces copy mode for unmarked files. A symlink
+    # cannot hold consumer edits, so there is nothing to preserve under
+    # link; coercing to copy lets copy_pkg_file enforce the
+    # skip-on-exists check uniformly. A files.<src>.target override
+    # does NOT force copy: links are created per file (ln -sfn), so a
+    # redirected file is simply a symlink at the overridden path. The
+    # link loop below resolves the override.
+    if manifest_no_overwrite "${CURRENT_PKG_MANIFEST:-}" "$rel"; then
       mode=copy
     else
       mode=$(resolve_mode "$rel")
@@ -933,8 +929,18 @@ apply_link_or_copy() {
     while IFS= read -r rel; do
       [ -n "$rel" ] || continue
       src="$pkg_dir/$rel"
-      dest="$link_target/$rel"
-      guard_target "$src" "${CURRENT_PKG_PATH_PREFIX:+$CURRENT_PKG_PATH_PREFIX/}$rel"
+      # files.<src>.target is consumer-root-relative and bypasses
+      # path_prefix, exactly as in copy_pkg_file and render_file.
+      override=$(manifest_get "${CURRENT_PKG_MANIFEST:-}" "$rel" target)
+      if [ -n "$override" ]; then
+        dest_rel=$override
+        dest="$target/$override"
+        log "link: $rel -> $dest_rel"
+      else
+        dest_rel="${CURRENT_PKG_PATH_PREFIX:+$CURRENT_PKG_PATH_PREFIX/}$rel"
+        dest="$link_target/$rel"
+      fi
+      guard_target "$src" "$dest_rel"
       run mkdir -p "$(dirname "$dest")"
       link_to=$(relative_link_target "$src" "$dest")
       if [ -L "$dest" ]; then

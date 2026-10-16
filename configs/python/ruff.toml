@@ -1,4 +1,9 @@
-# Shared Python LINT baseline, seeded once at the consumer root.
+# Shared Python LINT baseline. Never materialized into a consumer: the
+# consumer root holds a seed-once stub (ruff.copy.toml -> ruff.toml) that
+# does `extend = ".tack/configs/python/ruff.toml"`, so edits here reach
+# every consumer on the next submodule bump while their overrides stay in
+# the stub. Use **/-prefixed globs only: ruff resolves relative paths in
+# an extended file against this directory, not the consumer root.
 #
 # Formatting is NOT configured here. dprint owns `ruff format` through the
 # @dprint/ruff plugin; its settings (indent 4, line width from dprint's
@@ -11,7 +16,8 @@
 # Keep it equal to dprint.json "lineWidth".
 #
 # Interpreter requirements belong to each project. A project-local
-# ruff.toml can `extend = "../../ruff.toml"` and set target-version.
+# ruff.toml extends the consumer-root stub (`extend = "../../ruff.toml"`)
+# and sets target-version.
 line-length = 100
 extend-exclude = [".venv", "**/.venv", "**/*.tera.*"]
 

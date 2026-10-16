@@ -287,8 +287,8 @@ files:
 | `mode`                  | ordered list of single-key entries | Each entry is `{copy: <glob-or-list>}` or `{link: <glob-or-list>}`. First match wins. See §7.                                                                                                                                                                                                                                                                                                                                                                                          |
 | `files.<src>.vars_from` | string                             | Override tera context for this source file. See resolution rules below.                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `files.<src>.post`      | string                             | Post-render command; word-split on whitespace and run with the destination path appended.                                                                                                                                                                                                                                                                                                                                                                                              |
-| `files.<src>.target`    | path (target-relative)             | Override target for any file in the package (render, copy, concat, merge, and unmarked link/copy). Path is consumer-target-relative, bypassing any `path_prefix`. For unmarked files, setting this also forces `copy` mode (link mode can't redirect a single file inside a directory link). Defaults to `strip_marker(basename)` in the same relative dir.                                                                                                                            |
-| `files.<src>.overwrite` | boolean (default `true`)           | When `false`, skip the file if its target already exists. Applies to every mode: render, copy, concat, merge, and unmarked link/copy. For unmarked files in link mode, `overwrite: false` forces copy mode (lnko operates per-package, not per-file). First run still creates the target; subsequent runs leave consumer edits alone. A symlink at the target is never treated as seeded (it holds no consumer edits) and is replaced by a real file. `--overwrite` disables the skip. |
+| `files.<src>.target`    | path (target-relative)             | Override target for any file in the package (render, copy, concat, merge, and unmarked link/copy). Path is consumer-target-relative, bypassing any `path_prefix`. Mode rules apply as usual: in link mode the symlink is placed at the overridden path (this is how the shared root `moon.yml` is linked out of `.moon/`; see ADR-0009). Defaults to `strip_marker(basename)` in the same relative dir.                                                                                                                            |
+| `files.<src>.overwrite` | boolean (default `true`)           | When `false`, skip the file if its target already exists. Applies to every mode: render, copy, concat, merge, and unmarked link/copy. For unmarked files in link mode, `overwrite: false` forces copy mode (a symlink cannot hold consumer edits, so there is nothing to preserve). First run still creates the target; subsequent runs leave consumer edits alone. A symlink at the target is never treated as seeded (it holds no consumer edits) and is replaced by a real file. `--overwrite` disables the skip. |
 | `files.<src>.enforced`  | list (optional, advisory)          | Recorded for tooling; not interpreted by `tack.sh` directly.                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ### 6.1 Package-level `ignore`
@@ -308,7 +308,7 @@ ignore:
 
 files:
   moon.yml:
-    target: ../moon.yml
+    target: moon.yml # consumer-root-relative; escapes path_prefix
 ```
 
 Semantics:
@@ -404,7 +404,7 @@ For each file in a selected package, `tack` chooses behavior in this order:
 2. **`mode` rules** for everything else, in this order, first match wins:
    - Consumer `overrides.<pkg>.mode` (skipped when packages come from CLI args).
    - Package `tack.yml` `mode`.
-   - Implicit fallback: `link` (via `lnko`).
+   - Implicit fallback: `link` (a relative per-file symlink via `ln -sfn`).
 
    Each rule is `{ copy: <glob-or-list> }` or `{ link: <glob-or-list> }`,
    matched against the package-relative path.
@@ -562,7 +562,7 @@ uv, ruff, shared lint/format rules, and Moon tasks.
 | Piece                                 | What it provides                                                                                     |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `configs/python/python.nix` (devenv)  | `pkgs.uv`, `UV_MANAGED_PYTHON=1`, and a sandboxed `uv` script via `bwrap-run`. Imported from `.tack` |
-| `configs/python/ruff.toml`            | Seeded once at the repo root (`overwrite: false`); project `ruff.toml` files may `extend` it           |
+| `configs/python/ruff.toml`            | Shared lint rules, read through `.tack`. The repo root gets a seed-once stub (`extend = ".tack/configs/python/ruff.toml"`) for overrides; project `ruff.toml` files `extend = "../../ruff.toml"` |
 | `configs/common/.prototools`          | Pins `ruff` for `ruff check` in the Moon `lint` task (dprint formats via its own Wasm build of ruff)  |
 | `configs/common/dprint.json`          | `@dprint/ruff` plugin with a `"ruff"` block (indent 4, import sorting); excludes `.venv`, caches, `uv.lock` |
 | `configs/python/.moon/tasks/python.yml` | Delivered to `.moon/tasks/python.yml` (ADR-0008, like drupal): `lint`, `lint-fix`, `check-types`, `test`, `check` for projects tagged `python` |

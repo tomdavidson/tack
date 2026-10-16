@@ -3,6 +3,9 @@ path_prefix: .moon
 ignore:
   - toolchains.yml
   - workspace.yml
+  # tack's own root tasks (bats suite). Inherited only where tack.sh sits
+  # at the project root, and never delivered to consumers (ADR-0009).
+  - tasks/tack-internal.yml
 
 # moon runtime state. Present in a dev checkout (gitignored) and must
 # never be linked into a consumer: the consumer's moon would write its
@@ -17,6 +20,10 @@ files:
     # files.<src>.target is consumer-root-relative and bypasses path_prefix
     # (tests/path_prefix.bats). "../moon.yml" here resolved to the parent
     # of the consumer repo; tack.sh now refuses any ".." target (ADR-0008).
+    # Linked, not copied: the consumer's root moon.yml is a symlink to
+    # .moon/moon.yml, so root tasks are the same file everywhere and
+    # cannot drift (ADR-0009). In tack itself the link is moon.yml ->
+    # .moon/moon.yml.
     target: moon.yml
 
 link:

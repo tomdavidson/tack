@@ -1,0 +1,38 @@
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+# tack-internal tasks. This file exists only in the tack repo: the .moon
+# package ignores it (.moon/tack.yml `ignore:`), so consumers never receive
+# it. The `file` condition keeps it inert even if it leaked: only a project
+# whose root contains tack.sh (tack's own root project) inherits these
+# tasks. The shared root moon.yml is a link into .moon/ in every consumer,
+# so anything specific to tack itself must live here, not there (ADR-0009).
+inheritedBy:
+  file: "tack.sh"
+  order: 90
+
+tasks:
+  test:
+    # bats and its helper libs come from the pnpm catalog (package.json),
+    # not a system install; bats_load_library resolves them via BATS_LIB_PATH.
+    command: pnpm exec bats --jobs ${MOON_THREADS:-$(nproc)} tests/ configs/devenv/tests/
+    env:
+      BATS_LIB_PATH: "$workspaceRoot/node_modules"
+    # Root-level tasks default to NO inputs (moon >= 1.24), so without this
+    # list the task hash never changes and moon replays the cached result
+    # regardless of edits to tack.sh or the suite.
+    inputs:
+      - "tack.sh"
+      - "tackrc.yml"
+      - "tackrc-defaults.yml"
+      - "tests/**/*"
+      - "tests/**/.*"
+      - "configs/**/*"
+      - "configs/**/.*"
+      - ".moon/tack.yml"
+      - ".moon/*.yml"
+      - ".moon/tasks/**/*"
+      - ".moon/templates/**/*"
+      - "package.json"
+      - "pnpm-lock.yaml"
+    options:
+      runFromWorkspaceRoot: true
