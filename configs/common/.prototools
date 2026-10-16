@@ -1,7 +1,8 @@
 node = "22"
 pnpm = "10"
 
-dprint = "0.54.0"
+# >= 0.55 required: dprint.json uses npm: plugin specifiers (dprint-plugin-nix).
+dprint = "0.63.0"
 lnko = "0.2"
 yq = "4.53.3"
 moon = "2.6.0"

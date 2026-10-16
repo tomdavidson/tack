@@ -1,14 +1,23 @@
 # configs/php/tack.yml
 # PHP + Composer language support for devenv.
-# Appends to the consumer's devenv.nix via concat dispatch.
-# Consumer tackrc.yml vars:
-#   vars.php.version   -- PHP version string (default: "8.3")
-#   vars.php.packages  -- extra nixpkgs packages list (default: [])
-#   vars.bwrap.enabled -- inherited from bwrap config (default: true)
 #
-# This package does not render a standalone devenv.nix; it appends a
-# Nix attribute set fragment to the one produced by configs/devenv.
-# configs/devenv must appear before configs/php in pkgs.
-files:
-  devenv.concat.nix:
-    target: devenv.nix
+# Delivered as a devenv module, not a devenv.nix fragment (ADR-0009
+# decision 6). Import ./.tack/configs/php/php.nix in devenv.nix, or set
+# vars.devenv.imports before the initial devenv.nix render:
+#   vars:
+#     devenv:
+#       imports:
+#         - ./.tack/configs/php/php.nix
+#
+# The module sets languages.php.enable/version with lib.mkDefault and
+# ships a sandboxed `composer` script. Consumer overrides are plain Nix
+# in the consumer's devenv.nix after the import:
+#   languages.php.version = "8.4";
+#   packages = [ pkgs.php84Packages.composer2 ];
+# There are no vars.php.* tackrc keys.
+#
+# Do NOT also list `composer` in vars.bwrap.tools: php.nix defines
+# scripts.composer itself and a second definition is a module conflict.
+ignore:
+  # read through .tack via `imports`, never materialized
+  - php.nix

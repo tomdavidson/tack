@@ -77,18 +77,18 @@ tack shares configuration by linking, not copying: a consumer edits
 `ruff.toml` or `.moon/tasks/python.yml` in place, the change lands in the
 `.tack` working tree, and the consumer commits it there and opens a pull
 request. Sandboxed formatters and package managers must therefore be able
-to write into `.tack`. ADR-0008 draws the line at *code the host
-executes*: that is read-only, everything else is writable data.
+to write into `.tack`. ADR-0008 draws the line at _code the host
+executes_: that is read-only, everything else is writable data.
 
 Pinned read-only inside `.tack` (`tack_host_surface` in `bwrap-run.sh`):
 
-| Path                       | Why it runs on the host                                         |
-| -------------------------- | --------------------------------------------------------------- |
-| `tack.sh`                  | the applier, run by you from the host                           |
-| `configs/devenv/`          | `bwrap-run.sh`, `bwrap-apparmor.sh`, templates behind `.envrc`/`devenv.nix` |
-| `configs/<area>/scripts/`  | scripts devenv modules run as tasks and processes               |
-| `**/*.nix`                 | devenv modules; `enterShell`, `scripts`, `tasks` execute on the host |
-| submodule git hooks        | `<superproject>/.git/modules/<name>/hooks`, found via the `gitdir:` pointer |
+| Path                      | Why it runs on the host                                                     |
+| ------------------------- | --------------------------------------------------------------------------- |
+| `tack.sh`                 | the applier, run by you from the host                                       |
+| `configs/devenv/`         | `bwrap-run.sh`, `bwrap-apparmor.sh`, templates behind `.envrc`/`devenv.nix` |
+| `configs/<area>/scripts/` | scripts devenv modules run as tasks and processes                           |
+| `**/*.nix`                | devenv modules; `enterShell`, `scripts`, `tasks` execute on the host        |
+| submodule git hooks       | `<superproject>/.git/modules/<name>/hooks`, found via the `gitdir:` pointer |
 
 Convention: host-executed code lives only in those places, and a module
 may reference nothing else in `.tack`. `configs/devenv/tests/bwrap.bats`
@@ -271,15 +271,15 @@ shell and stays unsandboxed; accepted in
 
 ## Settings
 
-| Variable             | Default   | Effect                                                           |
-| -------------------- | --------- | ---------------------------------------------------------------- |
-| `BWRAP_REPO_ROOT`    | detected  | repo root exposed as writable; the devenv wrappers always set it |
-| `BWRAP_BIN`          | from PATH | bwrap binary (the devenv `pkgs.bubblewrap`)                      |
-| `BWRAP_DEV_ROOT`     | `~/dev`   | shared writable root for projects + caches                       |
+| Variable             | Default   | Effect                                                                           |
+| -------------------- | --------- | -------------------------------------------------------------------------------- |
+| `BWRAP_REPO_ROOT`    | detected  | repo root exposed as writable; the devenv wrappers always set it                 |
+| `BWRAP_BIN`          | from PATH | bwrap binary (the devenv `pkgs.bubblewrap`)                                      |
+| `BWRAP_DEV_ROOT`     | `~/dev`   | shared writable root for projects + caches                                       |
 | `BWRAP_STRICT`       | 0         | bind only the repo root and mount all of `.tack` read-only; pnpm loses hardlinks |
-| `BWRAP_NO_NET`       | 0         | 1 disables network access                                        |
-| `BWRAP_ALLOW_USERNS` | 0         | 1 allows nested user namespaces                                  |
-| `BWRAP_ACTIVE`       | unset     | set inside the sandbox; re-entry execs directly                  |
+| `BWRAP_NO_NET`       | 0         | 1 disables network access                                                        |
+| `BWRAP_ALLOW_USERNS` | 0         | 1 allows nested user namespaces                                                  |
+| `BWRAP_ACTIVE`       | unset     | set inside the sandbox; re-entry execs directly                                  |
 
 ## Accepted risks
 

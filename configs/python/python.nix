@@ -20,12 +20,18 @@
 # lib.mkDefault so a plain assignment in the consumer devenv.nix wins.
 # Invariants (the sandboxed uv wrapper) are defined without a priority;
 # a consumer that must replace one uses lib.mkForce and owns the result.
-{ pkgs, lib, config, ... }:
+{
+  pkgs,
+  lib,
+  config,
+  ...
+}:
 
 let
   projectRoot = toString config.devenv.root;
   bwrapRun = "${projectRoot}/.tack/configs/devenv/bwrap-run.sh";
-in {
+in
+{
   packages = [ pkgs.uv ];
 
   env.UV_MANAGED_PYTHON = lib.mkDefault "1";

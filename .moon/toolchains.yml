@@ -2,6 +2,5 @@ extends:
   - "toolchains-javascript.yml"
   - "toolchains-rust.yml"
 
-
 proto:
   version: "0.63.1"
