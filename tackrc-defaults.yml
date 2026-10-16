@@ -35,6 +35,33 @@ vars:
     nixpkgs_ref: nixos-25.11
     packages: []
     env: {}
+    # Extra devenv modules to import from the .tack submodule, rendered into
+    # devenv.nix `imports = [ ... ]`. Language packs that need packages/env/
+    # scripts ship a module here instead of a devenv.concat.nix fragment
+    # (a second `packages = ...` in one attrset is a Nix error).
+    imports: []
+
+  # python vars: consumed by configs/python.
+  #
+  # Interpreter versions are NOT configured here. uv owns them per moon
+  # project via .python-version / requires-python (UV_MANAGED_PYTHON=1 is
+  # set by python.nix so a system Python is never used). ruff is pinned in
+  # configs/common/.prototools; basedpyright and pytest are uv dev deps
+  # locked in uv.lock.
+  #
+  # Enable the pack:
+  #   pkgs:
+  #     - configs/common
+  #     - configs/devenv
+  #     - configs/python
+  #   vars:
+  #     devenv:
+  #       imports:
+  #         - ./.tack/configs/python/python.nix
+  #
+  # Do not add `uv` to bwrap.tools below; python.nix defines the sandboxed
+  # `uv` script itself and a second definition is a module conflict.
+  # python: {}
 
   # drupal vars: consumed by configs/drupal + configs/devenv.
   #
@@ -52,8 +79,20 @@ vars:
   # bwrap sandbox vars: consumed by configs/devenv.
   # enabled: render bwrap-run wrappers and add pkgs.bubblewrap/apparmor-utils.
   # tools: which commands get an `exec bwrap-run <tool>` devenv script.
+  #
+  # dev_root_depth: render env.BWRAP_DEV_ROOT as N directories above the
+  #   repo (computed from config.devenv.root, so the committed devenv.nix
+  #   carries no home path). bwrap-run then binds that whole tree writable
+  #   and keeps caches in <dev_root>/.bwrap (pnpm hardlinks, uv pythons).
+  #     ~/Projects/<org>/<repo>  -> dev_root_depth: 2  -> ~/Projects
+  #     ~/dev/<repo>             -> dev_root_depth: 1  -> ~/dev (bwrap-run default)
+  #   Unset: bwrap-run auto-detects ~/dev, else binds only the repo.
+  # dev_root: absolute path alternative; machine-specific, prefer depth.
+  #   Ignored when dev_root_depth is set.
   bwrap:
     enabled: true
+    # dev_root_depth: 2
+    # dev_root: /home/me/Projects
     tools:
       - node
       - npx

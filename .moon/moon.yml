@@ -1,5 +1,13 @@
 $schema: "https://moonrepo.dev/schemas/project.json"
 
+# Root project config, shared by every consumer. tack links this file to
+# <consumer>/moon.yml (files.moon.yml.target in .moon/tack.yml), so it is
+# the same file in tack and in every consumer, including tack itself, which
+# dog-foods the .moon package. Only workspace-generic tasks belong here.
+# Repo-specific root tasks go in an inherited task file with an
+# `inheritedBy` condition (tack's own live in .moon/tasks/tack-internal.yml);
+# consumers put theirs in a project, not in this file (ADR-0009).
+
 tags:
   - "tooling"
 
@@ -55,29 +63,3 @@ tasks:
     command: "noop"
     deps:
       - "~:lint-sh"
-
-  test:
-    # bats and its helper libs come from the pnpm catalog (package.json),
-    # not a system install; bats_load_library resolves them via BATS_LIB_PATH.
-    command: pnpm exec bats --jobs ${MOON_THREADS:-$(nproc)} tests/ configs/devenv/tests/
-    env:
-      BATS_LIB_PATH: "$workspaceRoot/node_modules"
-    # Root-level tasks default to NO inputs (moon >= 1.24), so without this
-    # list the task hash never changes and moon replays the cached result
-    # regardless of edits to tack.sh or the suite.
-    inputs:
-      - "tack.sh"
-      - "tackrc.yml"
-      - "tackrc-defaults.yml"
-      - "tests/**/*"
-      - "tests/**/.*"
-      - "configs/**/*"
-      - "configs/**/.*"
-      - ".moon/tack.yml"
-      - ".moon/*.yml"
-      - ".moon/tasks/**/*"
-      - ".moon/templates/**/*"
-      - "package.json"
-      - "pnpm-lock.yaml"
-    options:
-      runFromWorkspaceRoot: true

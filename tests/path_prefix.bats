@@ -82,11 +82,31 @@ EOF
   [ ! -e "$CONSUMER/cfg.json" ]
 }
 
-@test "files.target on unmarked file forces copy mode (no symlink)" {
+@test "files.target on unmarked file in link mode yields a symlink at the override" {
   printf 'plain\n' > "$ALT_ROOT/configs/demo/file.txt"
   cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
 mode:
   - link: "**"
+files:
+  file.txt:
+    target: out.txt
+EOF
+  run_tack
+  [ "$status" -eq 0 ]
+  [ -L "$CONSUMER/out.txt" ]
+  [ ! -e "$CONSUMER/file.txt" ]
+  diff "$CONSUMER/out.txt" "$ALT_ROOT/configs/demo/file.txt"
+  # idempotent re-apply leaves the link in place
+  run_tack
+  [ "$status" -eq 0 ]
+  [ -L "$CONSUMER/out.txt" ]
+}
+
+@test "files.target on unmarked file in copy mode still copies to the override" {
+  printf 'plain\n' > "$ALT_ROOT/configs/demo/file.txt"
+  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+mode:
+  - copy: "**"
 files:
   file.txt:
     target: out.txt
@@ -132,6 +152,23 @@ EOF
   [ "$status" -eq 0 ]
   [ -L "$CONSUMER/sub/conf.yml" ]
   [ ! -e "$CONSUMER/conf.yml" ]
+}
+
+@test "files.target escapes path_prefix in link mode" {
+  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+path_prefix: sub
+files:
+  root.yml:
+    target: root.yml
+EOF
+  printf 'inside\n' > "$ALT_ROOT/configs/demo/inner.yml"
+  printf 'outside\n' > "$ALT_ROOT/configs/demo/root.yml"
+  run_tack
+  [ "$status" -eq 0 ]
+  [ -L "$CONSUMER/sub/inner.yml" ]
+  [ -L "$CONSUMER/root.yml" ]
+  [ ! -e "$CONSUMER/sub/root.yml" ]
+  diff "$CONSUMER/root.yml" "$ALT_ROOT/configs/demo/root.yml"
 }
 
 @test "files.target escapes path_prefix" {

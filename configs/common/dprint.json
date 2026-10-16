@@ -36,6 +36,12 @@
   "yaml": {},
   "markup": {},
   "malva": {},
+  "ruff": {
+    "indentWidth": 4,
+    "fixLintErrors": {
+      "unsortedImports": true
+    }
+  },
   "exec": {
     "cwd": "${originConfigDir}",
     "commands": [
@@ -61,7 +67,14 @@
     "dist",
     "coverage",
     "node_modules",
-    "target"
+    "target",
+    "**/.venv",
+    "**/venv",
+    "**/__pycache__",
+    "**/.ruff_cache",
+    "**/.pytest_cache",
+    "**/.mypy_cache",
+    "**/uv.lock"
   ],
   "plugins": [
     "https://plugins.dprint.dev/typescript-0.95.8.wasm",
@@ -73,6 +86,8 @@
     "https://plugins.dprint.dev/g-plane/malva-v0.15.2.wasm",
     "https://plugins.dprint.dev/dockerfile-0.3.3.wasm",
     "https://plugins.dprint.dev/g-plane/pretty_graphql-v0.2.3.wasm",
-    "https://plugins.dprint.dev/exec-0.6.2.json@df98f54ffd3092b8a841aedd6d098a2651f16d0a796a40535774f1a8b4b9d463"
+    "https://plugins.dprint.dev/ruff-0.11.0.wasm",
+    "https://plugins.dprint.dev/exec-0.6.2.json@df98f54ffd3092b8a841aedd6d098a2651f16d0a796a40535774f1a8b4b9d463",
+    "npm:@kachick/dprint-plugin-nix@0.1.1"
   ]
 }

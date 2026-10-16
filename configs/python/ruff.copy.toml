@@ -1,0 +1,16 @@
+# Consumer-owned ruff lint config, seeded once by tack (overwrite: false).
+#
+# The shared rule set is read through the tack submodule via `extend`;
+# bumping .tack updates those rules without touching this file. Put
+# repo-wide overrides below the extend line. To change a shared rule for
+# every consumer, edit .tack/configs/python/ruff.toml and open a PR.
+#
+# Formatting is dprint's job (@dprint/ruff); do not add a [format] table.
+# target-version belongs to each project: a project ruff.toml does
+#   extend = "../../ruff.toml"
+#   target-version = "py314"
+#
+# Paths: ruff resolves relative globs against the directory of the file
+# that defines them, so the shared file uses **/-prefixed globs only and
+# this stub, at the repo root, is the project root for `src`-style paths.
+extend = ".tack/configs/python/ruff.toml"

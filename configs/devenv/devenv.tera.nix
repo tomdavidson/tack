@@ -14,11 +14,20 @@ in {
 {
 {% endif %}
 
+{% set extra_imports = vars.devenv.imports | default(value=[]) %}
+{% if vars.drupal.variant is defined or extra_imports | length > 0 %}
+  # devenv modules imported directly from the .tack submodule.
+  # vars.drupal.variant selects a Drupal variant (configs/drupal/variants/).
+  # vars.devenv.imports lists further modules, e.g. ./.tack/configs/python/python.nix.
+  # Override any module default after this import block.
+  imports = [
 {% if vars.drupal.variant is defined %}
-  # Drupal devenv variant module imported directly from the .tack submodule.
-  # Set vars.drupal.variant in tackrc.yml to select the variant. Available variants
-  # are in configs/drupal/variants/. Override any default after this import.
-  imports = [ ./.tack/configs/drupal/variants/{{ vars.drupal.variant }}.nix ];
+    ./.tack/configs/drupal/variants/{{ vars.drupal.variant }}.nix
+{% endif %}
+{% for m in extra_imports %}
+    {{ m }}
+{% endfor %}
+  ];
 
 {% endif %}
   # packages lists additional system-level tools available in the dev shell.
@@ -43,6 +52,19 @@ in {
 {% for key, value in vars.devenv.env %}
     {{ key }} = "{{ value }}";
 {% endfor %}
+{% endif %}
+{% if vars.bwrap.enabled | default(value=true) %}
+{% if vars.bwrap.dev_root_depth is defined %}
+    # bwrap-run reads BWRAP_DEV_ROOT on the host: one writable bind for every
+    # repo under it plus <dev_root>/.bwrap caches (pnpm hardlinks, uv pythons).
+    # Computed from the repo location so the committed file has no home path;
+    # vars.bwrap.dev_root_depth = {{ vars.bwrap.dev_root_depth }} directories up.
+    BWRAP_DEV_ROOT = {% for _ in range(end=vars.bwrap.dev_root_depth) %}builtins.dirOf ({% endfor %}config.devenv.root{% for _ in range(end=vars.bwrap.dev_root_depth) %}){% endfor %};
+{% elif vars.bwrap.dev_root is defined %}
+    # Absolute dev root from vars.bwrap.dev_root; machine-specific, prefer
+    # vars.bwrap.dev_root_depth for anything committed.
+    BWRAP_DEV_ROOT = "{{ vars.bwrap.dev_root }}";
+{% endif %}
 {% endif %}
   };
 

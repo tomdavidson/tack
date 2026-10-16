@@ -12,7 +12,7 @@ scripts that stay inside tack. Consumers execute them through the tack
 submodule at `.tack/configs/devenv/`; they are never copied or symlinked
 into the consuming repository. The consumer's devenv provides
 `pkgs.bubblewrap` and `pkgs.apparmor-utils` from its own pinned nixpkgs.
-Decision record: ADR-0007.
+Decision records: ADR-0007 (sandboxing), ADR-0008 (writable `.tack`).
 
 ## Why bubblewrap
 
@@ -41,8 +41,12 @@ Visible to the wrapped tool:
 - `/usr`, `/etc`, `/opt`, and usrmerge dirs are read-only.
 - Repo files that later execute outside the sandbox are read-only:
   `.git/hooks`, `.envrc`, `devenv.nix`, `devenv.yaml`, `devenv.lock`,
-  `flake.lock`, `nix/`, and the `.tack` submodule. Sandboxed code cannot
-  plant a git hook or edit devenv to run as you later.
+  `flake.lock`, and `nix/`. Sandboxed code cannot plant a git hook or
+  edit devenv to run as you later.
+- Inside `.tack`, only the host-executed surface is read-only: `tack.sh`,
+  `configs/devenv/`, `configs/<area>/scripts/`, every `*.nix` module, and
+  the submodule's git hooks. The rest of `.tack` is data and stays
+  writable (see [`.tack` and `tack.sh`](#tack-and-tacksh)).
 - Nested user namespaces are disabled (`--disable-userns` together with
   `--unshare-user`), so sandboxed code cannot escape into its own userns.
   `BWRAP_ALLOW_USERNS=1` opts in for Chromium and Playwright.
@@ -54,7 +58,9 @@ Visible to the wrapped tool:
 
 Writable:
 
-- The repo root, always.
+- The repo root, always, including `.tack` minus the pinned surface above.
+  A dev-time symlink (`.tack -> ../tack`) is bound at its real path so the
+  link resolves inside the sandbox.
 - When the repo is under the dev root (default `~/dev`, or
   `BWRAP_DEV_ROOT`), the entire dev root is one bind mount: sibling
   projects are writable, in exchange for pnpm hardlink dedup across them
@@ -64,6 +70,50 @@ Writable:
 Git identity survives: `~/.gitconfig` and `~/.config/git` are bound
 read-only so `git commit` inside the sandbox still has user.name and
 user.email. Do not store credentials in gitconfig; they would be readable.
+
+## `.tack` and `tack.sh`
+
+tack shares configuration by linking, not copying: a consumer edits
+`ruff.toml` or `.moon/tasks/python.yml` in place, the change lands in the
+`.tack` working tree, and the consumer commits it there and opens a pull
+request. Sandboxed formatters and package managers must therefore be able
+to write into `.tack`. ADR-0008 draws the line at _code the host
+executes_: that is read-only, everything else is writable data.
+
+Pinned read-only inside `.tack` (`tack_host_surface` in `bwrap-run.sh`):
+
+| Path                      | Why it runs on the host                                                     |
+| ------------------------- | --------------------------------------------------------------------------- |
+| `tack.sh`                 | the applier, run by you from the host                                       |
+| `configs/devenv/`         | `bwrap-run.sh`, `bwrap-apparmor.sh`, templates behind `.envrc`/`devenv.nix` |
+| `configs/<area>/scripts/` | scripts devenv modules run as tasks and processes                           |
+| `**/*.nix`                | devenv modules; `enterShell`, `scripts`, `tasks` execute on the host        |
+| submodule git hooks       | `<superproject>/.git/modules/<name>/hooks`, found via the `gitdir:` pointer |
+
+Convention: host-executed code lives only in those places, and a module
+may reference nothing else in `.tack`. `configs/devenv/tests/bwrap.bats`
+greps the templates and modules for `.tack/` paths and fails on anything
+outside the set, so a new script cannot silently become host-executed
+from a writable location.
+
+`tack.sh` keeps data as data on its side:
+
+- `yq`, `tera`, and `tack.yml` `post:` command lines run through
+  `bwrap-run` when bwrap is on PATH, can create a user namespace, and
+  `TACK_ROOT` is the consumer's `.tack`. First run of a fresh clone (no
+  devenv yet) and hosts without the AppArmor profile run them directly
+  with a notice. `TACK_SANDBOX=0` forces direct execution. Scratch files
+  move from `/tmp` to `<consumer>/.tack-tmp.XXXXXX` for the duration so
+  the sandboxed helpers can see them.
+- Protected consumer paths (`.envrc`, `devenv.*`, `flake.*`, `nix/`,
+  `.git/`, `.tack/`, anything with `..`) may only be produced by sources
+  that are themselves pinned: `configs/devenv/**` or a `*.nix` file. A
+  `files.<src>.target`, `path_prefix`, or mode rule in a writable
+  `tack.yml` cannot redirect content there; `tack.sh` refuses with an
+  ADR-0008 error. `tests/protected.bats` covers both directions.
+
+`BWRAP_STRICT=1` restores the ADR-0007 behaviour of mounting all of
+`.tack` read-only.
 
 ## Tool resolution
 
@@ -221,15 +271,15 @@ shell and stays unsandboxed; accepted in
 
 ## Settings
 
-| Variable             | Default   | Effect                                                           |
-| -------------------- | --------- | ---------------------------------------------------------------- |
-| `BWRAP_REPO_ROOT`    | detected  | repo root exposed as writable; the devenv wrappers always set it |
-| `BWRAP_BIN`          | from PATH | bwrap binary (the devenv `pkgs.bubblewrap`)                      |
-| `BWRAP_DEV_ROOT`     | `~/dev`   | shared writable root for projects + caches                       |
-| `BWRAP_STRICT`       | 0         | bind only the repo root; pnpm loses hardlinks                    |
-| `BWRAP_NO_NET`       | 0         | 1 disables network access                                        |
-| `BWRAP_ALLOW_USERNS` | 0         | 1 allows nested user namespaces                                  |
-| `BWRAP_ACTIVE`       | unset     | set inside the sandbox; re-entry execs directly                  |
+| Variable             | Default   | Effect                                                                           |
+| -------------------- | --------- | -------------------------------------------------------------------------------- |
+| `BWRAP_REPO_ROOT`    | detected  | repo root exposed as writable; the devenv wrappers always set it                 |
+| `BWRAP_BIN`          | from PATH | bwrap binary (the devenv `pkgs.bubblewrap`)                                      |
+| `BWRAP_DEV_ROOT`     | `~/dev`   | shared writable root for projects + caches                                       |
+| `BWRAP_STRICT`       | 0         | bind only the repo root and mount all of `.tack` read-only; pnpm loses hardlinks |
+| `BWRAP_NO_NET`       | 0         | 1 disables network access                                                        |
+| `BWRAP_ALLOW_USERNS` | 0         | 1 allows nested user namespaces                                                  |
+| `BWRAP_ACTIVE`       | unset     | set inside the sandbox; re-entry execs directly                                  |
 
 ## Accepted risks
 
@@ -238,6 +288,13 @@ shell and stays unsandboxed; accepted in
 - The repo root itself is writable: sandboxed code can modify project
   source. Executable escape hatches that run later outside the sandbox are
   read-only, but code review still gates what you commit.
+- `.tack` data is writable, so sandboxed code can change shared
+  configuration that other consumers receive after a submodule bump. The
+  same is true of the consumer's own `moon.yml` today; pull-request review
+  on the tack repo is the gate.
+- `.git/config` (and `.git/modules/<name>/config`) are writable and carry
+  `core.hooksPath` and `core.fsmonitor`; adding them to the read-only set
+  is an open follow-up to ADR-0008.
 - Network is on by default: anything readable inside the sandbox can be
   sent out, including tokens passed in explicitly.
 - Interactive `moon` runs are sandboxed; git hooks and editor-launched

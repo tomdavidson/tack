@@ -36,7 +36,8 @@
 #                       packages list provides pkgs.bubblewrap)
 #   BWRAP_DEV_ROOT       shared writable root holding projects + caches
 #                       (default: ~/dev when the repo lives under it)
-#   BWRAP_STRICT          1 = bind only the repo root (no sibling projects);
+#   BWRAP_STRICT          1 = bind only the repo root (no sibling projects)
+#                       and mount all of .tack read-only (ADR-0007 behaviour);
 #                       pnpm loses hardlink dedup in this mode
 #   BWRAP_NO_NET          1 = --unshare-net
 #   BWRAP_ALLOW_USERNS    1 = allow nested user namespaces (Chromium/Playwright)
@@ -166,6 +167,66 @@ under() {
   esac
 }
 
+# path_under PATH DIR -- exit 0 when PATH is DIR or lies under it.
+path_under() {
+  case "$1/" in
+    "$2"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# git_hooks_dir REPO -- hooks directory for REPO without running git
+# (a repo's own config can execute code). .git is a directory for an
+# ordinary checkout and a "gitdir: PATH" file for a submodule or linked
+# worktree; PATH may be relative to REPO. Linked worktrees keep hooks in
+# the common dir named by <gitdir>/commondir.
+git_hooks_dir() {
+  g=$1/.git
+  if [ -d "$g" ]; then
+    printf '%s/hooks\n' "$g"
+    return 0
+  fi
+  [ -f "$g" ] || return 0
+  gd=$(sed -n 's/^gitdir: //p' "$g" 2> /dev/null | head -n 1)
+  [ -n "$gd" ] || return 0
+  case "$gd" in
+    /*) ;;
+    *) gd=$1/$gd ;;
+  esac
+  if [ -f "$gd/commondir" ]; then
+    cdir=$(cat "$gd/commondir")
+    case "$cdir" in
+      /*) gd=$cdir ;;
+      *) gd=$gd/$cdir ;;
+    esac
+  fi
+  gd=$(realpath "$gd" 2> /dev/null || printf '%s' "$gd")
+  printf '%s/hooks\n' "$gd"
+}
+
+# tack_host_surface TACK -- paths under the tack checkout that execute on
+# the HOST and stay read-only inside an otherwise writable .tack
+# (ADR-0008), one per line:
+#   tack.sh                 the applier (it sandboxes what it runs; see tack.sh)
+#   configs/devenv/         bwrap scripts + the templates behind .envrc/devenv.nix
+#   configs/<area>/scripts/ scripts a devenv module runs as tasks/processes
+#   **/*.nix                devenv modules; enterShell/scripts run on the host
+#   git hooks dir           a submodule's hooks live under the superproject
+# Everything else in .tack is data read by sandboxed tools and is
+# writable so consumers can edit linked config and contribute upstream.
+# The bats guard in tests/bwrap.bats fails when a module or template
+# references a .tack path outside this set.
+tack_host_surface() {
+  t=$1
+  printf '%s\n' "$t/tack.sh" "$t/configs/devenv"
+  if [ -d "$t/configs" ]; then
+    find "$t/configs" -mindepth 2 -maxdepth 2 -type d -name scripts 2> /dev/null
+  fi
+  find "$t" \( -name node_modules -o -name .git -o -name .devenv \) -prune -o \
+    -type f -name '*.nix' -print 2> /dev/null
+  git_hooks_dir "$t"
+}
+
 # ---------- main ----------
 
 usage() {
@@ -291,6 +352,8 @@ $repo_root"
     "$cache_root/cargo-home" \
     "$cache_root/proto" 2> /dev/null || true
 
+  mkdir -p "$cache_root/uv-python"
+
   pnpm_store=$cache_root/pnpm-store
 
   # ----- mount list -----
@@ -371,12 +434,47 @@ EOF
 
   # Repo files that later execute OUTSIDE the sandbox are read-only, so
   # sandboxed code cannot plant persistence (.git hooks, direnv, devenv,
-  # nix expressions, the .tack submodule).
-  for rel in .git/hooks .envrc devenv.nix devenv.yaml devenv.lock flake.lock nix .tack; do
-    if [ -e "$repo_root/$rel" ]; then
-      args+=(--ro-bind "$repo_root/$rel" "$repo_root/$rel")
+  # nix expressions).
+  for rel in .git/hooks .envrc devenv.nix devenv.yaml devenv.lock flake.lock nix; do
+    p=$repo_root/$rel
+    if [ -e "$p" ]; then
+      args+=(--ro-bind "$p" "$p")
     fi
   done
+
+  # .tack (ADR-0008): writable, so sandboxed formatters and package
+  # managers can edit linked configuration that the consumer then commits
+  # upstream; the host-executed surface is pinned read-only on top.
+  # A dev-time symlink (.tack -> ../tack) cannot be a bind destination
+  # (it dangles under the tmpfs $HOME), so bind the real target at its
+  # real path; the symlink then resolves into it. --strict keeps the
+  # ADR-0007 behaviour: the whole checkout read-only.
+  tack=$repo_root/.tack
+  if [ -e "$tack" ]; then
+    tack_real=$(realpath "$tack")
+    if [ "$strict" -eq 1 ]; then
+      args+=(--ro-bind "$tack_real" "$tack_real")
+    else
+      tack_bound=0
+      while IFS= read -r root; do
+        [ -n "$root" ] || continue
+        if path_under "$tack_real" "$root"; then
+          tack_bound=1
+        fi
+      done << EOF
+$writable_roots
+EOF
+      if [ "$tack_bound" -eq 0 ]; then
+        args+=(--bind "$tack_real" "$tack_real")
+      fi
+      while IFS= read -r p; do
+        [ -n "$p" ] || continue
+        if [ -e "$p" ]; then
+          args+=(--ro-bind "$p" "$p")
+        fi
+      done < <(tack_host_surface "$tack_real")
+    fi
+  fi
 
   if [ "${BWRAP_ALLOW_USERNS:-0}" != "1" ]; then
     args+=(--disable-userns)
@@ -397,7 +495,7 @@ EOF
     value=${line#*=}
     [ -n "$name" ] || continue
     case "$name" in
-      PATH | HOME | USER | LOGNAME | SHELL | TERM | COLORTERM | LANG | LC_* | TZ | PWD | TMPDIR | PROTO_HOME | CARGO_HOME | RUSTUP_HOME | NIX_* | PKG_CONFIG* | CPATH | LD_LIBRARY_PATH)
+      UV_MANAGED_PYTHON | PATH | HOME | USER | LOGNAME | SHELL | TERM | COLORTERM | LANG | LC_* | TZ | PWD | TMPDIR | PROTO_HOME | CARGO_HOME | RUSTUP_HOME | NIX_* | PKG_CONFIG* | CPATH | LD_LIBRARY_PATH)
         case "$name" in
           *TOKEN* | *SECRET* | *PASSWORD* | *PASS* | *CRED* | *KEY*) continue ;;
         esac
@@ -411,6 +509,8 @@ EOF
     --setenv pnpm_config_cache_dir "$cache_root/pnpm-cache"
     --setenv PIP_CACHE_DIR "$cache_root/pip"
     --setenv UV_CACHE_DIR "$cache_root/uv"
+    --setenv UV_PYTHON_INSTALL_DIR "$cache_root/uv-python"
+    --setenv UV_PYTHON_BIN_DIR "$cache_root/uv-python/bin"
     --setenv PYTHONDONTWRITEBYTECODE 1
   )
   if [ ! -d "$cargo_home_host" ]; then

@@ -7,3 +7,4 @@ allowUnfree: false
 inputs:
   nixpkgs:
     url: github:NixOS/nixpkgs/{{ vars.devenv.nixpkgs_ref | default(value='nixos-25.11') }}
+

@@ -1,0 +1,64 @@
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+# Inherited by projects with `tags: [python]` in moon.yml.
+# Moon does not manage the interpreter: each project owns .python-version,
+# pyproject.toml, uv.lock and .venv, and `uv run` syncs on demand.
+# Run moon inside the devenv shell so `uv` resolves to the bwrap wrapper.
+inheritedBy:
+  tags: "python"
+  order: 10
+
+fileGroups:
+  sources:
+    - "**/*.py"
+    - "**/*.pyi"
+    - "!**/.venv/**"
+  tests:
+    - "tests/**/*"
+  configs:
+    - "pyproject.toml"
+    - "uv.lock"
+    - ".python-version"
+    - "ruff.toml"
+    - ".ruff.toml"
+    - "pyrightconfig.json"
+    - "/ruff.toml"
+    - "/.prototools"
+
+tasks:
+  lint:
+    command: "ruff check ."
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+
+  lint-fix:
+    extends: "lint"
+    args: ["--fix"]
+    options:
+      runInCI: false
+
+  check-types:
+    command: "uv run --frozen basedpyright"
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+
+  test:
+    command: "uv run --frozen pytest"
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+
+  check:
+    command: "noop"
+    deps:
+      - "~:lint"
+      - "~:check-types"
+      - "~:test"
