@@ -126,11 +126,12 @@ readability/testability: `(deps) => (data) => result`.
 
 ### Rules
 
+- Explicit return types on all functions (`typescript/explicit-function-return-type: error`; inline callback expressions and typed function expressions may infer).
 - Max 3 parameters. Use an options object for more.
 - Max function length: 25 logical lines (blank lines and comments excluded).
 - Max cyclomatic complexity: 5 branches per function.
 - Max nesting depth: 2. Use guard clauses and early returns. Never `else` after `return`.
-- No boolean parameters. Split into separate functions.
+- No boolean parameters. Split into separate functions (or pass a 2-variant union).
 - No nested ternaries. Single-line ternaries for simple cases; early-return for complex ones.
 - No variable shadowing. Use distinct names in inner scopes.
 
@@ -413,12 +414,12 @@ pattern where the rule is already relaxed.
 
 ## Checklist
 
-- [ ] Module structure: `domain.ts`, `logic.ts`, `io.ts`
+- [ ] Module structure: `*.domain.ts`, `*.app.ts`, `*.infra.ts`
 - [ ] Named exports
-- [ ] Arrow functions, implicit return
+- [ ] Arrow functions, implicit return, explicit return types
 - [ ] `?.` and `??` for optionals
 - [ ] `neverthrow` for fallible operations
-- [ ] No `throw` or `try/catch` in domain
+- [ ] No `throw` or `try/catch` in domain or application
 - [ ] No mutation between awaits
 - [ ] No branching inside async chains
 - [ ] Fetch then process (async then pure)

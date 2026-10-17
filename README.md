@@ -565,7 +565,7 @@ uv, ruff, shared lint/format rules, and Moon tasks.
 | `configs/python/ruff.toml`              | Shared lint rules, read through `.tack`. The repo root gets a seed-once stub (`extend = ".tack/configs/python/ruff.toml"`) for overrides; project `ruff.toml` files `extend = "../../ruff.toml"` |
 | `configs/common/.prototools`            | Pins `ruff` for `ruff check` in the Moon `lint` task (dprint formats via its own Wasm build of ruff)                                                                                             |
 | `configs/common/dprint.json`            | `@dprint/ruff` plugin with a `"ruff"` block (indent 4, import sorting); excludes `.venv`, caches, `uv.lock`                                                                                      |
-| `configs/python/.moon/tasks/python.yml` | Delivered to `.moon/tasks/python.yml` (ADR-0008, like drupal): `lint`, `lint-fix`, `check-types`, `test`, `check` for projects tagged `python`                                                   |
+| `configs/python/.moon/tasks/python.yml` | Delivered to `.moon/tasks/python.yml` (ADR-0010, like drupal): `lint`, `lint-fix`, `typecheck`, `test`, `verify` for projects tagged `python`                                                    |
 
 ```yaml
 # tackrc.yml
@@ -622,7 +622,7 @@ its modules.
   does not read `ruff.toml`, which is lint-only.
 - Lint: `moon run <project>:lint` runs `ruff check`; import sorting is
   rule `I`, applied by `lint-fix`.
-- Types: `check-types` runs `uv run --frozen basedpyright` (default
+- Types: `typecheck` runs `uv run --frozen basedpyright` (default
   `recommended` mode; set `[tool.basedpyright]` per project to relax).
 - Tests: `test` runs `uv run --frozen pytest`.
 

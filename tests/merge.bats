@@ -45,7 +45,7 @@ run_tack() {
 
 # ----- Refusals -----
 
-@test "merge: refuses *.merge.toml with concat suggestion" {
+@test "merge: refuses *.merge.toml with ADR-0009 guidance" {
   write_pkg clippy.merge.toml '[lints]
 foo = "warn"
 ' target.toml '[a]
@@ -54,7 +54,7 @@ x = 1
   run_tack
   [ "$status" -ne 0 ]
   [[ "$output" == *"*.merge.toml not supported"* ]]
-  [[ "$output" == *"*.concat.toml"* ]]
+  [[ "$output" == *"ADR-0009"* ]]
   grep -q '\[a\]' "$CONSUMER/target.toml"
 }
 

@@ -2,6 +2,7 @@ $schema: "https://moonrepo.dev/schemas/tasks.json"
 
 inheritedBy:
   tags: ["astro-website"]
+  order: 20
 
 fileGroups:
   astro:
@@ -19,15 +20,20 @@ tasks:
     options:
       runInCI: false
 
-  check-types:
-    command: "node_modules/.bin/astro"
+  # Typecheck `.astro` and `.ts` files
+  typecheck:
+    command: "astro"
     args: ["check"]
     toolchains: ["javascript", "node"]
     inputs:
+      - "@group(astro)"
       - "@group(sources)"
       - "@group(tests)"
       - "tsconfig.json"
     outputs: []
+    options:
+      runInCI: true
+      mergeArgs: replace
 
   # Build the application
   build:
@@ -37,15 +43,6 @@ tasks:
       - "@group(sources)"
     outputs:
       - "dist"
-    options:
-      runInCI: true
-
-  # Typecheck `.astro` files
-  check:
-    command: "astro check"
-    inputs:
-      - "@group(astro)"
-      - "@group(sources)"
     options:
       runInCI: true
 

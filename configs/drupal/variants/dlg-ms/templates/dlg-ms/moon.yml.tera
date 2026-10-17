@@ -10,6 +10,26 @@ language: php
 layer: application
 tags: ["drupal", "drupal-app"]
 
+# Site layout. Replaces the module-layout defaults from drupal/all.yml.
+fileGroups:
+  sourceDirs:
+    - "web/modules/custom"
+    - "web/themes/custom"
+  sources:
+    - "web/modules/custom/**/*"
+    - "web/themes/custom/**/*"
+  tests:
+    - "tests/**/*"
+    - "web/modules/custom/**/tests/**/*"
+    - "web/themes/custom/**/tests/**/*"
+  configs:
+    - "/phpcs.xml.dist"
+    - "/phpstan.neon.dist"
+    - "/phpunit.xml.dist"
+    - "composer.json"
+    - "composer.lock"
+    - "config/sync/**/*"
+
 # Override or extend inherited tasks here, e.g.:
 # tasks:
 #   test-unit:

@@ -20,7 +20,7 @@
 # rules without touching it. Project-local ruff.toml files extend the
 # root stub (`extend = "../../ruff.toml"`) and set target-version.
 #
-# Moon tasks (ADR-0008 pattern, pack-owned like configs/drupal):
+# Moon tasks (ADR-0010 pattern, pack-owned like configs/drupal):
 #   .moon/tasks/python.yml -> .moon/tasks/python.yml
 # Delivered only when this pack is enabled; projects opt in with
 # tags: [python] in moon.yml. The .moon pkg unfolds .moon/tasks so this

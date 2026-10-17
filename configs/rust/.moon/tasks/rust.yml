@@ -39,7 +39,7 @@ tasks:
     options:
       runInCI: false
 
-  check:
+  typecheck:
     command: "cargo check --all-targets"
     inputs:
       - "@group(cargo)"
@@ -87,9 +87,20 @@ tasks:
       - "@group(sources)"
     env: *env
 
+  verify:
+    command: "noop"
+    deps:
+      - "~:typecheck"
+      - "~:lint"
+      - "~:test"
+    options:
+      runInCI: false
+
   audit:
     command: "cargo"
     args: ["deny", "check"]
     inputs:
       - "@group(cargo)"
     env: *env
+    options:
+      runInCI: false

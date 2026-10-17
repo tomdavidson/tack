@@ -6,6 +6,11 @@ ignore:
   # tack's own root tasks (bats suite). Inherited only where tack.sh sits
   # at the project root, and never delivered to consumers (ADR-0009).
   - tasks/tack-internal.yml
+  # Dogfood symlinks created when tack applies configs/javascript to itself
+  # for packages/eslint-config*. Consumers receive these from
+  # configs/javascript, not from .moon (ADR-0010).
+  - tasks/typescript.yml
+  - tasks/gh-pkg-npm.yml
 
 # moon runtime state. Present in a dev checkout (gitignored) and must
 # never be linked into a consumer: the consumer's moon would write its

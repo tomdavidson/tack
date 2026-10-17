@@ -44,8 +44,52 @@ package_files() {
   }
 }
 
-@test "ADR-0009: configs/php ships php.nix as an ignored module, no devenv fragment" {
+@test "ADR-0009: no package ships a nested dprint.json that dprint would mistake for a sub-project config" {
+  found=$(package_files 'dprint.json')
+  [ -z "$found" ] || {
+    printf 'Shared dprint profiles must be named dprint-<pkg>.json so dprint does not treat them as standalone directory configs:\n%s\n' "$found" >&2
+    return 1
+  }
+}
+
+@test "ADR-0009: configs/common ships dprint.copy.json stub extending .tack/configs/common/dprint-common.json" {
+  [ -f "$TACK_ROOT/configs/common/dprint-common.json" ]
+  [ -f "$TACK_ROOT/configs/common/dprint.copy.json" ]
+  grep -qE '^\s*-\s*dprint-common\.json\s*$' "$TACK_ROOT/configs/common/tack.yml"
+  grep -q './.tack/configs/common/dprint-common.json' "$TACK_ROOT/configs/common/dprint.copy.json"
+}
+
+@test "ADR-0009: configs/php ships php.nix and shared lint/format rules in .tack with seed-once stubs and dprint.merge.json" {
   [ -f "$TACK_ROOT/configs/php/php.nix" ]
+  [ -f "$TACK_ROOT/configs/php/phpcs-base.xml" ]
+  [ -f "$TACK_ROOT/configs/php/phpcs.xml" ]
+  [ -f "$TACK_ROOT/configs/php/phpcs.copy.xml.dist" ]
+  [ -f "$TACK_ROOT/configs/php/phpstan.neon" ]
+  [ -f "$TACK_ROOT/configs/php/phpstan.copy.neon.dist" ]
+  [ -f "$TACK_ROOT/configs/php/dprint-php.json" ]
+  [ -f "$TACK_ROOT/configs/php/dprint.merge.json" ]
   [ ! -e "$TACK_ROOT/configs/php/devenv.concat.nix" ]
   grep -qE '^\s*-\s*php\.nix\s*$' "$TACK_ROOT/configs/php/tack.yml"
+  grep -qE '^\s*-\s*phpcs-base\.xml\s*$' "$TACK_ROOT/configs/php/tack.yml"
+  grep -qE '^\s*-\s*phpcs\.xml\s*$' "$TACK_ROOT/configs/php/tack.yml"
+  grep -qE '^\s*-\s*phpstan\.neon\s*$' "$TACK_ROOT/configs/php/tack.yml"
+  grep -qE '^\s*-\s*dprint-php\.json\s*$' "$TACK_ROOT/configs/php/tack.yml"
+  grep -q './.tack/configs/php/phpcs.xml' "$TACK_ROOT/configs/php/phpcs.copy.xml.dist"
+  grep -q '.tack/configs/php/phpstan.neon' "$TACK_ROOT/configs/php/phpstan.copy.neon.dist"
+  grep -q './.tack/configs/php/dprint-php.json' "$TACK_ROOT/configs/php/dprint.merge.json"
+}
+
+@test "ADR-0008/0009: configs/drupal layers on configs/php and ignores .nix modules, shared rules, and host scripts" {
+  grep -qE '^\s*-\s*drupal\.nix\s*$' "$TACK_ROOT/configs/drupal/tack.yml"
+  grep -qE '^\s*-\s*phpcs\.xml\s*$' "$TACK_ROOT/configs/drupal/tack.yml"
+  grep -qE '^\s*-\s*phpstan\.neon\s*$' "$TACK_ROOT/configs/drupal/tack.yml"
+  grep -qE '^\s*-\s*dprint-drupal\.json\s*$' "$TACK_ROOT/configs/drupal/tack.yml"
+  grep -qE '^\s*-\s*scripts/\*\*\s*$' "$TACK_ROOT/configs/drupal/tack.yml"
+  grep -qE '^\s*-\s*python\.nix\s*$' "$TACK_ROOT/configs/python/tack.yml"
+  grep -q '../php/php.nix' "$TACK_ROOT/configs/drupal/drupal.nix"
+  grep -q '../php/phpcs-base.xml' "$TACK_ROOT/configs/drupal/phpcs.xml"
+  grep -q '../php/phpstan.neon' "$TACK_ROOT/configs/drupal/phpstan.neon"
+  grep -q './.tack/configs/drupal/phpcs.xml' "$TACK_ROOT/configs/drupal/phpcs.xml.dist"
+  grep -q '.tack/configs/drupal/phpstan.neon' "$TACK_ROOT/configs/drupal/phpstan.neon.dist"
+  grep -q './.tack/configs/drupal/dprint-drupal.json' "$TACK_ROOT/configs/drupal/dprint.merge.json"
 }

@@ -11,21 +11,79 @@
 # under the "ruff" key. Do not add a [format] table to this file; it would
 # be ignored by dprint and only confuse editors running ruff directly.
 #
-# line-length is kept here because `ruff check` uses it for width-aware
-# rules (E501 is ignored below, but PLR0913-style heuristics read it).
-# Keep it equal to dprint.json "lineWidth".
+# Why line-length is still set here: Ruff does not read .editorconfig
+# (astral-sh/ruff#1530), and `ruff check --fix` (including isort I001 and
+# multi-line autofixes) uses `line-length` (default 88) to decide when to
+# wrap generated code. Keeping `line-length = 100` aligned with
+# dprint.json "lineWidth" prevents `lint-fix` and `dprint fmt` from
+# fighting between 88 and 100 chars.
 #
 # Interpreter requirements belong to each project. A project-local
 # ruff.toml extends the consumer-root stub (`extend = "../../ruff.toml"`)
 # and sets target-version.
 line-length = 100
+preview = true
 extend-exclude = [".venv", "**/.venv", "**/*.tera.*"]
 
 [lint]
-select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF", "PL", "PERF", "S", "T20", "PTH", "RET"]
-ignore = ["E501", "PLR0913", "PLR2004"]
+select = [
+  "E", # pycodestyle errors
+  "W", # pycodestyle warnings
+  "F", # pyflakes
+  "I", # isort
+  "UP", # pyupgrade (modern Python syntax & union types)
+  "B", # flake8-bugbear (B006/B008 no mutable defaults, B904 raise-from)
+  "SIM", # flake8-simplify
+  "RUF", # Ruff-specific rules (RUF008/009/012 no mutable class/dataclass defaults)
+  "PL", # Pylint (PLR0904/0912/0913/0915/1702/2004/6301, PLW0602/0603 no global mutation)
+  "PERF", # Perflint
+  "FURB", # refurb (rewrite imperative loop mutations into declarative ops)
+  "S", # flake8-bandit security
+  "T20", # flake8-print (no print() in library/app code)
+  "PTH", # flake8-use-pathlib
+  "RET", # flake8-return (RET505-508 no else after return/raise/break/continue)
+  "C90", # mccabe cyclomatic complexity (C901)
+  "ANN", # flake8-annotations (explicit param/return types; ANN401 bans Any)
+  "FBT", # flake8-boolean-trap (no boolean flag params; use Literal/Enum)
+  "C4", # flake8-comprehensions (declarative comprehensions)
+  "PIE", # flake8-pie
+  "A", # flake8-builtins (no shadowing builtins)
+  "BLE", # flake8-blind-except (no blind except Exception:)
+  "SLF", # flake8-self (no private member access across objects)
+  "RSE", # flake8-raise
+  "TRY201", # bare raise to re-raise
+  "TRY301", # forbid raising and catching inside the same try block as control flow
+  "ARG", # flake8-unused-arguments (prefix unused with _)
+  "DTZ", # flake8-datetimez (require timezone-aware datetimes)
+  "ERA", # eradicate (no commented-out dead code)
+]
+# E501 is ignored because dprint (@dprint/ruff) owns line wrapping.
+ignore = ["E501"]
+
+[lint.mccabe]
+# Complexity guardrail (matches Rust cognitive-complexity-threshold = 8)
+max-complexity = 8
+
+[lint.pylint]
+# Strategic FP: data classes (@dataclass(frozen=True), TypedDict) have 0 public
+# methods; behavior belongs in module-level free functions (PLR0904 + PLR6301).
+max-public-methods = 0
+# 2-3 params typical; 4+ requires a frozen dataclass or TypedDict (PLR0913)
+max-args = 4
+# Cap branching sprawl (PLR0912)
+max-branches = 8
+# Flat control flow: forbid nested branches inside loops (PLR1702, matches TS max-depth: 2)
+max-nested-blocks = 2
+# Allow flat guard clauses while capping sprawl (PLR0911)
+max-returns = 6
+# Keep functions small: 5-30 statements (PLR0915, matches Rust 30 lines / TS 25 lines)
+max-statements = 30
 
 [lint.per-file-ignores]
-"**/tests/**" = ["S101", "T20"]
-"**/test_*.py" = ["S101", "T20"]
+# Adapter shells in infra.py / ports in app.py may define Protocol/adapter methods
+"**/app.py" = ["PLR0904"]
+"**/infra.py" = ["PLR0904", "PLR6301"]
+"**/adapters/**" = ["PLR0904", "PLR6301"]
+"**/tests/**" = ["ANN", "ARG001", "FBT", "PLR0904", "PLR2004", "PLR6301", "S101", "T20"]
+"**/test_*.py" = ["ANN", "ARG001", "FBT", "PLR0904", "PLR2004", "PLR6301", "S101", "T20"]
 "**/scripts/**" = ["T20"]

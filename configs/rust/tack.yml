@@ -1,0 +1,14 @@
+# configs/rust/tack.yml
+# Rust tooling baseline: .clippy.toml, .rustfmt.toml, workspace lints, and
+# Moon tasks/partials.
+#
+# Moon tasks and partials (ADR-0010, pack-owned):
+#   .moon/tasks/rust.yml            -> .moon/tasks/rust.yml
+#   .moon/partials/publish-crate.yml -> .moon/partials/publish-crate.yml
+#
+# clippy-cargo.concat.toml appends [workspace.lints.rust] and
+# [workspace.lints.clippy] to the consumer's root Cargo.toml (grandfathered
+# under ADR-0009 decision 6 until a TOML merge path is adopted).
+files:
+  clippy-cargo.concat.toml:
+    target: Cargo.toml

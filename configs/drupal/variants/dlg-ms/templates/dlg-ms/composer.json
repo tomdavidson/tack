@@ -44,6 +44,7 @@
     "drupal/core-dev": "^11.4",
     "drupal/localgov_microsites_demo": "^1.1@RC",
     "phpstan/phpstan-strict-rules": "^2.0",
+    "slevomat/coding-standard": "^8.15",
     "spaze/phpstan-disallowed-calls": "^4.5"
   },
   "conflict": {

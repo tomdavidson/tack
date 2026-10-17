@@ -1,6 +1,6 @@
 # .moon/tasks/drupal/app.yml
 # Delivered by configs/drupal (tack-owned: re-running tack overwrites it).
-# See docs/adrs/0008-moon-task-organization.md.
+# See docs/adrs/0010-moon-task-organization.md.
 #
 # Inherited only by the Drupal application: tagged "drupal" AND layer
 # "application". Modules (layer: library) never get these tasks.
@@ -51,7 +51,7 @@ tasks:
 
   # Refines test from drupal/all.yml: the app runs the full devenv test
   # lifecycle (install + smoke + idempotence + PHPUnit custom suite)
-  # instead of the per-tier aggregate. Explicit merge per ADR 0008.
+  # instead of the per-tier aggregate. Explicit merge per ADR 0010.
   test:
     command: devenv
     args: ["test"]
@@ -65,7 +65,7 @@ tasks:
 
   # Dev-only: run against already-running services.
   deploy:
-    script: "scripts/drupal/deploy.sh"
+    script: ".tack/configs/drupal/scripts/drupal/deploy.sh"
     inputs:
       - "@group(configs)"
     options:
@@ -75,7 +75,7 @@ tasks:
 
   # Dev-only: drop and reinstall.
   reset:
-    script: "scripts/drupal/install.sh --force"
+    script: ".tack/configs/drupal/scripts/drupal/install.sh --force"
     options:
       cache: false
       runInCI: false

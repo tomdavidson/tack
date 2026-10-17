@@ -10,6 +10,12 @@
 
 ignore:
   - lfs/**
+  # shared rules are read through .tack via `extends`, not delivered
+  - dprint-common.json
 
 mode:
   - copy: [".gitattributes", ".gitignore"]
+
+files:
+  dprint.copy.json:
+    overwrite: false

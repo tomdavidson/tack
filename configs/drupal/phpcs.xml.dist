@@ -1,16 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ruleset name="localgov-multisite">
-  <description>Drupal coding standards for LocalGov Multisite custom code.</description>
+<!--
+  Consumer-owned Drupal PHP_CodeSniffer config, seeded once by tack (overwrite: false).
+  Shared rules live in .tack/configs/drupal/phpcs.xml (which extends
+  .tack/configs/php/phpcs-base.xml + Drupal + DrupalPractice) and update
+  automatically on submodule bumps. Add project-specific rule overrides below.
+-->
+<ruleset name="project-drupal">
+  <description>Project Drupal PHP_CodeSniffer configuration extending tack's Drupal + PHP baseline.</description>
 
-  <arg name="extensions" value="inc,install,module,php,profile,test,theme,yml"/>
-  <arg name="colors"/>
-  <arg value="p"/>
-
-  <!-- Paths passed as args by moon tasks; no <file> entries needed here. -->
-
-  <exclude-pattern>*/node_modules/*</exclude-pattern>
-  <exclude-pattern>*/vendor/*</exclude-pattern>
-
-  <rule ref="./vendor/drupal/coder/coder_sniffer/Drupal"/>
-  <rule ref="./vendor/drupal/coder/coder_sniffer/DrupalPractice"/>
+  <rule ref="./.tack/configs/drupal/phpcs.xml"/>
 </ruleset>

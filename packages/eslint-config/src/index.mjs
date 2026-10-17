@@ -1,20 +1,20 @@
 /**
- * @astro-bay/eslint-config
+ * @tack/eslint-config
  *
  * ESLint flat config for TypeScript projects using clean architecture
  * with FP enforcement, boundary rules, and oxlint deduplication.
- * Also bundles oxlint + oxlint-tsgolint and the canonical oxlintrc.json.
+ * Also bundles oxlint + oxlint-tsgolint and the canonical oxlintrc.jsonc.
  *
  * Usage:
- *   import tsConfig from '@astro-bay/eslint-config'
+ *   import tsConfig from '@tack/eslint-config'
  *   import { defineConfig } from 'eslint/config'
  *   export default defineConfig(
  *     ...tsConfig({ tsconfigRootDir: import.meta.dirname }),
  *   )
  *
  * Usage (with astro config):
- *   import tsConfig from '@astro-bay/eslint-config'
- *   import astroConfig from '@astro-bay/eslint-config-astro'
+ *   import tsConfig from '@tack/eslint-config'
+ *   import astroConfig from '@tack/eslint-config-astro'
  *   import { defineConfig } from 'eslint/config'
  *   export default defineConfig(
  *     ...tsConfig({ tsconfigRootDir: import.meta.dirname }),
@@ -22,12 +22,12 @@
  *   )
  *
  * Usage (rules/layers only):
- *   import { functionalRules, infraRules } from '@astro-bay/eslint-config/rules'
- *   import { domainFiles, boundaryElements } from '@astro-bay/eslint-config/layers'
+ *   import { functionalRules, infraRules } from '@tack/eslint-config/rules'
+ *   import { domainFiles, boundaryElements } from '@tack/eslint-config/layers'
  *
- * The bundled oxlintrc.json can be extended by editor plugins:
+ * The bundled oxlintrc.jsonc can be extended by editor plugins:
  *   // root oxlintrc.json
- *   { "extends": ["./node_modules/@astro-bay/eslint-config/src/oxlintrc.json"] }
+ *   { "extends": ["./node_modules/@tack/eslint-config/src/oxlintrc.jsonc"] }
  */
 
 import boundaries from 'eslint-plugin-boundaries'
@@ -51,13 +51,13 @@ import { appFiles, boundaryElements, boundaryRules, domainFiles, infraFiles, tes
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-/** Absolute path to the bundled oxlintrc.json */
+/** Absolute path to the bundled oxlintrc.jsonc */
 export const oxlintConfigPath = resolve(__dirname, 'oxlintrc.jsonc')
 
 /**
  * @param {object} options
  * @param {string} options.tsconfigRootDir - Root dir for tsconfig resolution (use import.meta.dirname)
- * @param {string} [options.oxlintConfig] - Override path to oxlintrc.json (default: bundled)
+ * @param {string} [options.oxlintConfig] - Override path to oxlintrc.jsonc (default: bundled)
  * @param {string[]} [options.files] - Source file globs
  * @param {string[]} [options.ignores] - Additional ignore patterns
  * @param {object} [options.rules] - Override/extend global rules
@@ -77,7 +77,7 @@ const tsConfig = options => {
 
     // Global: all source files (app-layer defaults)
     {
-      name: '@astro-bay/eslint-config/global',
+      name: '@tack/eslint-config/global',
       files: sourceFiles,
       languageOptions: { parser: tseslint.parser, parserOptions: { project: true, tsconfigRootDir } },
       plugins: { functional, 'prefer-arrow-functions': preferArrowFunctions, boundaries },
@@ -92,13 +92,13 @@ const tsConfig = options => {
     },
 
     // Domain: tighten for purity
-    { name: '@astro-bay/eslint-config/domain', files: domainFiles, rules: domainRules },
+    { name: '@tack/eslint-config/domain', files: domainFiles, rules: domainRules },
 
     // Infrastructure: imperative shell allowances
-    { name: '@astro-bay/eslint-config/infra', files: infraFiles, rules: infraRules },
+    { name: '@tack/eslint-config/infra', files: infraFiles, rules: infraRules },
 
     // Tests: fully relax FP rules
-    { name: '@astro-bay/eslint-config/tests', files: testFiles, rules: testRules },
+    { name: '@tack/eslint-config/tests', files: testFiles, rules: testRules },
 
     // Deduplicate: turn off anything oxlint already handles
     ...oxlint.buildFromOxlintConfigFile(oxlintConfig),

@@ -1,6 +1,6 @@
 # .moon/tasks/drupal/dlg-ms/microsite.yml
 # Delivered by configs/drupal/variants/dlg-ms (tack-owned).
-# See docs/adrs/0008-moon-task-organization.md.
+# See docs/adrs/0010-moon-task-organization.md.
 #
 # Inherited by all projects tagged "dlg-ms-microsite".
 # Microsite dirs are config/content packages (YAML, Markdown, schema files).
@@ -35,9 +35,19 @@ tasks:
     args: ["**/*.md"]
     inputs: ["@group(sources)"]
 
+  lint-schema:
+    command: noop
+    options:
+      runInCI: true
+
+  lint-prose:
+    command: vale
+    args: ["."]
+    inputs: ["@group(sources)", "/.vale.ini"]
+
   lint:
     command: noop
-    deps: ["~:lint-yaml", "~:lint-md"]
+    deps: ["~:lint-yaml", "~:lint-md", "~:lint-schema", "~:lint-prose"]
 
   lint-yaml-fix:
     extends: lint-yaml
@@ -57,23 +67,11 @@ tasks:
     options:
       runInCI: false
 
-  validate-schema:
+  verify:
     command: noop
+    deps: ["~:lint"]
     options:
-      runInCI: true
-
-  validate-prose:
-    command: vale
-    args: ["."]
-    inputs: ["@group(sources)", "/.vale.ini"]
-
-  analyse:
-    command: noop
-    deps: ["~:validate-schema", "~:validate-prose"]
-
-  check:
-    command: noop
-    deps: ["~:lint", "~:analyse"]
+      runInCI: false
 
   plan:
     command: noop

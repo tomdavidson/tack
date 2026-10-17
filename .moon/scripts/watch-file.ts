@@ -87,9 +87,9 @@ const filterToFiles = (output: string): string => {
 }
 
 const runTypecheck = async (): Promise<string> => {
-  const { output, exitCode, timing } = await moonRun('~:check-types')
+  const { output, exitCode, timing } = await moonRun('~:typecheck')
   const filtered = filterToFiles(output)
-  const header = `${CYAN}--- check-types ---${RESET}`
+  const header = `${CYAN}--- typecheck ---${RESET}`
   return `${header}\n${
     !filtered && exitCode === 0 ? `${GREEN}✓${RESET}${DIM} | ${timing}${RESET}` : filtered || output
   }`

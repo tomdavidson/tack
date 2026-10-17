@@ -1,10 +1,12 @@
 ---
-status: proposed
+number: 10
+title: Organize moon tasks by package and scope, with canonical task names
 date: 2026-09-27
+status: proposed
 decision-makers: Tom Davidson
 ---
 
-# Organize moon tasks by package and scope, with canonical task names
+# 10. Organize moon tasks by package and scope, with canonical task names
 
 ## Context and Problem Statement
 
@@ -37,23 +39,24 @@ Packages declare only tasks relevant to their domain. If declared, tasks must co
 
 #### Core Tasks
 
-| Task               | Purpose                                                                      | Execution & Cache                  |
-| ------------------ | ---------------------------------------------------------------------------- | ---------------------------------- |
-| `format`           | Validate code formatting without modification                                | Cached, runs in CI                 |
-| `format-write`     | Format code in place                                                         | Uncached, local only               |
-| `lint`             | Execute linters, prose checks, and schema validation                         | Cached, runs in CI                 |
-| `lint-fix`         | Apply linter auto-fixes in place                                             | Uncached, local only               |
-| `fix`              | Run `format-write` then `lint-fix` sequentially (`runDepsInParallel: false`) | Uncached, local only               |
-| `typecheck`        | Static analysis and type checking (`tsc`, `cargo check`, `phpstan`)          | Cached, runs in CI                 |
-| `audit`            | Dependency vulnerability and security audits                                 | Cached, `runInCI: always`          |
-| `test-unit`        | Unit tests requiring no running services                                     | Cached, runs in CI                 |
-| `test-integration` | Tests requiring backing dependencies (database, storage)                     | Uncached, CI when services present |
-| `test-e2e`         | End-to-end browser or system tests against running platform                  | Uncached, CI when services present |
-| `test`             | Aggregate test runner executing all defined suites for the project           | Uncached, local only               |
-| `build`            | Compile release or distribution artifacts (`outputs` declared)               | Cached, runs in CI                 |
-| `dev`              | Foreground development server or environment (`preset: server`)              | Persistent, uncached, local only   |
-| `publish`          | Publish artifacts to an upstream registry                                    | Uncached, workflow-driven          |
-| `review`           | Dry-run publish or snapshot preview artifact generation                      | Uncached, workflow-driven          |
+| Task               | Purpose                                                                                                                   | Execution & Cache                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `fmt`              | Format code in place (`dprint fmt`)                                                                                       | Uncached, `runInCI: false`          |
+| `fmt-check`        | Validate code formatting without modification (`dprint check`, `cargo fmt --check`)                                       | Cached, `runInCI: true`             |
+| `lint`             | Execute linters, prose checks, and schema validation                                                                      | Cached, `runInCI: true`             |
+| `lint-fix`         | Apply linter auto-fixes in place                                                                                          | Uncached, `runInCI: false`          |
+| `fix`              | Run `fmt` then `lint-fix` sequentially (`runDepsInParallel: false`)                                                       | Uncached, `runInCI: false`          |
+| `typecheck`        | Static analysis and type checking (`tsc --noEmit`, `astro check`, `basedpyright`, `cargo check --all-targets`, `phpstan`) | Cached, `runInCI: true`             |
+| `test-unit`        | Fast unit tests requiring no running services                                                                             | Cached, `runInCI: true`             |
+| `test-integration` | Tests requiring backing dependencies (database, storage)                                                                  | Uncached, `runInCI: false`          |
+| `test-e2e`         | End-to-end browser or system tests against running platform                                                               | Uncached, `runInCI: false`          |
+| `test`             | Run all test suites defined for the project (aliases `test-unit` in single-tier projects)                                 | Cached when single-tier             |
+| `verify`           | Fast local/pre-push gate (`deps: [~:lint, ~:typecheck, ~:test-unit]`)                                                     | `noop`, `runInCI: false`            |
+| `audit`            | Dependency vulnerability and security audits                                                                              | Cached, `runInCI: false` (workflow) |
+| `build`            | Compile release or distribution artifacts (`outputs` declared)                                                            | Cached, `runInCI: true`             |
+| `dev`              | Foreground development server or environment (`preset: server`)                                                           | Persistent, uncached, local only    |
+| `publish`          | Publish artifacts to an upstream registry                                                                                 | Uncached, workflow-driven           |
+| `review`           | Dry-run publish or snapshot preview artifact generation                                                                   | Uncached, workflow-driven           |
 
 #### Optional Universal Tasks
 
@@ -139,10 +142,9 @@ Seeded `moon.yml` files (marked `overwrite: false`) establish project metadata: 
 
 The following task names were evaluated during review and discarded, consolidated, or scoped out:
 
-- `check` / `check-full`: Discarded. Clashes with native `moon check` command. CI execution is governed by `runInCI` and native `moon ci`.
-- `verify`: Discarded. Redundant with `moon check` and core task definitions.
-- `fmt` / `fmt-check`: Discarded in favor of standard moonrepo convention `format` (read-only check) and `format-write` (mutating).
-- `analyse`: Consolidated into `typecheck` (for language/compiler typing and tools like phpstan) or nested under `lint` (for prose/schema linters).
+- `check` / `check-full`: Discarded. Clashes with the built-in `moon check` CLI command (which runs every `build` and `test`-type task regardless of `runInCI`, sweeping up slow integration/E2E tests and mutating tasks). Instead, CI runs `moon ci` (which selects only `runInCI: true` tasks on affected projects), and local/pre-push workflows use `verify` (`runInCI: false`) to run only fast, service-free checks (`lint`, `typecheck`, `test-unit`).
+- `format` / `format-write`: Discarded in favor of concise `fmt` (write in place) and `fmt-check` (read-only check). `format` is ambiguous at the terminal about whether it mutates files.
+- `analyse`: Consolidated into `typecheck` (for language/compiler typing and tools like `phpstan`) or nested under `lint` (for prose/schema linters).
 - `check-types` / `check-type`: Standardized to `typecheck`.
 - `docs`: Discarded as a standalone universal task. Documentation builds should be pre-requisite dependencies of project `build` or app tasks.
 - `coverage`: Discarded as a separate task; supplied via argument/environment flag to `test-unit`.

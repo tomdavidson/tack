@@ -35,15 +35,26 @@ expect_used = "deny"
 panic = "deny"
 # Avoid mixing Result-returning APIs with panics
 panic_in_result_fn = "deny"
+# Do not ship unimplemented!()
+unimplemented = "deny"
 # Fallible conversions must be TryFrom/TryInto
 fallible_impl_from = "deny"
-
 # No Err(_) catch-alls; preserve exhaustiveness of error unions
 match_wild_err_arm = "deny"
+# Return Err(...) directly instead of Err(...)?
+try_err = "deny"
 
-# ── 2) Strategic FP: reduce “accidental complexity” ────────────
+# ── 2) Strategic FP & Flat Control Flow ─────────────────────────
+# Activate .clippy.toml cognitive-complexity-threshold = 8
+cognitive_complexity = "warn"
+# Activate .clippy.toml excessive-nesting-threshold = 2 (no nested branches in loops)
+excessive_nesting = "warn"
 # Encourage guard clauses (early return) on Option/Result
 manual_let_else = "warn"
+# No else after return/break/continue (matches TS no-else-return: error)
+redundant_else = "deny"
+# Keep guard clauses separate when each checks a distinct rule
+collapsible_if = "allow"
 # Prefer filter_map when filter+map together
 manual_filter_map = "warn"
 # Similar: avoid find().map(...) patterns when clearer
@@ -60,6 +71,8 @@ inherent_to_string = "deny"
 cloned_instead_of_copied = "warn"
 
 # ── 4) Match/import hygiene ─────────────────────────────────────
+# Enumerate enum variants; require explicit #[allow] + comment for _ =>
+wildcard_enum_match_arm = "warn"
 # Discourage hiding new enum variants with _
 match_wildcard_for_single_variants = "warn"
 # Avoid glob-importing enums into scope

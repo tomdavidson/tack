@@ -140,6 +140,14 @@
     // ─────────────────────────────────────────────────────────────
     // TYPE SAFETY / UNION EXHAUSTIVENESS
     // ─────────────────────────────────────────────────────────────
+    "typescript/explicit-function-return-type": [
+      "error",
+      {
+        "allowExpressions": true,
+        "allowTypedFunctionExpressions": true,
+        "allowHigherOrderFunctions": true,
+      },
+    ],
     "typescript/switch-exhaustiveness-check": "error",
     "typescript/strict-boolean-expressions": "warn",
     "typescript/no-explicit-any": "warn",
@@ -355,7 +363,6 @@
       "files": [
         "**/*.config.ts",
         "**/*.config.mts",
-        "**/*.config.mts",
       ],
       "rules": {
         "import/no-default-export": "off",
@@ -380,6 +387,7 @@
         "no-magic-numbers": "off",
         "no-param-reassign": "off",
         "no-shadow": "off",
+        "typescript/explicit-function-return-type": "off",
         "typescript/no-explicit-any": "off",
         "typescript/no-unsafe-argument": "off",
         "typescript/no-unsafe-return": "off",

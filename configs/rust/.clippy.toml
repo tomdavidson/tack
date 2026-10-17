@@ -4,9 +4,14 @@ too-many-lines-threshold = 30
 # Enforce “2–3 params typical; 4+ suggests a data object” (Clean Code)
 too-many-arguments-threshold = 4
 
-# Complexity guardrail (closest analogue TS complexity/max-depth posture)
+# Complexity guardrail (closest analogue to TS complexity: 5)
 cognitive-complexity-threshold = 8
 
-# Optional: approximate “max nesting depth 1–2”
-# Note: this is structural nesting
-excessive-nesting-threshold = 3
+# Flat control flow: forbid nested branches inside loops (matches TS max-depth: 2)
+excessive-nesting-threshold = 2
+
+# Replace boolean flag parameters with a 2-variant enum (matches TS boolean param ban)
+max-fn-params-bools = 1
+
+# Replace boolean-bag structs with explicit state enums
+max-struct-bools = 2

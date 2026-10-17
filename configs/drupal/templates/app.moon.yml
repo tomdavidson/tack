@@ -5,7 +5,7 @@
 #   .moon/tasks/drupal/all.yml   (tags: drupal)
 #   .moon/tasks/drupal/app.yml   (tags: drupal + layer: application)
 # Set project facts here. Don't redefine inherited tasks; refine them with
-# an explicit merge strategy if you must (ADR 0008 decisions 4 and 6).
+# an explicit merge strategy if you must (ADR 0010 decisions 4 and 5).
 
 $schema: "https://moonrepo.dev/schemas/project.json"
 
