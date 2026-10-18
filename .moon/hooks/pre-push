@@ -11,6 +11,12 @@ done
 
 set -euo pipefail
 
+# Re-entry guard: tidy-push.sh sets this when it pushes a rewritten HEAD itself.
+[[ "${SKIP_PRE_PUSH:-}" == "1" ]] && exit 0
+
+# Fetch --prune; block branches whose PR already merged or that diverged from the remote.
+.moon/scripts/tidy-push.sh preflight
+
 branch="$(git branch --show-current)"
 
 # ---- Trunk detection ----
@@ -85,10 +91,8 @@ done
 
 ((${#existing[@]})) && git add -- "${existing[@]}"
 
-git diff --cached --quiet || git commit -m "chore: auto-format and lint-fix before push"
-
-
-
-.moon/scripts/auto-squash.sh check || { echo "Auto-squash failed. Aborting git push."; exit 1; }
+# Fold staged format fixes into the unpushed commit(s), roll up, merge trunk.
+# If history changed, this pushes the new HEAD itself and exits 1 on purpose.
+.moon/scripts/tidy-push.sh finalize-push
 
 
