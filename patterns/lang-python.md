@@ -84,7 +84,7 @@ named pure helper function and call it from a comprehension or `filter`/`map` pi
 | `ANN001`–`ANN206`                 | `error`    | Require explicit parameter and return types on all functions |
 | `ANN401`                          | `error`    | Ban `typing.Any` in function signatures                      |
 | `basedpyright` (`typecheck` task) | `standard` | Static type checking, union narrowing, and exhaustiveness    |
-| `UP` (`pyupgrade`)                | `error`    | Use modern `X                                                |
+| `UP` (`pyupgrade`)                | `error`    | Use modern `X \| Y` union syntax and `type` aliases          |
 
 ```python
 from typing import NewType

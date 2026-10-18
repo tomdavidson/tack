@@ -45,17 +45,16 @@ run_tack() {
 
 # ----- Refusals -----
 
-@test "merge: refuses *.merge.toml with ADR-0009 guidance" {
-  write_pkg clippy.merge.toml '[lints]
-foo = "warn"
-' target.toml '[a]
-x = 1
+@test "merge toml: nested table merge preserves existing tables and adds fragment" {
+  write_pkg clippy.merge.toml '[workspace.lints.clippy]
+unwrap_used = "deny"
+' Cargo.toml '[workspace.package]
+edition = "2024"
 '
   run_tack
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"*.merge.toml not supported"* ]]
-  [[ "$output" == *"ADR-0009"* ]]
-  grep -q '\[a\]' "$CONSUMER/target.toml"
+  [ "$status" -eq 0 ]
+  [ "$(yq -p toml -o yaml '.workspace.package.edition' "$CONSUMER/Cargo.toml")" = "2024" ]
+  [ "$(yq -p toml -o yaml '.workspace.lints.clippy.unwrap_used' "$CONSUMER/Cargo.toml")" = "deny" ]
 }
 
 @test "merge: refuses unknown extension" {

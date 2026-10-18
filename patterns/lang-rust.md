@@ -19,7 +19,7 @@ and explicit error handling:
   iterator pipelines (`filter_map`, `find_map`) keep control flow flat.
 
 Rules below are split into **Toolchain-Enforced** (backed by `.rustfmt.toml`, `.clippy.toml`, and
-`clippy-cargo.concat.toml`) and **Advisory** (enforced via code review and architecture boundaries
+`clippy-cargo.merge.toml`) and **Advisory** (enforced via code review and architecture boundaries
 until AST/lint tooling covers them).
 
 ---
@@ -28,7 +28,7 @@ until AST/lint tooling covers them).
 
 ### 1. Function Size, Complexity, and Flat Control Flow
 
-Configured in `configs/rust/.clippy.toml` and `configs/rust/clippy-cargo.concat.toml`:
+Configured in `configs/rust/.clippy.toml` and `configs/rust/clippy-cargo.merge.toml`:
 
 | Rule / Threshold                 | Setting | Purpose                                                      |
 | -------------------------------- | ------- | ------------------------------------------------------------ |
@@ -63,7 +63,7 @@ named pure function and compose with an iterator pipeline.
 
 ### 2. Explicit Errors as Data
 
-Enforced in `[workspace.lints.clippy]` (`clippy-cargo.concat.toml`):
+Enforced in `[workspace.lints.clippy]` (`clippy-cargo.merge.toml`):
 
 | Lint                 | Level  | Rule                                                                |
 | -------------------- | ------ | ------------------------------------------------------------------- |
@@ -205,7 +205,7 @@ impl UserId {
 | `large_enum_variant`            | `warn`   | Box oversized error or AST variants                           |
 
 **Agent-Safety Suppressions**: Three `pedantic` lints are explicitly set to `allow` in
-`clippy-cargo.concat.toml` because their auto-fix suggestions push code toward OOP anti-patterns:
+`clippy-cargo.merge.toml` because their auto-fix suggestions push code toward OOP anti-patterns:
 
 - `new_without_default = "allow"`: prevents Clippy from demanding `Default` on validated newtypes
   whose zero value would violate domain invariants.
@@ -390,7 +390,7 @@ pub enum PlaceOrderError {
 
 ## Checklist
 
-- [ ]Toolchain-enforced: `configs/rust` applied (`.rustfmt.toml`, `.clippy.toml`, `clippy-cargo.concat.toml`)
+- [ ] Toolchain-enforced: `configs/rust` applied (`.rustfmt.toml`, `.clippy.toml`, `clippy-cargo.merge.toml`)
 - [ ] Functions ≤ 30 lines, ≤ 4 parameters, cognitive complexity ≤ 8, nesting depth ≤ 2
 - [ ] Guard clauses (`let ... else`) with zero `else` after `return`
 - [ ] `thiserror` in library/domain/app crates; `anyhow`/`miette` in binary crate only

@@ -1,5 +1,7 @@
 files:
-  package.json:
+  prototools.merge.toml:
+    target: .prototools
+  package.merge.json:
     overwrite: false
-  pnpm-workspace.yaml:
+  pnpm-workspace.merge.yaml:
     overwrite: false

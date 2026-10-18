@@ -31,39 +31,17 @@ export const arrowFunctionRules = {
 }
 
 // ── AST selector bans (oxlint cannot do ESQuery selectors) ─────
+// _unsafeUnwrap and _unsafeUnwrapErr are enforced natively by oxlint via
+// no-restricted-properties in oxlintrc.jsonc.
 export const restrictedSyntax = ['error', {
   selector: ":function > Identifier.params[typeAnnotation.typeAnnotation.type='TSBooleanKeyword']",
   message: 'Boolean params are banned. Split into separate functions.',
-}, {
-  selector: "CallExpression[callee.property.name='_unsafeUnwrap']",
-  message: 'Use .map(), .andThen(), or .match() instead.',
-}, {
-  selector: "CallExpression[callee.property.name='_unsafeUnwrapErr']",
-  message: 'Use .mapErr(), .andThen(), or .match() instead.',
 }]
 
-// ── Domain purity: ban IO imports in domain files ──────────────
-export const domainImportBans = {
-  patterns: [{
-    group: ['fs', 'fs/*', 'path', 'http', 'https', 'net', 'child_process', 'crypto'],
-    message: 'Domain must be pure. No Node.js IO.',
-  }, {
-    group: ['express', 'fastify', 'koa', 'hono', 'elysia'],
-    message: 'Domain must be pure. No HTTP frameworks.',
-  }, {
-    group: ['pg', 'mysql*', 'redis', 'ioredis', 'mongoose', '@prisma/*', 'kysely'],
-    message: 'Domain must be pure. No database drivers.',
-  }, {
-    group: ['@aws-sdk/*', '@azure/*', '@google-cloud/*'],
-    message: 'Domain must be pure. No cloud SDKs.',
-  }],
-}
-
 // ── Domain layer overrides ─────────────────────────────────────
-export const domainRules = {
-  'no-restricted-imports': ['error', domainImportBans],
-  'functional/prefer-readonly-type': 'error',
-}
+// Domain IO import bans (no-restricted-imports) are enforced natively
+// by oxlint in oxlintrc.jsonc.
+export const domainRules = { 'functional/prefer-readonly-type': 'error' }
 
 // ── Infrastructure: imperative shell allowances ────────────────
 export const infraRules = {

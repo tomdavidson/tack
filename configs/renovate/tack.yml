@@ -1,8 +1,16 @@
 # configs/renovate/tack.yml
 #
-# .github/** must be copied, not linked. Renovate reads renovate.json5 directly
-# from the repo filesystem; a symlink into the .tack submodule would require
-# Renovate to follow symlinks, which it does not do reliably.
+# Shared Renovate rules live in default.json5 (read remotely by Renovate via
+# `extends: ["github>tomdavidson/tack//configs/renovate/default.json5"]`).
+# .github/renovate.json5 is a seed-once stub (overwrite: false) so consumers
+# can add repo-specific packageRules without tack overwriting them (ADR-0009).
+ignore:
+  - default.json5
+
 mode:
   - copy: ".github/**"
   - link: "**"
+
+files:
+  .github/renovate.json5:
+    overwrite: false

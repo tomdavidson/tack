@@ -6,9 +6,8 @@
 #   .moon/tasks/rust.yml            -> .moon/tasks/rust.yml
 #   .moon/partials/publish-crate.yml -> .moon/partials/publish-crate.yml
 #
-# clippy-cargo.concat.toml appends [workspace.lints.rust] and
-# [workspace.lints.clippy] to the consumer's root Cargo.toml (grandfathered
-# under ADR-0009 decision 6 until a TOML merge path is adopted).
+# clippy-cargo.merge.toml deep-merges [workspace.lints.rust] and
+# [workspace.lints.clippy] into the consumer's root Cargo.toml via yq (ADR-0009).
 files:
-  clippy-cargo.concat.toml:
+  clippy-cargo.merge.toml:
     target: Cargo.toml

@@ -56,7 +56,8 @@
 #                      override via tack.yml files.<src>.target)
 #   *.merge.yml|.yaml  deep-merge into target via yq (default = strip_marker(src),
 #                      override via tack.yml files.<src>.target)
-#   *.merge.toml       refused; use stub+extend or seed-once copy (ADR-0009)
+#   *.merge.toml       deep-merge into target via yq (default = strip_marker(src),
+#                      override via tack.yml files.<src>.target)
 #   *.copy.*           copy verbatim (target = strip_marker(src)); also
 #                      treated as a fallback signal by resolve_mode
 #   everything else    routed by resolve_mode: copy or link (default)
@@ -1150,9 +1151,7 @@ merge_file() {
   case "$ext" in
     json) fmt=json ;;
     yml | yaml) fmt=yaml ;;
-    toml)
-      die "$src_rel: *.merge.toml not supported. Use stub+extend or seed-once copy (ADR-0009)."
-      ;;
+    toml) fmt=toml ;;
     *)
       die "$src_rel: *.merge.$ext unsupported extension"
       ;;
@@ -1201,6 +1200,7 @@ merge_file() {
     case "$fmt" in
       json) printf '{}\n' > "$seed" ;;
       yaml) printf '{}\n' > "$seed" ;;
+      toml) : > "$seed" ;;
     esac
     src_target="$seed"
   else

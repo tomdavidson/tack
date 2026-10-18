@@ -17,30 +17,30 @@
 Organize by feature. File suffixes declare the architectural layer so oxlint can match rules
 by glob. The stem describes the business concern, the suffix describes the constraint level.
 
+```text
 src/orders/
-types.domain.ts
-invariants.domain.ts
-pricing.app.ts
-validate-line-items.app.ts
-postgres.infra.ts
-pricing.spec.ts
-
-text
+  types.domain.ts
+  invariants.domain.ts
+  pricing.app.ts
+  validate-line-items.app.ts
+  postgres.infra.ts
+  pricing.spec.ts
+```
 
 When a feature accumulates 5+ files of the same suffix, promote to a subdirectory. Both
 patterns coexist in the same oxlint config so features grow independently:
 
+```text
 src/orders/
-domain/
-types.ts
-invariants.ts
-events.ts
-value-objects.ts
-factories.ts
-pricing.app.ts
-postgres.infra.ts
-
-text
+  domain/
+    types.ts
+    invariants.ts
+    events.ts
+    value-objects.ts
+    factories.ts
+  pricing.app.ts
+  postgres.infra.ts
+```
 
 ### Layers
 
@@ -155,7 +155,7 @@ no natural return value, it performs a side effect and belongs in an infrastruct
 
 - `no-throw-statements: error` and `no-try-statements: error` in domain and application
 - `no-return-void: error` in domain and application; off in infrastructure
-- `._unsafeUnwrap()` and `._unsafeUnwrapErr()` are banned via AST selector
+- `._unsafeUnwrap()` and `._unsafeUnwrapErr()` are banned via `no-restricted-properties`
 - Only throw `Error` subclasses with messages: `throw new Error('...')`, never `throw 'string'`
 - Always use `new` with Error: `throw new Error(...)`, not `throw Error(...)`
 - Prefer `TypeError` when the issue is a type/shape violation

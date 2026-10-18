@@ -2,10 +2,8 @@
 # tests/delivery_modes.bats - ADR-0009 delivery-mode guards
 #
 # Decision 6: concat is for line-oriented files only. A structured file
-# (Nix, JSON, YAML) is never shipped as a *.concat.* fragment: Nix is a
-# devenv module imported from .tack, JSON/YAML use *.merge.*. TOML concat
-# (configs/rust Cargo.toml) is grandfathered until a TOML merge path
-# exists and is deliberately not covered here.
+# (Nix, JSON, YAML, TOML) is never shipped as a *.concat.* fragment: Nix is
+# a devenv module imported from .tack, JSON/YAML/TOML use *.merge.*.
 
 setup() {
   TACK_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
@@ -40,6 +38,14 @@ package_files() {
   found=$(package_files '*.concat.yml'; package_files '*.concat.yaml')
   [ -z "$found" ] || {
     printf 'YAML must use *.merge.yml, not concat:\n%s\n' "$found" >&2
+    return 1
+  }
+}
+
+@test "ADR-0009: no package ships a *.concat.toml fragment" {
+  found=$(package_files '*.concat.toml')
+  [ -z "$found" ] || {
+    printf 'TOML must use *.merge.toml or stub+extend, not concat:\n%s\n' "$found" >&2
     return 1
   }
 }
@@ -92,4 +98,32 @@ package_files() {
   grep -q './.tack/configs/drupal/phpcs.xml' "$TACK_ROOT/configs/drupal/phpcs.xml.dist"
   grep -q '.tack/configs/drupal/phpstan.neon' "$TACK_ROOT/configs/drupal/phpstan.neon.dist"
   grep -q './.tack/configs/drupal/dprint-drupal.json' "$TACK_ROOT/configs/drupal/dprint.merge.json"
+}
+
+@test "ADR-0009: configs/javascript merges node/pnpm into .prototools and does not clobber package.json metadata" {
+  [ -f "$TACK_ROOT/configs/javascript/prototools.merge.toml" ]
+  [ ! -e "$TACK_ROOT/configs/javascript/.prototools" ]
+  ! grep -qE '^(node|pnpm)\s*=' "$TACK_ROOT/configs/common/.prototools"
+  grep -q 'prototools.merge.toml:' "$TACK_ROOT/configs/javascript/tack.yml"
+  grep -q 'target: .prototools' "$TACK_ROOT/configs/javascript/tack.yml"
+  grep -q 'package.merge.json:' "$TACK_ROOT/configs/javascript/tack.yml"
+  grep -q 'pnpm-workspace.merge.yaml:' "$TACK_ROOT/configs/javascript/tack.yml"
+  grep -q '.tack/packages/\*' "$TACK_ROOT/configs/javascript/pnpm-workspace.merge.yaml"
+  grep -q '@tack/eslint-config' "$TACK_ROOT/configs/javascript/package.merge.json"
+  ! grep -q '"name"' "$TACK_ROOT/configs/javascript/package.merge.json"
+  ! grep -q '"version"' "$TACK_ROOT/configs/javascript/package.merge.json"
+  ! grep -q '"packageManager"' "$TACK_ROOT/configs/javascript/package.merge.json"
+  ! grep -q '"name"' "$TACK_ROOT/configs/web/package.merge.json"
+  ! grep -q '"version"' "$TACK_ROOT/configs/web/package.merge.json"
+  ! grep -q '"packageManager"' "$TACK_ROOT/configs/web/package.merge.json"
+}
+
+@test "ADR-0009: configs/renovate ships shared default.json5 preset and seed-once .github/renovate.json5 stub" {
+  [ -f "$TACK_ROOT/configs/renovate/default.json5" ]
+  [ -f "$TACK_ROOT/configs/renovate/.github/renovate.json5" ]
+  grep -qE '^\s*-\s*default\.json5\s*$' "$TACK_ROOT/configs/renovate/tack.yml"
+  grep -q '.github/renovate.json5:' "$TACK_ROOT/configs/renovate/tack.yml"
+  grep -q 'overwrite: false' "$TACK_ROOT/configs/renovate/tack.yml"
+  grep -q 'github>tomdavidson/tack//configs/renovate/default.json5' "$TACK_ROOT/configs/renovate/.github/renovate.json5"
+  grep -q 'pnpm-workspace.yaml' "$TACK_ROOT/configs/renovate/default.json5"
 }

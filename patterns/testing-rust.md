@@ -53,7 +53,7 @@ database, filesystem, or network, it goes in `tests/`.
 
 ## Test-Module Clippy Allowance
 
-Because `configs/rust/clippy-cargo.concat.toml` denies `unwrap_used`, `expect_used`, and `panic`
+Because `configs/rust/clippy-cargo.merge.toml` denies `unwrap_used`, `expect_used`, and `panic`
 workspace-wide, annotate every `#[cfg(test)]` module so `assert!`, `assert_eq!`, and `prop_assert!`
 compile cleanly:
 
