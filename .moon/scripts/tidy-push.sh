@@ -17,7 +17,9 @@
 #   - The editor opens BEFORE history changes. Ctrl+C, a non-zero editor exit,
 #     or an empty message aborts with every commit untouched.
 #   - If HEAD changes, the hook pushes the new HEAD itself and exits 1, because
-#     the outer git push already chose the old SHA before the hook ran.
+#     the outer git push already chose the old SHA before the hook ran. It
+#     prints 'EXPECTED' first, so Git's red error is explained.
+#   - Any other non-zero exit prints 'UNEXPECTED' with fix hints.
 
 set -euo pipefail
 
@@ -25,10 +27,26 @@ remote="${PUSH_FLOW_REMOTE:-origin}"
 noise_re='^([-._]+|wip|fmt|fixup|temp|tmp|test|try.*|again|more)$'
 msg_file=""
 clean_msg=""
+expected_rewrite=0
+hint_on_fail=0
 
 cleanup() {
+  local rc=$?
   [[ -n $msg_file && -e $msg_file ]] && rm -f "$msg_file"
   [[ -n $clean_msg && -e $clean_msg ]] && rm -f "$clean_msg"
+  if ((rc != 0 && rc != 2 && expected_rewrite == 0 && hint_on_fail == 1)); then
+    rule
+    say "x UNEXPECTED push failure. This is NOT the normal 'history rewritten' stop."
+    say "  (That one always prints 'EXPECTED' before Git's red error.)"
+    say "  Fixes to try, in order:"
+    say "    1. Read the message above this one; it names the cause."
+    say "    2. git status -sb          # diverged, or no upstream?"
+    say "    3. git fetch --prune && .moon/scripts/tidy-push.sh status"
+    say "    4. git merge $remote/<branch>   # if the remote moved"
+    say "    5. moon run :vf, then fix lint/format/gitleaks findings"
+    say "    6. Roll-up aborted? Re-run git push and save a non-empty message"
+    rule
+  fi
   return 0
 }
 trap cleanup EXIT
@@ -329,9 +347,14 @@ finalize-push() {
     git show-ref --verify --quiet "refs/remotes/$remote/$branch" || flags+=(-u)
     say "* pushing $(git log -1 --oneline) to $remote/$branch"
     SKIP_PRE_PUSH=1 git push "${flags[@]}" "$remote" "HEAD:refs/heads/$branch"
+    expected_rewrite=1
     rule
     say "OK pushed $(git log -1 --oneline) to $remote/$branch."
-    say "  The outer 'git push' stops on purpose: it still held the pre-rewrite commit."
+    say ""
+    say "EXPECTED: Git will now print a red 'error: failed to push some refs'."
+    say "  Your history was tidied, so the outer 'git push' still held the old"
+    say "  commit and stops on purpose. Nothing is wrong and nothing to do."
+    say "  (Only worry if that red error appears WITHOUT this message.)"
     rule
     exit 1
   fi
@@ -358,8 +381,14 @@ status() {
 
 case "${1:-preflight}" in
   trunk) detect-trunk ;;
-  preflight | check) preflight ;;
-  finalize-push) finalize-push finalize-push ;;
+  preflight | check)
+    hint_on_fail=1
+    preflight
+    ;;
+  finalize-push)
+    hint_on_fail=1
+    finalize-push finalize-push
+    ;;
   run | squash | tidy) preflight && finalize-push run ;;
   status) status ;;
   *)
