@@ -10,11 +10,13 @@
 #       github-token: ${{ secrets.GITHUB_TOKEN }}
 #       extra-scopes: "infra,release"
 #
-# Scopes auto-discovered from .moon/workspace.yml projects list.
-# deps, ci, repo are always included.
+# Enforces:
+#   1. PR is not a draft, does not have a WIP title prefix, and has no `wip` label.
+#   2. PR title matches Conventional Commits with optional scope from Moon projects
+#      + builtins (`deps,ci,repo`).
 
 name: "Conventional PR"
-description: "Enforce conventional commit format on PR titles with auto-discovered scopes"
+description: "Block draft/WIP PRs and enforce conventional commit format on PR titles with auto-discovered Moon scopes"
 
 inputs:
   github-token:
@@ -23,38 +25,82 @@ inputs:
   extra-scopes:
     required: false
     default: ""
-    description: "Comma-separated additional scopes beyond project names and builtins"
+    description: "Comma-separated additional scopes beyond Moon project names and builtins"
+  require-scope:
+    required: false
+    default: "false"
+    description: "Require a scope in the PR title (default: false)"
 
 runs:
   using: composite
   steps:
+    - name: Block draft and WIP pull requests
+      shell: bash
+      env:
+        PR_DRAFT: ${{ github.event.pull_request.draft }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+      run: |
+        set -euo pipefail
+
+        if [[ "${PR_DRAFT:-false}" == "true" ]]; then
+          echo "::error::Pull request is marked as a Draft. Mark it Ready for Review before merging."
+          exit 1
+        fi
+
+        if [[ "${PR_TITLE:-}" =~ ^[[:space:]]*(\[[Ww][Ii][Pp]\]|[Ww][Ii][Pp](:|\b)) ]]; then
+          echo "::error::Pull request title has a WIP prefix ('${PR_TITLE}'). Remove WIP before merging."
+          exit 1
+        fi
+
+        if echo "${PR_LABELS:-[]}" | jq -e 'map(ascii_downcase) | index("wip") != null' > /dev/null; then
+          echo "::error::Pull request has the 'wip' label. Remove the 'wip' label before merging."
+          exit 1
+        fi
+
     - name: Discover project scopes
       id: scopes
       shell: bash
+      env:
+        EXTRA_SCOPES: ${{ inputs.extra-scopes }}
       run: |
-        projects=$(yq '.workspace.projects // .projects |
-          if type == "!!seq" then .[] else keys[] end' .moon/workspace.yml 2>/dev/null | sort -u)
+        set -euo pipefail
+
+        moon_projects=""
+        if command -v moon > /dev/null 2>&1 && [[ -f .moon/workspace.yml ]]; then
+          moon_projects=$(moon query projects 2> /dev/null | jq -r '.projects[].id // empty' || true)
+        fi
+
+        if [[ -z "$moon_projects" && -f .moon/workspace.yml ]] && command -v yq > /dev/null 2>&1; then
+          moon_projects=$(yq '.workspace.projects // .projects |
+            if type == "!!seq" then .[] elif type == "!!map" then (.sources // . | keys[]) else "" end' \
+            .moon/workspace.yml 2> /dev/null || true)
+        fi
 
         builtins="deps,ci,repo"
-        extra="${{ inputs.extra-scopes }}"
-        combined="${builtins}${extra:+,$extra}"
+        combined="${builtins}${EXTRA_SCOPES:+,$EXTRA_SCOPES}"
 
-        all_scopes=$(printf "%s\n%s" "$projects" "$(echo "$combined" | tr ',' '\n')" | sort -u)
+        all_scopes=$(printf "%s\n%s" "$moon_projects" "$(echo "$combined" | tr ',' '\n')" | sed '/^[[:space:]]*$/d' | sort -u)
 
-        echo "scopes<<EOF" >> "$GITHUB_OUTPUT"
-        echo "$all_scopes" >> "$GITHUB_OUTPUT"
-        echo "EOF" >> "$GITHUB_OUTPUT"
+        {
+          echo "scopes<<EOF"
+          echo "$all_scopes"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
 
     - uses: amannn/action-semantic-pull-request@v5
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
       with:
+        requireScope: ${{ inputs.require-scope }}
         types: |
           feat
           fix
-          chore
-          docs
-          refactor
-          test
           perf
+          refactor
+          docs
+          test
+          ci
+          chore
+          # revert
         scopes: ${{ steps.scopes.outputs.scopes }}

@@ -1,4 +1,7 @@
 path_prefix: .github
 
+ignore:
+  - renovate.json5
+
 mode:
   - copy: "**"

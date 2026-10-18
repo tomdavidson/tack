@@ -35,7 +35,10 @@ package_files() {
 }
 
 @test "ADR-0009: no package ships a *.concat.yml or *.concat.yaml fragment" {
-  found=$(package_files '*.concat.yml'; package_files '*.concat.yaml')
+  found=$(
+    package_files '*.concat.yml'
+    package_files '*.concat.yaml'
+  )
   [ -z "$found" ] || {
     printf 'YAML must use *.merge.yml, not concat:\n%s\n' "$found" >&2
     return 1
@@ -122,8 +125,21 @@ package_files() {
   [ -f "$TACK_ROOT/configs/renovate/default.json5" ]
   [ -f "$TACK_ROOT/configs/renovate/.github/renovate.json5" ]
   grep -qE '^\s*-\s*default\.json5\s*$' "$TACK_ROOT/configs/renovate/tack.yml"
+  grep -qE '^\s*-\s*renovate\.json5\s*$' "$TACK_ROOT/.github/tack.yml"
   grep -q '.github/renovate.json5:' "$TACK_ROOT/configs/renovate/tack.yml"
   grep -q 'overwrite: false' "$TACK_ROOT/configs/renovate/tack.yml"
   grep -q 'github>tomdavidson/tack//configs/renovate/default.json5' "$TACK_ROOT/configs/renovate/.github/renovate.json5"
   grep -q 'pnpm-workspace.yaml' "$TACK_ROOT/configs/renovate/default.json5"
+}
+
+@test "release & RAA flow: release-please seeded at 1.0.0, conventional-pr wired into pr.yml, and root RAA tasks in tack-internal.yml" {
+  [ -f "$TACK_ROOT/release-please-config.json" ]
+  [ -f "$TACK_ROOT/.release-please-manifest.json" ]
+  grep -q '"1.0.0"' "$TACK_ROOT/.release-please-manifest.json"
+  grep -q '"release-type": "simple"' "$TACK_ROOT/release-please-config.json"
+  grep -q '"include-component-in-tag": false' "$TACK_ROOT/release-please-config.json"
+  grep -q 'conventional-pr' "$TACK_ROOT/.github/workflows/pr.yml"
+  grep -q '# revert' "$TACK_ROOT/.github/actions/conventional-pr/action.yml"
+  grep -q 'raa-run:' "$TACK_ROOT/.moon/tasks/tack-internal.yml"
+  grep -q 'raa-rm:' "$TACK_ROOT/.moon/tasks/tack-internal.yml"
 }
