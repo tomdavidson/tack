@@ -1,0 +1,9 @@
+# Shared PHPStan baseline read through .tack via `includes`; never materialized.
+# phpstan-strict-rules and spaze/phpstan-disallowed-calls are wired in by
+# phpstan/extension-installer when present in the project's composer.json.
+parameters:
+  level: 8
+  excludePaths:
+    - '*/node_modules/*'
+    - '*/vendor/*'
+  reportUnmatchedIgnoredErrors: false

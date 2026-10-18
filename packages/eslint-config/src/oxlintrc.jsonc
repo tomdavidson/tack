@@ -106,14 +106,14 @@
     // ─────────────────────────────────────────────────────────────
     // DECLARATIVE ITERATION (nudges toward array methods)
     // ─────────────────────────────────────────────────────────────
-    // "unicorn/no-for-loop": "error",  // not implmented  in oxlint
+    "typescript/prefer-for-of": "warn",
     "unicorn/no-array-for-each": "warn",
     "unicorn/prefer-array-flat-map": "error",
     "unicorn/prefer-array-find": "error",
     "unicorn/prefer-array-some": "error",
     "unicorn/prefer-array-index-of": "error",
     "unicorn/no-array-reduce": "allow",
-    // "unicorn/no-array-push-push": "warn", // not implmented  in oxlint
+    "unicorn/prefer-single-call": "warn",
     "unicorn/prefer-set-has": "warn",
     // ─────────────────────────────────────────────────────────────
     // ASYNC / PROMISE SAFETY (type-aware + runtime-ish)
@@ -140,6 +140,14 @@
     // ─────────────────────────────────────────────────────────────
     // TYPE SAFETY / UNION EXHAUSTIVENESS
     // ─────────────────────────────────────────────────────────────
+    "typescript/explicit-function-return-type": [
+      "error",
+      {
+        "allowExpressions": true,
+        "allowTypedFunctionExpressions": true,
+        "allowHigherOrderFunctions": true,
+      },
+    ],
     "typescript/switch-exhaustiveness-check": "error",
     "typescript/strict-boolean-expressions": "warn",
     "typescript/no-explicit-any": "warn",
@@ -193,6 +201,17 @@
     "unicorn/prefer-type-error": "warn",
     "no-throw-literal": "error",
     "prefer-promise-reject-errors": "error",
+    "no-restricted-properties": [
+      "error",
+      {
+        "property": "_unsafeUnwrap",
+        "message": "Use .map(), .andThen(), or .match() instead.",
+      },
+      {
+        "property": "_unsafeUnwrapErr",
+        "message": "Use .mapErr(), .andThen(), or .match() instead.",
+      },
+    ],
     // ─────────────────────────────────────────────────────────────
     // FP-ADJACENT "NO CLASSES AS NAMESPACES" HELPERS
     // (not a full ban; see domain/infra overrides for class policy)
@@ -236,7 +255,7 @@
     ],
     "unicorn/no-empty-file": "error",
     // Subtle "dead code" / refactor safety
-    // "no-useless-assignment": "warn",  // not implmented  in oxlint
+    "no-useless-assignment": "warn",
     // Small performance-ish correctness
     "oxc/approx-constant": "warn",
     "no-useless-call": "warn",
@@ -272,11 +291,64 @@
       ],
       "rules": {
         // Domain must be pure. Ban all IO-related imports.
-        // NOTE: oxlint no-restricted-imports does not support pattern groups
-        // like ESLint does. If you need granular import bans (fs, pg, express,
-        // cloud SDKs), keep the ESLint no-restricted-imports rule for domain
-        // files or enforce via a CI script. These are the closest oxlint
-        // approximations:
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "fs",
+                  "fs/*",
+                  "node:fs",
+                  "node:fs/*",
+                  "path",
+                  "node:path",
+                  "http",
+                  "node:http",
+                  "https",
+                  "node:https",
+                  "net",
+                  "node:net",
+                  "child_process",
+                  "node:child_process",
+                  "crypto",
+                  "node:crypto",
+                ],
+                "message": "Domain must be pure. No Node.js IO.",
+              },
+              {
+                "group": [
+                  "express",
+                  "fastify",
+                  "koa",
+                  "hono",
+                  "elysia",
+                ],
+                "message": "Domain must be pure. No HTTP frameworks.",
+              },
+              {
+                "group": [
+                  "pg",
+                  "mysql*",
+                  "redis",
+                  "ioredis",
+                  "mongoose",
+                  "@prisma/*",
+                  "kysely",
+                ],
+                "message": "Domain must be pure. No database drivers.",
+              },
+              {
+                "group": [
+                  "@aws-sdk/*",
+                  "@azure/*",
+                  "@google-cloud/*",
+                ],
+                "message": "Domain must be pure. No cloud SDKs.",
+              },
+            ],
+          },
+        ],
         "node/no-process-env": "error",
         // Readonly is required, not just encouraged, in domain
         // (oxlint does not have functional/prefer-readonly-type, but
@@ -304,7 +376,6 @@
       ],
       "rules": {
         // Loops and forEach are acceptable in IO code (warn, not error)
-        // "unicorn/no-for-loop": "warn",  // not implmented  in oxlint
         "unicorn/no-array-for-each": "off",
         // process.env access is expected in infra
         "node/no-process-env": "off",
@@ -355,7 +426,6 @@
       "files": [
         "**/*.config.ts",
         "**/*.config.mts",
-        "**/*.config.mts",
       ],
       "rules": {
         "import/no-default-export": "off",
@@ -380,6 +450,7 @@
         "no-magic-numbers": "off",
         "no-param-reassign": "off",
         "no-shadow": "off",
+        "typescript/explicit-function-return-type": "off",
         "typescript/no-explicit-any": "off",
         "typescript/no-unsafe-argument": "off",
         "typescript/no-unsafe-return": "off",
@@ -394,6 +465,7 @@
         "unicorn/consistent-function-scoping": "off",
         "typescript/no-unsafe-type-assertion": "off",
         "node/no-process-env": "off",
+        "no-restricted-properties": "off",
       },
     },
   ],

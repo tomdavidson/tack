@@ -8,12 +8,7 @@ overrides:
     exclude:
       - .gitattributes
       - .gitignore
-  # Root .prototools is linked from configs/common, same as every consumer.
-  # configs/javascript ships a node/pnpm-only .prototools that would win
-  # (alphabetical apply order) and clobber it, so exclude that copy.
-  configs/javascript:
-    exclude:
-      - .prototools
+      - dprint.copy.json
   # Same reasoning: this repo's .github/ is hand-maintained.
   configs/renovate:
     exclude:

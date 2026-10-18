@@ -1,15 +1,11 @@
 {
-  "name": "",
-  "version": "0.0.0",
   "private": true,
-  "packageManager": "pnpm@10.32.1",
   "devDependencies": {
-    "@astro-bay/eslint-config": "workspace:",
-    "@astro-bay/eslint-config-astro": "workspace:",
+    "@tack/eslint-config": "workspace:*",
+    "@tack/eslint-config-astro": "workspace:*",
     "@astrojs/check": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "astro": "catalog:",
     "vitest": "catalog:"
-  },
-  "scripts": {}
+  }
 }

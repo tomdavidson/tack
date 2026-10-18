@@ -2,7 +2,8 @@
 number: 4
 title: Delayed Merge and Unstructured Concat
 date: 2026-04-24
-status: proposed
+status: superseded
+superseded_by: 9
 ---
 
 # 4. Delayed Merge and Unstructured Concat
@@ -11,7 +12,7 @@ Date: 2026-04-24
 
 ## Status
 
-Proposed
+Superseded by [ADR-0009](0009-delivery-modes-for-shared-config-link-stub-extend-seed-once.md) (structured JSON/YAML files use `*.merge.json` / `*.merge.yml` deep-merge via `yq` or native tool `extends`/`includes` stubs; `*.concat.*` is restricted to line-oriented files such as `.gitignore` and `.gitattributes`, with `Cargo.toml` grandfathered until a TOML merge path lands).
 
 ## Context
 

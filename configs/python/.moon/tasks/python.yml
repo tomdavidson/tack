@@ -40,7 +40,7 @@ tasks:
     options:
       runInCI: false
 
-  check-types:
+  typecheck:
     command: "uv run --frozen basedpyright"
     toolchains: ["system"]
     inputs:
@@ -56,9 +56,11 @@ tasks:
       - "@group(tests)"
       - "@group(configs)"
 
-  check:
+  verify:
     command: "noop"
     deps:
       - "~:lint"
-      - "~:check-types"
+      - "~:typecheck"
       - "~:test"
+    options:
+      runInCI: false

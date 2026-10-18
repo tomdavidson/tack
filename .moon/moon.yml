@@ -63,3 +63,27 @@ tasks:
     command: "noop"
     deps:
       - "~:lint-sh"
+
+  lint-fix:
+    command: "noop"
+    deps:
+      - "~:lint-sh"
+    options:
+      runInCI: false
+
+  fix:
+    command: "noop"
+    deps:
+      - "~:fmt"
+      - "~:lint-fix"
+    options:
+      runInCI: false
+      runDepsInParallel: false
+
+  verify:
+    command: "noop"
+    deps:
+      - "~:fmt-check"
+      - "~:lint"
+    options:
+      runInCI: false

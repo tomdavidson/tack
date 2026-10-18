@@ -8,9 +8,9 @@
  * - If extends already contains the bundled path, leaves it alone.
  *
  * Usage:
- *   node node_modules/@astro-bay/eslint-config/src/ensure-oxlintrc.mjs
+ *   node node_modules/@tack/eslint-config/src/install-oxlintrc.mjs
  *   # or from package.json scripts:
- *   "postinstall": "node node_modules/@astro-bay/eslint-config/src/ensure-oxlintrc.mjs"
+ *   "postinstall": "node node_modules/@tack/eslint-config/src/install-oxlintrc.mjs"
  */
 
 import { applyEdits, modify, parse } from 'jsonc-parser'
@@ -18,7 +18,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
 
 const SCHEMA = './node_modules/oxlint/configuration_schema.json'
-const EXTENDS_ENTRY = './node_modules/@astro-bay/eslint-config/src/oxlintrc.jsonc'
+const EXTENDS_ENTRY = './node_modules/@tack/eslint-config/src/oxlintrc.jsonc'
 
 const findRoot = () => {
   // Walk up from cwd looking for a package.json with workspaces or no parent package.json

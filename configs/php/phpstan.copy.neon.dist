@@ -1,0 +1,10 @@
+# Consumer-owned PHPStan config, seeded once by tack (overwrite: false).
+# Shared rules are read through .tack via `includes`; bumping .tack updates
+# those rules without touching this file. Put project-specific paths and
+# overrides under `parameters:` below.
+includes:
+  - .tack/configs/php/phpstan.neon
+
+parameters:
+  paths:
+    - src

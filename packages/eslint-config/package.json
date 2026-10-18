@@ -7,7 +7,8 @@
     ".": "./src/index.mjs",
     "./rules": "./src/rules.mjs",
     "./layers": "./src/layers.mjs",
-    "./oxlintrc.json": "./src/oxlintrc.json"
+    "./oxlintrc.jsonc": "./src/oxlintrc.jsonc",
+    "./oxlintrc.json": "./src/oxlintrc.jsonc"
   },
   "main": "./src/index.mjs",
   "bin": {

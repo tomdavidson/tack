@@ -1,19 +1,19 @@
 /**
- * @astro-bay/eslint-config-astro
+ * @tack/eslint-config-astro
  *
  * ESLint flat config for .astro files. Treats Astro as the infrastructure/view
  * layer with FP relaxations, structural complexity limits, unicorn, and node rules.
  *
  * Usage:
- *   import astroConfig from '@astro-bay/eslint-config-astro'
+ *   import astroConfig from '@tack/eslint-config-astro'
  *   import { defineConfig } from 'eslint/config'
  *   export default defineConfig(
  *     ...astroConfig({ tsconfigRootDir: import.meta.dirname }),
  *   )
  *
  * Usage (composed into a larger config):
- *   import tsConfig from '@astro-bay/eslint-config'
- *   import astroConfig from '@astro-bay/eslint-config-astro'
+ *   import tsConfig from '@tack/eslint-config'
+ *   import astroConfig from '@tack/eslint-config-astro'
  *   import { defineConfig } from 'eslint/config'
  *   export default defineConfig(
  *     ...tsConfig({ tsconfigRootDir: import.meta.dirname }),
@@ -21,7 +21,7 @@
  *   )
  *
  * Usage (rules only, bring your own parser):
- *   import { astroFrontmatterRules } from '@astro-bay/eslint-config-astro/rules'
+ *   import { astroFrontmatterRules } from '@tack/eslint-config-astro/rules'
  */
 
 import astroPlugin from 'eslint-plugin-astro'
@@ -71,7 +71,7 @@ const astroConfig = (options = {}) => {
 
     // Astro frontmatter (the --- block)
     {
-      name: '@astro-bay/eslint-config-astro/frontmatter',
+      name: '@tack/eslint-config-astro/frontmatter',
       files: astroFiles,
       languageOptions: { parserOptions },
       plugins: { ...pluginMap },
@@ -80,7 +80,7 @@ const astroConfig = (options = {}) => {
 
     // Client-side <script> tags extracted by eslint-plugin-astro
     {
-      name: '@astro-bay/eslint-config-astro/client-scripts',
+      name: '@tack/eslint-config-astro/client-scripts',
       files: ['**/*.astro/*.ts', '**/*.astro/*.js'],
       languageOptions: { parser: tseslint.parser, parserOptions: clientParserOptions },
       plugins: { ...pluginMap },

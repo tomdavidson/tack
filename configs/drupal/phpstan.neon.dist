@@ -1,16 +1,11 @@
-# Static analysis for LocalGov Multisite custom code.
-# phpstan-drupal is wired in by phpstan/extension-installer
-# (see composer.json allow-plugins).
-# Paths are passed as args by moon tasks; override paths: here if needed.
+# Consumer-owned Drupal PHPStan config, seeded once by tack (overwrite: false).
+# Shared rules are read through .tack via `includes` (.tack/configs/drupal/phpstan.neon
+# -> .tack/configs/php/phpstan.neon); bumping .tack updates those rules without
+# touching this file. Put project-specific paths and overrides below.
+includes:
+  - .tack/configs/drupal/phpstan.neon
+
 parameters:
-  level: 6
   paths:
     - web/modules/custom
     - web/themes/custom
-  excludePaths:
-    - '*/node_modules/*'
-    - '*/tests/*'
-  reportUnmatchedIgnoredErrors: false
-  ignoreErrors:
-    # new static() is idiomatic Drupal.
-    - '#^Unsafe usage of new static#'

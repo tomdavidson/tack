@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Consumer-owned PHP_CodeSniffer config, seeded once by tack (overwrite: false).
+  Shared rules live in .tack/configs/php/phpcs.xml and update automatically on
+  submodule bumps. Add project-specific rule overrides or path exclusions below.
+-->
+<ruleset name="project-php">
+  <description>Project PHP_CodeSniffer configuration extending tack's PHP baseline.</description>
+
+  <rule ref="./.tack/configs/php/phpcs.xml"/>
+</ruleset>

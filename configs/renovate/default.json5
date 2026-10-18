@@ -1,0 +1,72 @@
+// configs/renovate/default.json5
+//
+// Shared Renovate preset for all tack consumer repos.
+// Referenced via `extends: ["github>tomdavidson/tack//configs/renovate/default.json5"]`
+// from the consumer's seed-once `.github/renovate.json5` stub (ADR-0009).
+//
+// Ownership split:
+//   1. Tooling (.prototools, dprint.json, pnpm-workspace.yaml catalog, .github/workflows)
+//      is owned by tack and updated ONLY when the .tack git submodule bumps.
+//   2. Consumer dependencies in root `package.json`, `Cargo.toml`, `composer.json`,
+//      `pyproject.toml`, and all Moon projects (`apps/*`, `packages/*`, etc.)
+//      that hold real version ranges (not `catalog:` or `workspace:*`) ARE
+//      updated by Renovate.
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended"],
+
+  baseBranchPatterns: ["main"],
+  dependencyDashboard: true,
+  osvVulnerabilityAlerts: true,
+  minimumReleaseAge: "3 days",
+
+  // Ignore tack-owned root files so they only update via `.tack` submodule bumps.
+  // Root `package.json` is NOT ignored: any non-`catalog:` dependency a consumer
+  // adds to root `package.json` (or root `Cargo.toml`/`pyproject.toml`) is updated
+  // normally, while `catalog:` entries live in `pnpm-workspace.yaml` (ignored here).
+  ignorePaths: [
+    "**/node_modules/**",
+    ".tack/**",
+    ".moon/**",
+    ".github/workflows/**",
+    ".github/actions/**",
+    ".prototools",
+    "dprint.json",
+    "pnpm-workspace.yaml",
+  ],
+
+  // git-submodules is disabled by default in Renovate and requires explicit opt-in.
+  "git-submodules": {
+    enabled: true,
+  },
+
+  vulnerabilityAlerts: {
+    enabled: true,
+    labels: ["security", "renovate"],
+    minimumReleaseAge: "0 days",
+  },
+
+  labels: ["renovate"],
+  prCreation: "immediate",
+  prHourlyLimit: 4,
+  prConcurrentLimit: 8,
+
+  packageRules: [
+    {
+      // 1. The .tack submodule bump PR: immediate, separate PR.
+      matchManagers: ["git-submodules"],
+      matchDepNames: [".tack"],
+      groupName: "tack",
+      labels: ["renovate", "tack"],
+      minimumReleaseAge: "0 days",
+      automerge: false,
+      commitMessagePrefix: "chore(tack):",
+    },
+    {
+      // 2. Group non-major updates per directory (root or Moon project).
+      matchDatasources: ["npm", "crate", "pypi", "packagist", "docker"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "{{parentDir}} non-major dependencies",
+    },
+  ],
+}

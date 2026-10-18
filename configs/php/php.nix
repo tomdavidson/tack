@@ -45,4 +45,8 @@ in
       BWRAP_REPO_ROOT=${lib.escapeShellArg projectRoot} \
       ${lib.escapeShellArg bwrapRun} composer "$@"
   '';
+
+  enterShell = ''
+    export PATH="${projectRoot}/vendor/bin:$PATH"
+  '';
 }

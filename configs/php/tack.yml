@@ -19,5 +19,21 @@
 # Do NOT also list `composer` in vars.bwrap.tools: php.nix defines
 # scripts.composer itself and a second definition is a module conflict.
 ignore:
-  # read through .tack via `imports`, never materialized
+  # read through .tack via `imports` / `extends` / `includes`, never materialized
   - php.nix
+  - phpcs-base.xml
+  - phpcs.xml
+  - phpstan.neon
+  - dprint-php.json
+
+files:
+  phpcs.copy.xml.dist:
+    target: phpcs.xml.dist
+    overwrite: false
+  phpstan.copy.neon.dist:
+    target: phpstan.neon.dist
+    overwrite: false
+  dprint.merge.json:
+    target: dprint.json
+  .moon/tasks/php.yml:
+    target: .moon/tasks/php.yml

@@ -1,636 +1,404 @@
-# Rust Testing
+# Rust Patterns
 
-> Rust-specific patterns for [Testing](testing.md). Assumes `cargo-nextest`, `proptest`, `proptest-derive`, `cargo-fuzz`.
+> Rust-specific implementation choices for [Tom's Clean Code](toms-clean-code.md). Specifies
+> preferred approach when Rust allows multiple. When Rust offers both an OOP-like option and a
+> functional option, always choose the functional option.
 
-## Tools
+## Strategic FP Philosophy
 
-| Purpose     | Crate                          | Notes                                                                                    |
-| ----------- | ------------------------------ | ---------------------------------------------------------------------------------------- |
-| Runner      | `cargo-nextest`                | Parallel, filtered, per-test overrides. Replaces `cargo test` for running.               |
-| Property    | `proptest` + `proptest-derive` | Preferred over quickcheck. `proptest-derive` for `#[derive(Arbitrary)]` on domain types. |
-| Snapshot    | `insta`                        | Only for large generated output                                                          |
-| Mocking     | `mockall`                      | Only for four allowed cases in [Testing](testing.md)                                     |
-| Async       | `tokio::test`                  | For async tests                                                                          |
-| Fuzz        | `cargo-fuzz`                   | Parsers, validators, deserializers                                                       |
-| Integration | `testcontainers`               | Real deps when absolutely needed                                                         |
+Rust sits at the intersection of Go-style data simplicity and Haskell/Erlang-style algebraic types
+and explicit error handling:
 
-## Fast vs Slow Split
+- **Data and behavior are separate**: `struct` and `enum` model pure data and state transitions;
+  free functions implement domain behavior.
+- **Make illegal states unrepresentable**: sum types (`enum`) with compiler-enforced exhaustive
+  `match` replace boolean flags, nullable fields, and OOP class hierarchies.
+- **Errors are values**: `Result<T, E>` with typed `thiserror` domain/application enums and `?`
+  railway propagation. Panics are never an error-handling strategy.
+- **Zero nested branches in control loops**: guard clauses (`let ... else { return ... }`) and
+  iterator pipelines (`filter_map`, `find_map`) keep control flow flat.
 
-Use a `tdd` feature flag to separate fast feedback tests from slower property/exhaustive tests. Default (`cargo nextest run`) runs everything. The `tdd` feature ignores slow tests for watch-mode speed.
+Rules below are split into **Toolchain-Enforced** (backed by `.rustfmt.toml`, `.clippy.toml`, and
+`clippy-cargo.merge.toml`) and **Advisory** (enforced via code review and architecture boundaries
+until AST/lint tooling covers them).
 
-```toml
-# Cargo.toml
-[features]
-tdd = []
+---
 
-[dev-dependencies]
-proptest = "1"
-proptest-derive = "0.5"
-```
+## Part 1: Toolchain-Enforced Rules
 
-| Mode        | Command                            | What runs                                     |
-| ----------- | ---------------------------------- | --------------------------------------------- |
-| Full        | `cargo nextest run`                | All tests including property tests            |
-| TDD / Watch | `cargo nextest run --features tdd` | Only fast unit tests (property tests ignored) |
-| Pre-push    | `cargo nextest run`                | Full suite                                    |
-| CI          | `cargo nextest run`                | Full suite                                    |
+### 1. Function Size, Complexity, and Flat Control Flow
 
-Mark slow tests (property tests, heavy strategies) with the conditional ignore attribute:
+Configured in `configs/rust/.clippy.toml` and `configs/rust/clippy-cargo.merge.toml`:
+
+| Rule / Threshold                 | Setting | Purpose                                                      |
+| -------------------------------- | ------- | ------------------------------------------------------------ |
+| `too-many-lines-threshold`       | `30`    | Keep functions small (5–30 lines)                            |
+| `too-many-arguments-threshold`   | `4`     | 2–3 params typical; 4+ requires an input/context struct      |
+| `cognitive-complexity-threshold` | `8`     | Cap branching and loop complexity (`cognitive_complexity`)   |
+| `excessive-nesting-threshold`    | `2`     | Forbid nested branches inside loops (`excessive_nesting`)    |
+| `max-fn-params-bools`            | `1`     | Replace boolean flag parameters with a 2-variant `enum`      |
+| `max-struct-bools`               | `2`     | Replace boolean-bag structs with explicit state `enum`s      |
+| `manual_let_else`                | `warn`  | Use `let Some(x) = ... else { return ... }` guard clauses    |
+| `redundant_else`                 | `deny`  | No `else` after `return`, `break`, or `continue`             |
+| `collapsible_if`                 | `allow` | Keep guard clauses separate when each checks a distinct rule |
 
 ```rust
-#[test]
-#[cfg_attr(feature = "tdd", ignore)]
-fn roundtrip_never_loses_data(input in ".*") {
-    // proptest body: skipped in TDD mode, runs in full mode
+// GOOD — flat guard clauses with let-else, zero nesting
+pub fn validate_order(repo: &dyn OrderRepo, id: &OrderId) -> Result<Order, OrderError> {
+    let Some(order) = repo.find_by_id(id) else {
+        return Err(OrderError::NotFound(id.clone()));
+    };
+    if order.status != OrderStatus::Draft {
+        return Err(OrderError::NotEditable(order.status));
+    }
+    if order.items.is_empty() {
+        return Err(OrderError::EmptyOrder);
+    }
+    Ok(order)
 }
 ```
 
-Fast tests use only `#[test]` with no extra annotation. Fast tests never touch IO. If a test needs a database, filesystem, or network, it goes in `tests/`.
+Never put nested `if`/`match` branches inside a `for` loop. Extract the per-element decision into a
+named pure function and compose with an iterator pipeline.
 
-## Test Location and Layering
+### 2. Explicit Errors as Data
 
-Tests live next to the code they exercise, organized by scope. See [Testing](testing.md) for the language-agnostic layering model.
+Enforced in `[workspace.lints.clippy]` (`clippy-cargo.merge.toml`):
 
-### Layer 1: In-File Unit Tests
+| Lint                 | Level  | Rule                                                                |
+| -------------------- | ------ | ------------------------------------------------------------------- |
+| `unwrap_used`        | `deny` | Never `.unwrap()` in non-test code; propagate with `?`              |
+| `expect_used`        | `deny` | Never `.expect()` in non-test code                                  |
+| `panic`              | `deny` | Panics are not an error strategy in library or application code     |
+| `panic_in_result_fn` | `deny` | Functions returning `Result` must never panic                       |
+| `unimplemented`      | `deny` | Do not ship `unimplemented!()`                                      |
+| `fallible_impl_from` | `deny` | Fallible conversions must implement `TryFrom`/`TryInto`, not `From` |
+| `match_wild_err_arm` | `deny` | No `Err(_)` wildcards; match error variants exhaustively            |
+| `try_err`            | `deny` | Return `Err(...)` directly instead of `Err(...)?`                   |
 
-Tests that exercise functions defined in the same file. Always `#[cfg(test)] mod tests` at the bottom of the source file. If the file gets too long, the functions need splitting, not the tests.
-
-Private/helper functions get direct, thorough testing with tight contracts. These are the atoms. Public orchestrating or composing functions are tested too, but designed to avoid redundancy with helper tests. Focus orchestration tests on composition correctness, not re-testing what helpers already cover.
-
-Do not test imports. If an import changes, Layer 1 tests still pass.
-
-Tests that verify data threading from downstream modules use `threads_through_from_<source>` in the name to signal passthrough fidelity intent.
-
-```text
-src/orders/
-├── types.domain.rs              // #[cfg(test)] mod tests at bottom
-├── invariants.domain.rs         // #[cfg(test)] mod tests at bottom
-├── pricing.app.rs               // #[cfg(test)] mod tests at bottom
-```
-
-### Layer 2: Feature-Scoped Tests
-
-Tests that exercise multiple files within the same feature directory. If individual files are atoms, Layer 2 tests are molecules. These go in a `tests/` subdirectory inside the feature directory.
-
-Only test public functions from the files. Avoid redundancy with Layer 1. Layer 2 tests verify cross-module composition that no single file's tests can cover.
-
-```text
-src/orders/
-├── tests/                       // Layer 2: cross-module within feature
-│   ├── mod.rs
-│   └── proptest.rs              // property tests spanning multiple modules
-```
-
-Wire up layer tests in the feature's `mod.rs`:
+- `thiserror` for typed errors in libraries, domain, and application layers
+- `anyhow` or `miette` in binary entry points (`main.rs`) and top-level CLI reporting only
+- `?` for railway propagation; combinators (`map`, `and_then`, `ok_or`, `ok_or_else`) when they
+  read cleaner than `match`
+- Skip `Result` for infallible operations where wrapping adds noise without safety
 
 ```rust
-// src/orders/mod.rs
+// GOOD — ? for propagation
+fn place_order(repo: &dyn OrderRepo, cmd: PlaceOrderCmd) -> Result<OrderId, PlaceOrderError> {
+    let order = Order::create(cmd)?;
+    repo.save(&order)?;
+    Ok(order.id)
+}
+
+// GOOD — combinators when they simplify
+fn find_active_user(repo: &dyn UserRepo, id: &UserId) -> Result<User, UserError> {
+    repo.find(id)
+        .ok_or_else(|| UserError::NotFound(id.clone()))?
+        .ensure_active()
+}
+```
+
+#### Test-Module Clippy Allowance
+
+Because `unwrap_used`, `expect_used`, and `panic` are denied workspace-wide (and `assert!`/`prop_assert!`
+expand to `panic!`), annotate test modules explicitly:
+
+```rust
 #[cfg(test)]
-mod tests;
+#[allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+    // unit and property tests
+}
 ```
 
-### Layer 3: Cross-Feature / Integration Tests
+### 3. Pattern Matching & Exhaustiveness
 
-Tests that span multiple features or the full public API. These go in the top-level `tests/` directory (Cargo integration test convention). Layer 3 covers the whole crate, an API surface, or a full pipeline. This is where contract tests, integration tests, and cross-layer property tests live. Mostly not unit tests.
+Rust's `match` is exhaustive by default—strictly stronger than TypeScript's `switch` + `assertNever`
+because the compiler enforces it natively.
 
-```text
-tests/
-├── parse_integration.rs         // full pipeline tests
-├── json_output.rs               // public API -> JSON serialization
-└── proptest_integration.rs      // cross-layer property tests
+| Lint                                 | Level  | Rule                                                  |
+| ------------------------------------ | ------ | ----------------------------------------------------- |
+| `wildcard_enum_match_arm`            | `warn` | Enumerate every enum variant; avoid `_ =>` catch-alls |
+| `match_wildcard_for_single_variants` | `warn` | Never use `_ =>` to match a single remaining variant  |
+| `enum_glob_use`                      | `deny` | Always qualify enum variants (`OrderStatus::Draft`)   |
+
+```rust
+// GOOD — exhaustive match breaks at compile time when a variant is added
+match order.status {
+    OrderStatus::Draft => allow_edit(order),
+    OrderStatus::Submitted | OrderStatus::Cancelled => {
+        Err(OrderError::NotEditable(order.status))
+    }
+}
+
+// BAD — silent catch-all hides new variants
+match order.status {
+    OrderStatus::Draft => allow_edit(order),
+    _ => Err(OrderError::NotEditable(order.status)),
+}
 ```
 
-### Directory Summary
+### 4. Iteration & Pipeline Composition
+
+| Lint                                 | Level  | Rule                                                          |
+| ------------------------------------ | ------ | ------------------------------------------------------------- |
+| `manual_filter_map`                  | `warn` | Prefer `.filter_map(...)` over `.filter(...).map(...)`        |
+| `manual_find_map`                    | `warn` | Prefer `.find_map(...)` over `.find(...).map(...)`            |
+| `needless_collect`                   | `warn` | Chain to the end and `.collect()` once; no intermediate Vec   |
+| `redundant_closure_for_method_calls` | `warn` | Use point-free method references (`Result::ok`) when clear    |
+| `inherent_to_string`                 | `deny` | Implement `std::fmt::Display` instead of inherent `to_string` |
+
+- Iterator chains over `for` loops as the default (declarative, composable)
+- Accept `impl IntoIterator<Item = T>` when flexible collection inputs help callers
+- Use a simple `for` loop with `?` early return when lifetimes or fallible body steps make an
+  iterator chain harder to read
+
+```rust
+// GOOD — declarative iterator pipeline
+let active_emails: Vec<&str> = users
+    .iter()
+    .filter(|u| u.is_active)
+    .map(|u| u.email.as_str())
+    .collect();
+
+// GOOD — filter_map with point-free conversion
+let valid_orders: Vec<Order> = inputs
+    .into_iter()
+    .filter_map(|raw| Order::try_from(raw).ok())
+    .collect();
+```
+
+### 5. String, Borrowing, and Copy Hygiene
+
+| Lint                       | Level  | Rule                                                      |
+| -------------------------- | ------ | --------------------------------------------------------- |
+| `ptr_arg`                  | `warn` | Take `&str` over `&String` and `&[T]` over `&Vec<T>`      |
+| `cloned_instead_of_copied` | `warn` | Use `.copied()` and derive `Copy` on small newtypes/enums |
+| `write_with_newline`       | `deny` | Use `writeln!()` instead of `write!(...\n)`               |
+
+- `&str` and `&[T]` for function parameters that only read
+- `String` and `Vec<T>` for owned data in structs and return values
+- `impl Into<String>` for constructors where the caller may pass `&str` or `String`
+
+```rust
+// GOOD — accepts &str, caller decides allocation
+pub fn parse_email(raw: &str) -> Result<Email, ParseError> { ... }
+
+// GOOD — constructor takes ownership flexibly
+impl UserId {
+    pub fn new(raw: impl Into<String>) -> Self { Self(raw.into()) }
+    pub fn as_str(&self) -> &str { &self.0 }
+}
+```
+
+### 6. Imperative Shell, Safety, and Agent-Safety Lints
+
+| Lint                            | Level    | Rule                                                          |
+| ------------------------------- | -------- | ------------------------------------------------------------- |
+| `unsafe_code` (`lints.rust`)    | `forbid` | No `unsafe` blocks unless explicitly justified at crate level |
+| `missing_debug_implementations` | `warn`   | Derive `Debug` on all public types                            |
+| `unreachable_pub`               | `warn`   | Keep module visibility intentional (`pub(crate)` vs `pub`)    |
+| `dbg_macro`                     | `deny`   | Never commit `dbg!()`                                         |
+| `print_stdout` / `print_stderr` | `warn`   | Use structured `tracing`; explicitly `#[allow]` in CLI output |
+| `todo`                          | `warn`   | Surface unfinished `todo!()` macros                           |
+| `large_enum_variant`            | `warn`   | Box oversized error or AST variants                           |
+
+**Agent-Safety Suppressions**: Three `pedantic` lints are explicitly set to `allow` in
+`clippy-cargo.merge.toml` because their auto-fix suggestions push code toward OOP anti-patterns:
+
+- `new_without_default = "allow"`: prevents Clippy from demanding `Default` on validated newtypes
+  whose zero value would violate domain invariants.
+- `wrong_self_convention = "allow"`: prevents Clippy from pressuring free functions (`is_*`, `to_*`,
+  `from_*`) into becoming `&self` methods.
+- `should_implement_trait = "allow"`: prevents Clippy from demanding `std::str::FromStr` or operator
+  traits when a domain `parse` function has a more specific signature.
+
+### 7. Formatting (`.rustfmt.toml` + `dprint.json`)
+
+Always format with `moon run :fmt` (`dprint fmt`, which delegates Rust files to `rustfmt`):
+
+- Edition `2024`, `max_width = 110`, `tab_spaces = 4`, `use_field_init_shorthand = true`
+- Compact single-line expressions (`fn_single_line = true`, `use_small_heuristics = "Max"`)
+- Sorted modules and crate-grouped imports (`imports_granularity = "Crate"`,
+  `group_imports = "StdExternalCrate"`)
+
+---
+
+## Part 2: Advisory Patterns (Architecture & Code Review)
+
+> These patterns cannot yet be enforced automatically by Clippy alone. Treat them as mandatory
+> review standards until dedicated AST or `cargo-deny` rules enforce them.
+
+### 1. Module & Crate Structure
+
+Organize by feature. Inside each feature, separate by architectural layer:
 
 ```text
 src/
 ├── orders/
-│   ├── mod.rs
-│   ├── types.domain.rs              // Layer 1: #[cfg(test)] mod tests
-│   ├── invariants.domain.rs         // Layer 1: #[cfg(test)] mod tests
-│   ├── pricing.app.rs               // Layer 1: #[cfg(test)] mod tests
-│   ├── place_order.app.rs           // Layer 1: #[cfg(test)] mod tests
-│   ├── ports.app.rs                 // Layer 1: #[cfg(test)] mod tests
-│   ├── postgres.infra.rs            // Layer 1: contract tests against fake
-│   └── tests/                       // Layer 2: cross-module within feature
-│       ├── mod.rs
-│       └── proptest.rs              // #[cfg_attr(feature = "tdd", ignore)]
+│   ├── mod.rs           // re-exports public API
+│   ├── domain.rs        // types, enums, invariants, pure logic
+│   ├── app.rs           // use cases, orchestration, port traits
+│   └── infra.rs         // adapters: HTTP handlers, DB repos, clients
 ├── inventory/
 │   ├── mod.rs
-│   ├── stock.domain.rs              // Layer 1: #[cfg(test)] mod tests
-│   ├── reserve.app.rs               // Layer 1: #[cfg(test)] mod tests
-│   └── dynamo.infra.rs              // Layer 1: contract tests against fake
-├── test_utils.rs                    // builders, strategies, assert helpers (#[cfg(test)])
-tests/                               // Layer 3: cross-layer integration tests
-├── parse_integration.rs
-└── proptest_integration.rs
-fuzz/
-└── fuzz_targets/
-    └── parse_order.rs               // fuzz harnesses
+│   ├── domain.rs
+│   ├── app.rs
+│   └── infra.rs
+├── shared/
+│   └── types.rs         // cross-cutting newtypes, shared value objects
+└── main.rs              // composition root: wire deps, start runtime
 ```
 
-## Result Assertions
+- Domain imports nothing outside `std` and `shared`. Application imports domain. Infrastructure
+  imports both.
+- Re-export the public surface from each feature's `mod.rs` so callers use
+  `crate::orders::place_order` rather than reaching into internal layer modules.
+- When a feature reaches 5+ files per layer, promote `domain.rs` to `domain/mod.rs` with focused
+  submodules (`domain/types.rs`, `domain/invariants.rs`).
+- For multi-crate workspaces (see [Rust CLI Pattern](rust-cli-pattern.md) and
+  [Universal Rust / WASM / TS Library](universal-rust-wasm-sdk-lib.md)), keep all pure domain and
+  pipeline logic in a single `*-core` or `*-engine` library crate and keep `*-cli` as a thin
+  imperative shell.
 
-`unwrap()` is OK in tests, but prefer explicit assertions for clarity and better error messages.
+### 2. Domain Purity (Zero Serialization/IO in Domain)
+
+Domain modules compile with zero external dependencies—no `serde`, no `tokio`, no HTTP/DB crates.
+DTOs in the infrastructure layer handle wire formats via `From` and `TryFrom` conversions:
 
 ```rust
-fn assert_ok<T, E: std::fmt::Debug>(result: Result<T, E>) -> T {
-    match result {
-        Ok(v) => v,
-        Err(e) => panic!("expected Ok, got Err({:?})", e),
-    }
+// domain.rs — pure, no serde
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Order {
+    pub id: OrderId,
+    pub customer_id: CustomerId,
+    pub items: Vec<OrderItem>,
+    pub status: OrderStatus,
 }
 
-fn assert_err<T: std::fmt::Debug, E>(result: Result<T, E>) -> E {
-    match result {
-        Err(e) => e,
-        Ok(v) => panic!("expected Err, got Ok({:?})", v),
-    }
+// infra.rs — serde lives at the boundary
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct OrderDto {
+    pub id: String,
+    pub customer_id: String,
+    pub items: Vec<OrderItemDto>,
+    pub status: String,
 }
 
-#[test]
-fn parse_user_valid_returns_ok() {
-    let user = assert_ok(parse_user(VALID_JSON));
-    assert_eq!(user.id.as_str(), "123");
-}
-
-#[test]
-fn parse_user_invalid_returns_parse_error() {
-    let err = assert_err(parse_user(INVALID_JSON));
-    assert!(matches!(err, ParseError::InvalidFormat(_)));
-}
-```
-
-## Typed Fakes via Traits
-
-Define port as trait. Implement fake for tests. Compiler enforces the contract.
-
-```rust
-// ports.app.rs
-#[async_trait::async_trait]
-pub trait OrderRepo: Send + Sync {
-    async fn save(&self, order: &Order) -> Result<(), RepoError>;
-    async fn find_by_id(&self, id: &OrderId) -> Option<Order>;
-}
-
-// test_utils.rs or #[cfg(test)] module
-pub struct FakeOrderRepo {
-    store: std::sync::Mutex<HashMap<OrderId, Order>>,
-}
-
-impl FakeOrderRepo {
-    pub fn new() -> Self {
-        Self {
-            store: Mutex::new(HashMap::new()),
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl OrderRepo for FakeOrderRepo {
-    async fn save(&self, order: &Order) -> Result<(), RepoError> {
-        self.store
-            .lock()
-            .unwrap()
-            .insert(order.id.clone(), order.clone());
-        Ok(())
-    }
-
-    async fn find_by_id(&self, id: &OrderId) -> Option<Order> {
-        self.store.lock().unwrap().get(id).cloned()
-    }
-}
-```
-
-## Contract Tests
-
-Macro generates shared suite. Run against fake (fast) and real impl (slow).
-
-```rust
-macro_rules! order_repo_contract {
-    ($setup:expr) => {
-        #[tokio::test]
-        async fn save_then_find_returns_saved() {
-            let repo = $setup().await;
-            let order = build_order();
-            repo.save(&order).await.unwrap();
-            let found = repo.find_by_id(&order.id).await;
-            assert_eq!(found, Some(order));
-        }
-
-        #[tokio::test]
-        async fn find_missing_returns_none() {
-            let repo = $setup().await;
-            let found = repo.find_by_id(&OrderId::new("nonexistent")).await;
-            assert!(found.is_none());
-        }
-    };
-}
-
-// src/orders/postgres.infra.rs: fast, in-module
-#[cfg(test)]
-mod tests {
-    use super::*;
-    order_repo_contract!(|| async { FakeOrderRepo::new() });
-}
-
-// tests/integration/orders.rs: slow, real DB
-order_repo_contract!(|| async { create_test_postgres_repo().await });
-```
-
-## Property Testing (proptest)
-
-Property tests use `proptest` and `proptest-derive`. Mark them with `#[cfg_attr(feature = "tdd", ignore)]` so they are skipped in watch mode but run in full test suite.
-
-### Proptest Scopes
-
-Property tests follow the same layering as unit tests with one exception:
-
-- Layer 1: test public/exported functions. Test private functions only if they contain tricky logic that gains significant value from independent property testing.
-- Layer 2: test cross-module composition (e.g., classify then accumulate then finalize roundtrip).
-- Layer 3: test full public API invariants.
-
-### Inline with proptest! Macro
-
-Strategy helpers and imports go outside `proptest!` but inside `mod tests`. The `#[test]` and `#[cfg_attr(...)]` annotations go inside the macro on each test function, not outside the macro block.
-
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use proptest::prelude::*;
-
-    // Strategy helpers live here, outside proptest!
-    fn valid_name() -> impl Strategy<Value = String> {
-        "[a-z][a-z0-9]{0,15}"
-    }
-
-    // Unit tests
-    #[test]
-    fn basic_test() { /* ... */
-    }
-
-    // Property tests sit at same level as unit tests
-    proptest! {
-        #[test]
-        #[cfg_attr(feature = "tdd", ignore)]
-        fn serialize_parse_roundtrip(amount in 0i64..1_000_000) {
-            let money = Money::from_cents(amount);
-            let serialized = money.serialize();
-            let parsed = Money::parse(&serialized).unwrap();
-            prop_assert_eq!(money, parsed);
-        }
-
-        #[test]
-        #[cfg_attr(feature = "tdd", ignore)]
-        fn add_is_commutative(a in 0i64..1_000_000, b in 0i64..1_000_000) {
-            let money_a = Money::from_cents(a);
-            let money_b = Money::from_cents(b);
-            prop_assert_eq!(money_a.add(&money_b), money_b.add(&money_a));
-        }
-    }
-}
-```
-
-### proptest! Macro Gotchas
-
-`prop_assert!` with `matches!` and `{ .. }` patterns fails because `{` and `}` are interpreted as format string placeholders. Extract to a let binding:
-
-```rust
-// BAD: compile error from format string interpretation
-prop_assert!(matches!(result.warnings, ParseWarning::UnclosedFence { .. }));
-
-// GOOD: extract to bool first
-let is_unclosed = matches!(result.warnings, ParseWarning::UnclosedFence { .. });
-prop_assert!(is_unclosed);
-```
-
-`prop_assert_eq!` moves values out of Vec indexes. Use references on both sides:
-
-```rust
-// BAD: move error when field doesn't implement Copy
-prop_assert_eq!(result.commands.arguments.mode, ArgumentMode::Fence);
-
-// GOOD: compare by reference
-prop_assert_eq!(&result.commands.arguments.mode, &ArgumentMode::Fence);
-```
-
-### Proptest Regressions
-
-When proptest finds a failing input, it automatically shrinks it to the minimal reproducing case and writes it to a `proptest-regressions/` file next to the test source. These are permanent regression tests that re-run the exact failing input on every future test run.
-
-Rules:
-
-- Commit `proptest-regressions/` files to version control.
-- Never delete them, even after fixing the bug. They prevent the same class of failure from silently returning.
-- Shrinking is automatic. The recorded case is already the simplest reproducer.
-- If a regression case reveals a meaningful edge case, also add it as a named unit test with a descriptive name. The regression file ensures replay; the unit test documents intent.
-
-```text
-src/orders/
-├── pricing.app.rs
-├── proptest-regressions/
-│   └── pricing.app.txt              // auto-generated, committed
-```
-
-### proptest.toml
-
-Place a `proptest.toml` in the project root to control defaults. CI can override `cases` with a higher value for deeper coverage.
-
-```toml
-# proptest.toml
-[default]
-cases = 256
-max_shrink_iters = 1000
-```
-
-### When to Use proptest-derive
-
-Derive `Arbitrary` on domain types to auto-generate strategies without manual `prop_map` boilerplate.
-
-```rust
-use proptest::prelude::*;
-use proptest_derive::Arbitrary;
-
-#[derive(Debug, Clone, Arbitrary)]
-pub struct Money {
-    #[proptest(strategy = "0i64..1_000_000")]
-    pub cents: i64,
-}
-
-proptest! {
-    #[test]
-    #[cfg_attr(feature = "tdd", ignore)]
-    fn money_roundtrip(money: Money) {
-        let serialized = money.serialize();
-        let parsed = Money::parse(&serialized).unwrap();
-        prop_assert_eq!(money, parsed);
-    }
-}
-```
-
-Use `proptest-derive` when the type maps cleanly to constrained primitives with independent fields. Use manual strategies when generation logic is more complex.
-
-| Situation                                                          | Approach                                                    |
-| ------------------------------------------------------------------ | ----------------------------------------------------------- |
-| Fields are independent, constrained primitives                     | `#[derive(Arbitrary)]` with `#[proptest(strategy = "...")]` |
-| Fields are interdependent (mode determines which fields are valid) | Manual strategy with `prop_map`                             |
-| Natural input is a string, not a struct (parsers)                  | Regex strategy fed through the public function              |
-| Need custom distributions or weighted generation                   | Manual strategy                                             |
-
-## Custom Strategies
-
-Place in `src/test_utils/arbitrary.rs` (behind `#[cfg(test)]`).
-
-```rust
-use proptest::prelude::*;
-
-pub fn money_strategy() -> impl Strategy<Value = Money> {
-    (0i64..1_000_000).prop_map(Money::from_cents)
-}
-
-pub fn order_item_strategy() -> impl Strategy<Value = OrderItem> {
-    ("[a-zA-Z0-9]{1,20}", 1usize..100, money_strategy()).prop_map(|(sku, qty, price)| OrderItem {
-        sku,
-        quantity: qty,
-        price,
-    })
-}
-
-pub fn order_strategy() -> impl Strategy<Value = Order> {
-    (
-        "[a-f0-9]{8}",
-        prop::collection::vec(order_item_strategy(), 1..10),
-    )
-        .prop_map(|(id, items)| Order {
-            id: OrderId::new(&id),
-            customer_id: CustomerId::new("test-cust"),
-            items,
-            status: OrderStatus::Draft,
+impl TryFrom<OrderDto> for Order {
+    type Error = DomainParseError;
+    fn try_from(dto: OrderDto) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id: OrderId::parse(&dto.id)?,
+            customer_id: CustomerId::parse(&dto.customer_id)?,
+            items: dto
+                .items
+                .into_iter()
+                .map(OrderItem::try_from)
+                .collect::<Result<_, _>>()?,
+            status: OrderStatus::parse(&dto.status)?,
         })
-}
-```
-
-## Fuzz Testing
-
-Target parsers, validators, and deserializers with `cargo-fuzz` (uses libFuzzer).
-
-### Setup
-
-```text
-cargo install cargo-fuzz
-cargo fuzz init
-cargo fuzz add parse_order
-```
-
-### Harness
-
-```rust
-// fuzz/fuzz_targets/parse_order.rs
-#![no_main]
-use libfuzzer_sys::fuzz_target;
-
-fuzz_target!(|data: &[u8]| {
-    if let Ok(s) = std::str::from_utf8(data) {
-        // should never panic, regardless of input
-        let _ = Order::parse(s);
-    }
-});
-```
-
-### Running
-
-```text
-cargo fuzz run parse_order -- -max_total_time=300
-```
-
-### Corpus Management
-
-```text
-fuzz/
-├── corpus/parse_order/    # seed inputs + fuzzer discoveries
-└── artifacts/parse_order/ # crash-triggering inputs
-```
-
-Crashes become permanent regression tests: minimize the input (`cargo fuzz tmin`), add it as a unit test, fix the bug.
-
-### What to Fuzz
-
-- JSON/YAML parsers and deserializers
-- Newtype constructors that validate input (`Email::parse`, `OrderId::new`)
-- Protocol decoders, query parsers
-- Any function where arbitrary `&str` or `&[u8]` input should never panic
-
-Don't fuzz: pure business logic (use property tests), database queries (use integration tests), external APIs (use contract tests).
-
-## Injecting Dependencies
-
-Use trait objects for time, randomness, and other non-deterministic deps.
-
-```rust
-pub trait Clock: Send + Sync {
-    fn now(&self) -> DateTime<Utc>;
-}
-
-pub struct SystemClock;
-impl Clock for SystemClock {
-    fn now(&self) -> DateTime<Utc> {
-        Utc::now()
     }
 }
-
-pub struct FixedClock(pub DateTime<Utc>);
-impl Clock for FixedClock {
-    fn now(&self) -> DateTime<Utc> {
-        self.0
-    }
-}
-
-pub fn is_expired(clock: &dyn Clock, order: &Order) -> bool {
-    order.expires_at < clock.now()
-}
-
-#[test]
-fn is_expired_past_date_returns_true() {
-    let clock = FixedClock(Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap());
-    let order = build_order_with(|o| {
-        o.expires_at = Utc.with_ymd_and_hms(2024, 12, 31, 0, 0, 0).unwrap();
-    });
-    assert!(is_expired(&clock, &order));
-}
 ```
 
-## Builders
+Violation test: _"Would removing `serde` from `Cargo.toml` break this domain file?"_ If yes, move
+the serialization type to infrastructure.
+
+### 3. Free Functions Over Methods
+
+- Write domain and application logic as **free pure functions** (`pub fn add_item(order: &Order, item: OrderItem) -> Result<Order, OrderError>`), not OOP methods on data structs.
+- Reserve `impl` blocks for construction (`new`, `parse`), trait implementations (`From`, `TryFrom`,
+  `Display`, `AsRef`), and trivial value-object accessors (`as_str`).
+
+### 4. Boundary Immutability & Intentional Cloning
+
+- Immutability is enforced at function signatures: take shared borrows (`&T`) and return new values
+  using struct update syntax (`Order { status: OrderStatus::Submitted, ..order.clone() }`).
+- Local `let mut` inside a function body (e.g., building a `Vec` before returning it) is idiomatic
+  when it never escapes the function.
+- Never `.clone()` to silence the borrow checker in domain code; restructure ownership or borrow
+  slices/references instead. Cloning is appropriate at IO/concurrency boundaries (`tokio::spawn`,
+  channel sends, DTO construction).
+
+### 5. Async Only at IO Boundaries
+
+- Domain logic is always synchronous and pure.
+- Use `tokio::try_join!` / `tokio::join!` for independent concurrent IO, then pass the fetched
+  values into synchronous pure functions.
+- Never mutate shared local variables across `.await` suspension points.
+- Avoid `async` altogether in sequential CLI tools and pure libraries.
+
+### 6. Explicit Dependency Injection (No Containers)
+
+Wire dependencies by hand in `main.rs`. Pass ports as generic type parameters (`impl OrderRepo`) on
+hot paths or when using native `async fn` in traits, or as `&dyn OrderRepo` when object safety
+simplifies application signatures.
+
+### 7. Error Layering
+
+Three layers, three error types, explicit mapping at each boundary (matches
+[Tom's Clean Architecture](toms-clean-arch.md)):
 
 ```rust
-pub fn build_order() -> Order {
-    Order {
-        id: OrderId::new("order-1"),
-        customer_id: CustomerId::new("cust-1"),
-        items: vec![build_order_item()],
-        status: OrderStatus::Draft,
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum OrderError {
+    #[error("order not editable in status {0}")]
+    NotEditable(OrderStatus),
+    #[error("item limit exceeded: max {0}")]
+    ItemLimitExceeded(usize),
 }
 
-pub fn build_order_with(f: impl FnOnce(&mut Order)) -> Order {
-    let mut order = build_order();
-    f(&mut order);
-    order
-}
-
-#[test]
-fn submit_draft_changes_status() {
-    let order = build_order_with(|o| o.status = OrderStatus::Draft);
-    let result = submit(order);
-    assert_eq!(result.status, OrderStatus::Submitted);
+#[derive(Debug, thiserror::Error)]
+pub enum PlaceOrderError {
+    #[error(transparent)]
+    Order(#[from] OrderError),
+    #[error("repository failure: {0}")]
+    RepoFailure(String),
 }
 ```
 
-## Test Module Organization
+---
 
-```text
-src/
-├── orders/
-│   ├── mod.rs
-│   ├── types.domain.rs        // #[cfg(test)] mod tests { unit tests }
-│   ├── pricing.app.rs         // #[cfg(test)] mod tests { use case tests with fakes }
-│   ├── postgres.infra.rs      // #[cfg(test)] mod tests { contract tests against fake }
-│   └── tests/                 // Layer 2: cross-module within feature
-│       ├── mod.rs
-│       └── proptest.rs
-├── test_utils.rs               // builders, strategies, assert helpers (#[cfg(test)])
-tests/
-├── integration/
-│   └── orders.rs               // contract tests against real Postgres (testcontainers)
-fuzz/
-└── fuzz_targets/
-    └── parse_order.rs          // fuzz harnesses
-```
+## Approved Libraries
 
-- Layer 1 (in-file): `#[cfg(test)] mod tests` in same file (fast, function-scoped)
-- Layer 2 (feature): `src/<feature>/tests/` directory (fast, cross-module within feature)
-- Layer 3 (cross-feature): `tests/` directory (integration, may need real deps)
-- Shared test utils: `src/test_utils.rs` with `#[cfg(test)]`
-- Fuzz targets: `fuzz/fuzz_targets/`
-
-## Integration Tests with Testcontainers
-
-Use testcontainers only when contract tests require a real implementation (database, message broker). Never in unit tests.
-
-```rust
-// tests/integration/orders.rs
-use testcontainers::runners::AsyncRunner;
-use testcontainers_modules::postgres::Postgres;
-
-#[tokio::test]
-async fn postgres_repo_contract() {
-    let container = Postgres::default().start().await.unwrap();
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let pool = create_pool(&format!("postgres://postgres@localhost:{port}/postgres")).await;
-
-    let repo = PostgresOrderRepo::new(pool);
-    let order = build_order();
-    repo.save(&order).await.unwrap();
-    let found = repo.find_by_id(&order.id).await;
-    assert_eq!(found, Some(order));
-}
-```
-
-Prefer Podman over Docker when available. Testcontainers supports Podman via the `TESTCONTAINERS_RYUK_DISABLED=true` env var and Podman socket.
-
-## Async Tests
-
-```rust
-#[tokio::test]
-async fn fetch_user_returns_user() {
-    let repo = FakeUserRepo::new();
-    repo.save(&build_user()).await.unwrap();
-
-    let result = fetch_user(&repo, &UserId::new("user-1")).await;
-    assert!(result.is_ok());
-}
-```
-
-Never poll or sleep-wait. If you need to wait for async work, await it directly. Sleep in tests indicates a design problem.
+| Status      | Crate                                 | Use Case                                  |
+| ----------- | ------------------------------------- | ----------------------------------------- |
+| ✅ Required | `thiserror`                           | Typed error enums in domain/app/libs      |
+| ✅ Approved | `anyhow` / `miette`                   | Top-level binary error reporting only     |
+| ✅ Approved | `clap` + `schematic`                  | CLI argument parsing & layered config     |
+| ✅ Approved | `serde` + `serde_json`                | Serialization (infrastructure layer only) |
+| ✅ Approved | `tokio` + `async-trait`               | Async runtime & object-safe async ports   |
+| ✅ Approved | `tracing` + `tracing-subscriber`      | Structured diagnostics                    |
+| ✅ Approved | `proptest` + `proptest-derive`        | Property-based testing                    |
+| ✅ Approved | `insta`                               | Snapshot testing (large output only)      |
+| ❌ Banned   | ORMs (`diesel`, `sea-orm`), DI crates | Hide SQL/control flow and encourage OOP   |
 
 ## Anti-Patterns
 
-| Don't                                    | Do Instead                                 |
-| ---------------------------------------- | ------------------------------------------ |
-| `unwrap()` in library code               | `?` or typed error                         |
-| `Box<dyn Trait>` when `impl Trait` works | `impl Trait` in return position            |
-| `_ =>` catch-all hiding variants         | Enumerate all match arms                   |
-| Clone to avoid borrow checker            | Fix ownership structure                    |
-| Testcontainers in unit tests             | In-memory fakes                            |
-| Sleep/poll waits in tests                | Await directly                             |
-| Shared mutable test state                | Each test owns its data                    |
-| Snapshot for domain objects              | `assert_eq!` with derived `PartialEq`      |
-| `cargo test` for running                 | `cargo nextest run` for parallel execution |
-| Property tests slowing watch mode        | `#[cfg_attr(feature = "tdd", ignore)]`     |
-| Delete proptest regression files         | Keep them committed permanently            |
+| Smell                                | Problem                              | Instead                               |
+| ------------------------------------ | ------------------------------------ | ------------------------------------- |
+| `unwrap()` / `expect()` in lib code  | Panics on unexpected input           | `?` or typed `Result` combinators     |
+| Nested `if`/`match` inside loops     | High cognitive load (`max-depth`)    | Guard clauses (`let else`) + helpers  |
+| `_ =>` catch-all on domain enum      | Silently ignores new variants        | Exhaustive `match` arms               |
+| OOP methods on domain structs        | Couples data shape to use-case logic | Free pure functions                   |
+| Boolean flag parameters              | Call sites (`process(x, true)`)      | Two-variant `enum`                    |
+| `clone()` to silence borrow checker  | Masks ownership design issue         | Borrow `&str` / `&[T]` or restructure |
+| `serde` derives on core domain types | Couples domain to wire format        | Infrastructure DTOs + `TryFrom`       |
+| `async` on pure computation          | Infectious colored functions         | Synchronous pure functions            |
 
 ## Checklist
 
-- [ ] `cargo-nextest` as test runner
-- [ ] `tdd` feature flag in `Cargo.toml` for fast/slow split
-- [ ] `proptest` + `proptest-derive` in `[dev-dependencies]`
-- [ ] `proptest.toml` in project root with default case count
-- [ ] `proptest-regressions/` files committed to version control
-- [ ] Slow tests marked with `#[cfg_attr(feature = "tdd", ignore)]`
-- [ ] Layer 1 tests in-file, Layer 2 in feature `tests/`, Layer 3 in top-level `tests/`
-- [ ] Layer 1: private helpers tested tightly, orchestration tests avoid redundancy
-- [ ] Layer 1: tests do not test imports
-- [ ] `assert_ok`/`assert_err` helpers for Result assertions
-- [ ] Fakes implement port traits, compiler-checked
-- [ ] Contract macro shared across fake (fast) and real (slow) impls
-- [ ] `proptest` strategies for domain types
-- [ ] Fuzz harnesses for parsers and validators
-- [ ] Time/randomness via injected traits
-- [ ] Builders with `build_X_with` closure pattern
-- [ ] Unit tests in `#[cfg(test)] mod tests` (fast)
-- [ ] Integration tests in `tests/` (slow)
-- [ ] Testcontainers for real deps (integration only, Podman preferred)
-- [ ] No `unwrap()` in non-test code
-- [ ] No sleep/poll waits
-- [ ] Each test owns its data
-- [ ] `impl Trait` over `Box<dyn Trait>` in fakes
+- [ ] Toolchain-enforced: `configs/rust` applied (`.rustfmt.toml`, `.clippy.toml`, `clippy-cargo.merge.toml`)
+- [ ] Functions ≤ 30 lines, ≤ 4 parameters, cognitive complexity ≤ 8, nesting depth ≤ 2
+- [ ] Guard clauses (`let ... else`) with zero `else` after `return`
+- [ ] `thiserror` in library/domain/app crates; `anyhow`/`miette` in binary crate only
+- [ ] Zero `unwrap()`, `expect()`, or `panic!()` outside test modules
+- [ ] Test modules annotated with `#[allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]`
+- [ ] Exhaustive `match` without `_ =>` wildcards on domain and error enums
+- [ ] `&str` and `&[T]` for read parameters; `Copy` derived on small newtypes and enums
+- [ ] Advisory: feature-based module layout (`domain.rs`, `app.rs`, `infra.rs`)
+- [ ] Advisory: domain modules free of `serde` and IO crates
+- [ ] Advisory: free pure functions for domain logic; `impl` only for construction and traits
+- [ ] Advisory: async restricted to IO boundaries; zero mutable state across `.await` points

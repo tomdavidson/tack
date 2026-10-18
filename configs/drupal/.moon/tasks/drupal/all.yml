@@ -1,6 +1,6 @@
 # .moon/tasks/drupal/all.yml
 # Delivered by configs/drupal (tack-owned: re-running tack overwrites it).
-# See docs/adrs/0008-moon-task-organization.md.
+# See docs/adrs/0010-moon-task-organization.md.
 #
 # Inherited by every project tagged "drupal":
 #   - the Drupal app   (layer: application, also tagged drupal-app)
@@ -12,13 +12,13 @@
 # ├──────────────────┼───────────────────────────────────────────────┤
 # │ Lint check       │ moon run :lint                                   │
 # │ Lint fix         │ moon run :lint-fix                               │
-# │ Static analysis  │ moon run :analyse                                │
+# │ Static analysis  │ moon run :typecheck                              │
 # │ Unit tests       │ moon run :test-unit        (no services, cached) │
 # │ Integration      │ moon run :test-integration (after test-prepare)  │
 # │ E2E              │ moon run :test-e2e         (after test-prepare)  │
 # │ All test tiers   │ moon run :test                                   │
-# │ Fast CI          │ moon run :check   (no services; moon ci default) │
-# │ Full CI          │ moon run :check-full                             │
+# │ Fast verify      │ moon run :verify  (no services; lint+type+unit)  │
+# │ CI               │ moon ci           (runs lint, typecheck, unit)   │
 # └──────────────────┴───────────────────────────────────────────────┘
 #
 # Paths come from fileGroups, not task copies. Defaults match the module
@@ -42,52 +42,59 @@ inheritedBy:
 
 fileGroups:
   sourceDirs:
-    - "src"
+    - "."
   sources:
     - "src/**/*"
     - "*.info.yml"
     - "*.module"
     - "*.install"
     - "*.theme"
+    - "*.inc"
   tests:
     - "tests/**/*"
   configs:
     - "/phpcs.xml.dist"
     - "/phpstan.neon.dist"
     - "/phpunit.xml.dist"
+    - "composer.json"
+    - "composer.lock"
     - "/composer.json"
     - "/composer.lock"
 
 tasks:
   lint:
-    command: "$workspaceRoot/vendor/bin/phpcs"
-    args:
-      - "--standard=$workspaceRoot/phpcs.xml.dist"
-      - "@dirs(sourceDirs)"
+    script: |
+      "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpcs" \
+        --standard="$workspaceRoot/phpcs.xml.dist" \
+        @dirs(sourceDirs)
+    toolchains: ["system"]
     inputs:
       - "@group(sources)"
+      - "@group(tests)"
       - "@group(configs)"
     options:
       runInCI: true
 
   lint-fix:
-    command: "$workspaceRoot/vendor/bin/phpcbf"
-    args:
-      - "--standard=$workspaceRoot/phpcs.xml.dist"
-      - "@dirs(sourceDirs)"
+    script: |
+      "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpcbf" \
+        --standard="$workspaceRoot/phpcs.xml.dist" \
+        @dirs(sourceDirs) || [ $? -eq 1 ]
+    toolchains: ["system"]
     options:
       cache: false
       runInCI: false
 
-  analyse:
-    command: "$workspaceRoot/vendor/bin/phpstan"
-    args:
-      - "analyse"
-      - "--no-progress"
-      - "--configuration=$workspaceRoot/phpstan.neon.dist"
-      - "@dirs(sourceDirs)"
+  typecheck:
+    script: |
+      "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpstan" analyse \
+        --no-progress \
+        --configuration="$workspaceRoot/phpstan.neon.dist" \
+        @dirs(sourceDirs)
+    toolchains: ["system"]
     inputs:
       - "@group(sources)"
+      - "@group(tests)"
       - "@group(configs)"
     options:
       runInCI: true
@@ -95,10 +102,11 @@ tasks:
   # No services. Cached by moon. Fast inner dev loop.
   test-unit:
     script: |
-      "$workspaceRoot/vendor/bin/phpunit" \
+      "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpunit" \
         --configuration="$workspaceRoot/phpunit.xml.dist" \
         --no-coverage \
         ${PHPUNIT_TARGET:---testsuite=unit}
+    toolchains: ["system"]
     inputs:
       - "@group(sources)"
       - "@group(tests)"
@@ -110,10 +118,11 @@ tasks:
   # services and site are up. Table-prefix isolation makes parallel safe.
   test-integration:
     script: |
-      "$workspaceRoot/vendor/bin/phpunit" \
+      "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpunit" \
         --configuration="$workspaceRoot/phpunit.xml.dist" \
         --no-coverage \
         ${PHPUNIT_TARGET:---testsuite=kernel}
+    toolchains: ["system"]
     deps:
       - "#drupal-app:test-prepare"
     inputs:
@@ -132,7 +141,7 @@ tasks:
     script: |
       port=$(cat "$DEVENV_STATE/web.port" 2>/dev/null || echo "${WEB_PORT:-8080}")
       export SIMPLETEST_BASE_URL="http://127.0.0.1:${port}"
-      "$workspaceRoot/vendor/bin/phpunit" \
+      "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpunit" \
         --configuration="$workspaceRoot/phpunit.xml.dist" \
         --no-coverage \
         ${PHPUNIT_TARGET:---testsuite=functional}
@@ -160,24 +169,12 @@ tasks:
     options:
       runInCI: false
 
-  # Default CI target: static + unit. No services. Cached.
-  check:
+  # Fast local/pre-push gate: static + unit. No services.
+  verify:
     command: noop
     deps:
       - "~:lint"
-      - "~:analyse"
+      - "~:typecheck"
       - "~:test-unit"
-    options:
-      runInCI: true
-
-  # Full CI: all tiers. Explicit opt-in.
-  check-full:
-    command: noop
-    deps:
-      - "~:lint"
-      - "~:analyse"
-      - "~:test-unit"
-      - "~:test-integration"
-      - "~:test-e2e"
     options:
       runInCI: false

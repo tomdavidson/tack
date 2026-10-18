@@ -1,0 +1,5 @@
+{
+  "extends": [
+    "./.tack/configs/php/dprint-php.json"
+  ]
+}

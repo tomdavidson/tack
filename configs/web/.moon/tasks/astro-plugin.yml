@@ -13,7 +13,7 @@ fileGroups:
     - "tests/**/*"
 
 tasks:
-  check-types:
+  typecheck:
     command: "astro"
     args: ["check"]
     toolchains: ["javascript", "node"]

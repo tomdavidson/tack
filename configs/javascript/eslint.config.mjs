@@ -1,9 +1,9 @@
 // Shipped by tack. Symlinked into the consumer repo root.
 //
 // Behavior:
-//   - Always applies @astro-bay/eslint-config.
+//   - Always applies @tack/eslint-config.
 //   - If the consumer's package.json lists 'astro' in dependencies or
-//     devDependencies, additionally applies @astro-bay/eslint-config-astro
+//     devDependencies, additionally applies @tack/eslint-config-astro
 //     via dynamic import. When astro is absent, the astro config package is
 //     never loaded.
 //
@@ -11,7 +11,7 @@
 // package.json, so eslint invoked from a subdirectory still resolves to the
 // repo root.
 
-import tsConfig from '@astro-bay/eslint-config'
+import tsConfig from '@tack/eslint-config'
 import { defineConfig } from 'eslint/config'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
@@ -40,7 +40,7 @@ const isAstro = Boolean(pkg.dependencies?.astro || pkg.devDependencies?.astro)
 const configs = [...tsConfig({ tsconfigRootDir })]
 
 if (isAstro) {
-  const { default: astroConfig } = await import('@astro-bay/eslint-config-astro')
+  const { default: astroConfig } = await import('@tack/eslint-config-astro')
   configs.push(...astroConfig({ tsconfigRootDir }))
 }
 

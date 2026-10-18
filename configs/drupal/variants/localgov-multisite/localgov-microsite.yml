@@ -1,6 +1,6 @@
 # .moon/tasks/drupal/localgov-multisite/microsite.yml
 # Delivered by configs/drupal/variants/localgov-multisite (tack-owned).
-# See docs/adrs/0008-moon-task-organization.md.
+# See docs/adrs/0010-moon-task-organization.md.
 #
 # Inherited by all projects tagged "localgov-microsite".
 # Microsite dirs are config/content packages (YAML, Markdown, schema files).
@@ -12,8 +12,8 @@
 # ├────────────┼────────────────────────────────────────┤
 # │ Lint check │ moon run :lint                             │
 # │ Lint fix   │ moon run :lint-fix                         │
-# │ Analyse    │ moon run :analyse                          │
-# │ CI check   │ moon run :check   (moon ci default)        │
+# │ Verify     │ moon run :verify                           │
+# │ CI         │ moon ci                                    │
 # │ Plan       │ moon run :plan    (stub; gitops TBD)       │
 # │ Apply      │ moon run :apply   (stub; gitops TBD)       │
 # └────────────┴────────────────────────────────────────┘
@@ -59,11 +59,27 @@ tasks:
     inputs:
       - "@group(sources)"
 
+  lint-schema:
+    command: noop
+    # swap for yq/CUE/jsonschema invocation when schema tooling is defined
+    options:
+      runInCI: true
+
+  lint-prose:
+    command: vale
+    args:
+      - "."
+    inputs:
+      - "@group(sources)"
+      - "/.vale.ini"
+
   lint:
     command: noop
     deps:
       - "~:lint-yaml"
       - "~:lint-md"
+      - "~:lint-schema"
+      - "~:lint-prose"
 
   lint-yaml-fix:
     extends: lint-yaml
@@ -90,31 +106,12 @@ tasks:
     options:
       runInCI: false
 
-  validate-schema:
-    command: noop
-    # swap for yq/CUE/jsonschema invocation when schema tooling is defined
-    options:
-      runInCI: true
-
-  validate-prose:
-    command: vale
-    args:
-      - "."
-    inputs:
-      - "@group(sources)"
-      - "/.vale.ini"
-
-  analyse:
-    command: noop
-    deps:
-      - "~:validate-schema"
-      - "~:validate-prose"
-
-  check:
+  verify:
     command: noop
     deps:
       - "~:lint"
-      - "~:analyse"
+    options:
+      runInCI: false
 
   # Stub — replace when the gitops pattern is defined.
   plan:

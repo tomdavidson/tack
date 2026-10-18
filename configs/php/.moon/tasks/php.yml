@@ -1,0 +1,91 @@
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+# Inherited by plain-PHP projects with `tags: [php]` in moon.yml.
+# Delivered by configs/php (tack-owned: re-running tack overwrites it).
+inheritedBy:
+  tags: ["php"]
+  order: 10
+
+fileGroups:
+  sourceDirs:
+    - "src"
+    - "tests"
+  sources:
+    - "src/**/*.php"
+  tests:
+    - "tests/**/*.php"
+  configs:
+    - "/phpcs.xml.dist"
+    - "/phpstan.neon.dist"
+    - "/phpunit.xml.dist"
+    - "composer.json"
+    - "composer.lock"
+    - "/composer.json"
+    - "/composer.lock"
+
+tasks:
+  lint:
+    script: |
+      "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpcs" \
+        --standard="$workspaceRoot/phpcs.xml.dist" \
+        @dirs(sourceDirs)
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+    options:
+      runInCI: true
+
+  lint-fix:
+    script: |
+      "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpcbf" \
+        --standard="$workspaceRoot/phpcs.xml.dist" \
+        @dirs(sourceDirs) || [ $? -eq 1 ]
+    toolchains: ["system"]
+    options:
+      cache: false
+      runInCI: false
+
+  typecheck:
+    script: |
+      "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpstan" analyse \
+        --no-progress \
+        --configuration="$workspaceRoot/phpstan.neon.dist" \
+        @dirs(sourceDirs)
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+    options:
+      runInCI: true
+
+  test-unit:
+    script: |
+      "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpunit" \
+        --no-coverage \
+        ${PHPUNIT_TARGET:-tests}
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+    options:
+      runInCI: true
+
+  test:
+    command: "noop"
+    deps:
+      - "~:test-unit"
+    options:
+      runInCI: false
+
+  verify:
+    command: "noop"
+    deps:
+      - "~:lint"
+      - "~:typecheck"
+      - "~:test-unit"
+    options:
+      runInCI: false

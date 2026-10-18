@@ -18,7 +18,7 @@ To maintain integrity and usability across the team:
 
 1. **Always use `$schema` comments**: Inject the official schema URL at the top of every config file. Your editor will automatically validate your YAML and provide autocomplete.
 2. **Do not vendor schema JSON files**: Do not commit `workspace.json`, `tasks.json`, etc., to your repo. Rely on the remote schema URLs so they stay perfectly aligned with Moon's current specifications.
-3. **Validate early**: Rely on your IDE's YAML validation, and ensure `moon check` runs in CI.
+3. **Validate early**: Rely on your IDE's YAML validation and `moon query projects` / `moon ci` in CI (never run `moon check` in CI; see [CI Integration](#ci-integration) and ADR-0010).
 
 ## Architecture
 
@@ -47,15 +47,17 @@ Moon does not replace language-native tooling. It standardizes how tasks are dec
 ## Workspace Structure
 
 ```text
+moon.yml                   # root project (id: root): fmt, fmt-check, lint-sh, verify
 .moon/
-├── workspace.yml          # workspace-level settings, projects, VCS config
-├── toolchains.yml         # tool versions (node, bun, rust, etc.)
-└── tasks/                 # inherited task definitions
-    ├── node.yml           # tasks for all node-based projects
-    ├── rust.yml           # tasks for all rust-based projects
-    └── common.yml         # language-agnostic tasks (formatting, tests)
+├── workspace.yml          # workspace-level settings, projects, VCS pre-push hook
+├── toolchains.yml         # pinned tool versions (proto, node, pnpm, rust)
+└── tasks/                 # pack-delivered tag-inherited task definitions (ADR-0010)
+    ├── typescript.yml     # delivered by configs/javascript (tags: ["typescript"])
+    ├── rust.yml           # delivered by configs/rust       (tags: ["rust"])
+    ├── python.yml         # delivered by configs/python     (tags: ["python"])
+    └── drupal/            # delivered by configs/drupal     (tags: ["drupal"])
 <project>/
-├── moon.yml               # project config: type, tags, task overrides
+├── moon.yml               # project config: layer/type, tags, minimal overrides
 ├── src/
 └── ...
 ```
@@ -93,61 +95,21 @@ Rules:
 
 Tasks are defined at two levels: inherited (workspace-wide defaults) and project-level (overrides).
 
-### Inherited Tasks
+### Inherited Tasks & Canonical Vocabulary (ADR-0010)
 
-Define once in `.moon/tasks/`, applied to every matching project. This eliminates duplicating lint/test/build across projects.
+Define once in `.moon/tasks/` (delivered by each `tack` language pack and scoped via `inheritedBy.tags`), applied to every project that declares the matching tag (`tags: ["typescript"]`, `tags: ["rust"]`, `tags: ["python"]`, `tags: ["drupal"]`).
 
-```yaml
-# $schema: https://moonrepo.dev/schemas/tasks.json
-# .moon/tasks/node.yml
-tasks:
-  lint:
-    command: "oxlint"
-    args: ["--config", ".oxlintrc.json", "."]
-    inputs:
-      - "src/**/*.ts"
-      - ".oxlintrc.json"
+Every stack exposes the same canonical task names:
 
-  test:
-    command: "bun"
-    args: ["test"]
-    inputs:
-      - "src/**/*.ts"
-      - "src/**/*.spec.ts"
-
-  typecheck:
-    command: "tsc"
-    args: ["--noEmit"]
-    inputs:
-      - "src/**/*.ts"
-      - "tsconfig.json"
-```
-
-```yaml
-# $schema: https://moonrepo.dev/schemas/tasks.json
-# .moon/tasks/rust.yml
-tasks:
-  lint:
-    command: "cargo"
-    args: ["clippy", "--", "-D", "warnings"]
-    inputs:
-      - "src/**/*.rs"
-      - "Cargo.toml"
-      - "Cargo.lock"
-
-  test:
-    command: "cargo"
-    args: ["test"]
-    inputs:
-      - "src/**/*.rs"
-      - "Cargo.toml"
-
-  fmt-check:
-    command: "cargo"
-    args: ["fmt", "--check"]
-    inputs:
-      - "src/**/*.rs"
-```
+| Task                | `runInCI`      | Purpose                                                                                                |
+| ------------------- | -------------- | ------------------------------------------------------------------------------------------------------ |
+| `fmt` / `fmt-check` | `false`/`true` | Root `dprint fmt` / `dprint check` across all languages                                                |
+| `lint` / `lint-fix` | `true`/`false` | Stack linter (`oxlint`+`eslint`, `cargo clippy`, `ruff`, `phpcs`)                                      |
+| `typecheck`         | `true`         | Type / static analysis (`tsc`, `cargo check`, `basedpyright`, `phpstan`)                               |
+| `test`              | `true`         | Fast, hermetic unit + property tests (`vitest`, `cargo nextest`, `pytest`, `phpunit --testsuite=unit`) |
+| `test-integration`  | `false`        | Service-backed / DB / kernel tests (explicit opt-in)                                                   |
+| `test-e2e`          | `false`        | Browser / full-stack E2E tests (explicit opt-in)                                                       |
+| `verify`            | `false`        | Local developer aggregator (`~:lint` + `~:typecheck` + `~:test`)                                       |
 
 ### Project-Level Overrides
 
@@ -272,7 +234,7 @@ Moon manages Git hooks directly. This replaces Husky and lint-staged.
 
 ### Pre-Push Hook
 
-Configure a `pre-push` hook in `workspace.yml`:
+Configure a `pre-push` hook in `.moon/workspace.yml` (shipped by `tack`'s `.moon` package):
 
 ```yaml
 # $schema: https://moonrepo.dev/schemas/workspace.json
@@ -280,12 +242,14 @@ Configure a `pre-push` hook in `workspace.yml`:
 vcs:
   manager: "git"
   defaultBranch: "main"
+  syncHooks: true
   hooks:
     pre-push:
-      - "moon run :lint --affected"
-      - "moon run :fmt-check --affected"
-      - "moon run :test --affected-or-all"
-      - "moon run :typecheck --affected"
+      - "moon run :fmt"
+      - "moon run :lint-fix --affected --upstream"
+      - "git diff --exit-code"
+      - "moon run :fmt-check --affected --upstream"
+      - "moon run :lint --affected --upstream"
 ```
 
 Policy:
@@ -323,33 +287,21 @@ on:
   pull_request:
 
 jobs:
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: moonrepo/setup-toolchain@v2
-      - run: moon check # Fails if configuration schemas are invalid
-
-  lint-and-test:
-    needs: validate
+  ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # needed for Git diff
       - uses: moonrepo/setup-toolchain@v2
-      - run: moon ci :lint :typecheck :test
-
-  build:
-    runs-on: ubuntu-latest
-    needs: lint-and-test
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: moonrepo/setup-toolchain@v2
-      - run: moon ci :build
+      - run: moon ci
 ```
+
+> **Why `moon ci` instead of `moon check` or a `:check` task?**
+>
+> - `moon ci` runs only affected tasks where `runInCI: true` (`fmt-check`, `lint`, `typecheck`, `test-unit`/`test`, `build`).
+> - `moon check` (or `moon c`) is a built-in Moon CLI command that runs _every_ `build` and `test`-type task regardless of `runInCI: false` (sweeping up slow integration/E2E tests and mutating tasks).
+> - For a fast local or pre-push gate that runs only lightweight checks (`lint` + `typecheck` + `test-unit`), define a `verify` task (`command: "noop"`, `runInCI: false`) rather than `:check` (see ADR-0010).
 
 `moon ci`:
 
@@ -366,13 +318,13 @@ Split work across CI jobs using Moon's built-in partitioning:
 
 ```yaml
 jobs:
-  test:
+  ci:
     strategy:
       matrix:
-        index: [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/14092847/a9a82e2a-fafa-4b8d-8677-c9fb2c484ac4/lang-typescript.md?AWSAccessKeyId=ASIA2F3EMEYEQGADK3EB&Signature=ETdvl%2FEo4WzRXL6JthlTN4maUL8%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEPz%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJGMEQCIESSjvq7l2KChkiXzneofveErAaG%2BbXMOypbVrT4wpCPAiB4iyI13k05G9YkVACPp725Xigo6HrLdoQNF66L6IJl8ir8BAjF%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAEaDDY5OTc1MzMwOTcwNSIMAABudOi7eBj%2BPFLOKtAEsm%2FhJnu%2BzxPVVauytPzQSwIHg%2FbIG7PtpgzLgBrifQW575l2GWnZmchsXYt6Da7x0oPQ7ZppPr9f8GOZQrg7Pb3JHTBSpRb%2BhZzttsRAc85m0weIdjY9jyP1q37aObE4C76ohwx5lEf1u%2FdAyTLp3m2OPF2LUWUE1QoL%2FmkO94Y8E4mblMVS1kZ6ikY3a6djQarUuZfkkCxhojdzpmpesLRWr6qvW5jE8tCJtUJKvCbTGceIgkmqgYCcwWumK%2FjL658eWf30Awz0EGKYP0eO%2BsuNLNSpThqrfm1NPLWG5F2tjypk%2FATB73NsWjEuM7ao2lGEA0OjzLNWi%2BlTaf%2BEOBpD1u6ZQprvF5FGZwyX4SSdqwgkJUZ4jpSS3vtq%2FwSWdB0SE9P%2BnjdHYNyTLCSD%2BF1hSprz7RV%2Frtjal58hQilnSy9C5344rM4IHik5WsSe4LYQCr6fUfzzuuGHJnOGeLd1gIh96JMbVpvGvvF4lOy97co0GijraEGxhLrMLKEZS4ShAk9kG1886FQ7MylVlNBfOJtlKdVz%2FXvLId2XQ1z9pJOf8OehNFaQ2T%2BpkxlF1dPHLNoLiSue4AX%2BmBXPQJmQ42ViBdBZ6dz%2Fuouc3RW42ULJ48fanDcmjjmoM9Theq%2BU5avEzkvpHJwwBD3Arqj3RozRU26IKzy0nsPWdPERYPUiVrEKkpva0aeF60mD7P0rHqm%2BImb9pcIhz9kkCSrZaetlsqXsxNOm0yAP%2B22yt6i5%2BWxoaBP3mD1olF5uaEUeoVN%2BHbK7ilG8LezfEzDGmNzNBjqZAXz19FVHn8srXH55Nr7Bhf81a60S47u8GYZSpogjsIsZ2Ooqg%2F72foCpSi9jcZW6B3qrAQWNt7aDDse4jP1pQw9KYcTwAidSiHi2GMi7kPj40KmcjUlHDA9eNCr1WTzKsnBVLHSJmiudllMzQGUdsHfayJgb9ArRAc6mnngKiXO56xpy%2F98rcMxIwuP3jI4dxP116in7R90DVg%3D%3D&Expires=1773607449)
+        index: [0, 1, 2, 3]
     steps:
       - uses: moonrepo/setup-toolchain@v2
-      - run: moon ci :test --jobTotal 4 --job ${{ matrix.index }}
+      - run: moon ci --job-total 4 --job ${{ matrix.index }}
 ```
 
 ## Caching
@@ -463,9 +415,9 @@ No migration of task syntax, CI config, or hook setup required.
 - [ ] Templates defined for common project types (TS app, Rust lib, etc.)
 - [ ] No Husky or lint-staged; Git hooks managed by Moon only
 - [ ] No pre-commit hooks; pre-push hook runs lint/format/unit tests/typecheck
-- [ ] Pre-push tasks filtered to affected projects
-- [ ] Test task uses affected tests when supported, otherwise full unit tests for affected projects
-- [ ] CI uses `moon check` to validate config schemas
+- [ ] Pre-push tasks filtered to affected projects (`--affected --upstream`)
+- [ ] Each stack exposes `lint`, `typecheck`, `test`, and `verify` (`command: "noop"`, `runInCI: false`)
+- [ ] Never use `:check` as a custom task name (collides with `moon check`; see ADR-0010)
 - [ ] CI uses `moon ci` with affected-target detection
 - [ ] CI checkout includes `fetch-depth: 0`
 - [ ] `moonrepo/setup-toolchain` action in CI

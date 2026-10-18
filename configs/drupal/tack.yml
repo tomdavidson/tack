@@ -33,11 +33,10 @@
 # (overwrite: false) to the consumer repo root. Check them in and edit
 # freely; re-running tack will not clobber your changes.
 #
-# composer.merge.json: deep-merged into the consumer's composer.json via
-# tack's *.merge.json dispatch. Adds a path repository for packages/drupal/*
-# and sets minimum-stability: dev / prefer-stable: true.
+# drupal.nix and scripts/** stay in .tack and are referenced by path
+# (ADR-0008 / ADR-0009); they are never materialized into the consumer.
 #
-# MOON TASKS AND TEMPLATES (ADR 0008)
+# MOON TASKS AND TEMPLATES (ADR 0010)
 # -----------------------------------
 # .moon/tasks/drupal/all.yml -> .moon/tasks/drupal/all.yml  (tack-owned; tags: drupal)
 # .moon/tasks/drupal/app.yml -> .moon/tasks/drupal/app.yml  (tack-owned; drupal + application)
@@ -60,7 +59,14 @@
 #   fly.toml       Fly app config for MariaDB 11.4 on a Fly Volume
 
 ignore:
+  - drupal.nix
+  - phpcs.xml
+  - phpstan.neon
+  - dprint-drupal.json
+  - scripts/**
   - variants/**
+  - composer.merge.json
+  - templates/app.moon.yml
 
 files:
   phpcs.xml.dist:
@@ -72,6 +78,8 @@ files:
   phpunit.xml.dist:
     target: phpunit.xml.dist
     overwrite: false
+  dprint.merge.json:
+    target: dprint.json
   .moon/tasks/drupal/all.yml:
     target: .moon/tasks/drupal/all.yml
   .moon/tasks/drupal/app.yml:

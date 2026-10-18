@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="tack-drupal">
+  <description>Drupal coding standards + shared Strategic FP / Clean Code PHP guardrails.</description>
+
+  <arg name="extensions" value="inc,install,module,php,profile,test,theme,yml"/>
+
+  <!-- Shared framework-neutral PHP safety, typing, and complexity guardrails. -->
+  <rule ref="../php/phpcs-base.xml"/>
+
+  <!-- Drupal community standards take precedence on surface conventions and framework contracts. -->
+  <rule ref="Drupal"/>
+  <rule ref="DrupalPractice"/>
+</ruleset>

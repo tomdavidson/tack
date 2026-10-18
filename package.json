@@ -1,8 +1,4 @@
 {
-  "name": "tack",
-  "version": "0.0.0",
-  "private": true,
-  "packageManager": "pnpm@10.32.1",
   "devDependencies": {
     "bats": "catalog:",
     "bats-assert": "catalog:",
@@ -14,5 +10,6 @@
     "oxlint-tsgolint": "catalog:",
     "typescript": "catalog:"
   },
-  "scripts": {}
+  "scripts": {},
+  "packageManager": "pnpm@10.32.1"
 }

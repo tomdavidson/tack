@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="tack-php">
+  <description>Plain PHP coding standard + Strategic FP / Clean Code guardrails.</description>
+
+  <arg name="extensions" value="php"/>
+
+  <rule ref="./phpcs-base.xml"/>
+
+  <!-- Plain PHP surface conventions: 2-space indent, same-line braces, lowercase true/false/null. -->
+  <rule ref="Generic.WhiteSpace.DisallowTabIndent"/>
+  <rule ref="Generic.WhiteSpace.ScopeIndent">
+    <properties>
+      <property name="indent" value="2"/>
+      <property name="tabIndent" value="false"/>
+    </properties>
+  </rule>
+  <rule ref="Generic.PHP.LowerCaseConstant"/>
+  <rule ref="Generic.PHP.LowerCaseKeyword"/>
+  <rule ref="Generic.PHP.LowerCaseType"/>
+  <rule ref="Generic.Classes.OpeningBraceSameLine"/>
+  <rule ref="Generic.Functions.OpeningFunctionBraceKernighanRitchie"/>
+
+  <!-- Immutable value objects by default in plain PHP. -->
+  <rule ref="SlevomatCodingStandard.Classes.RequireReadonlyProperty"/>
+</ruleset>
