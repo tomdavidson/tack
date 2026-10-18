@@ -49,7 +49,11 @@ jobs:
           fi
 
           if [[ "$EVENT_NAME" == "release" ]]; then
-            COMP=$(echo "$RELEASE_TAG" | sed -E 's/-v[0-9].*//')
+            if [[ "$RELEASE_TAG" =~ ^v[0-9] ]]; then
+              COMP="root"
+            else
+              COMP=$(echo "$RELEASE_TAG" | sed -E 's/-v[0-9].*//')
+            fi
 
             if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
               TASK="review"
@@ -92,7 +96,18 @@ jobs:
       - uses: ./.github/actions/setup
 
       - name: Execute Moon Task
-        run: moon run ${{ needs.router.outputs.target }}
+        run: |
+          TARGET="${{ needs.router.outputs.target }}"
+          TASK="${{ needs.router.outputs.task }}"
+          if [[ "$TARGET" == *:* && "$TARGET" != :* ]]; then
+            PROJ="${TARGET%%:*}"
+            has_task=$(moon query tasks --project "$PROJ" --id "^${TASK}$" | jq 'any(.tasks[]; length > 0)')
+            if [[ "$has_task" != "true" ]]; then
+              echo "Project '$PROJ' has no '$TASK' task. Skipping moon run."
+              exit 0
+            fi
+          fi
+          moon run $TARGET
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

@@ -11,10 +11,19 @@ inheritedBy:
   order: 90
 
 tasks:
-  test:
+  test-unit:
     # bats and its helper libs come from the pnpm catalog (package.json),
     # not a system install; bats_load_library resolves them via BATS_LIB_PATH.
-    command: pnpm exec bats --jobs ${MOON_THREADS:-$(nproc)} tests/ configs/devenv/tests/
+    # - `toolchains` declares node/javascript ownership to moon.
+    # - `proto activate` puts resolved proto tool dirs (yq, tera) ahead of
+    #   ~/.proto/shims so 1,700+ helper calls hit the binaries directly.
+    # - `--no-parallelize-within-files` parallelizes across .bats files via GNU
+    #   parallel without invoking bats' internal semaphore.bash, which polls
+    #   `find | wc -l` and blocks on `sleep 1` per slot wait.
+    script: |
+      eval "$(proto activate bash --export)"
+      pnpm exec bats --jobs "${MOON_THREADS:-$(nproc)}" --no-parallelize-within-files tests/ configs/devenv/tests/
+    toolchains: ["javascript", "node"]
     env:
       BATS_LIB_PATH: "$workspaceRoot/node_modules"
     # Root-level tasks default to NO inputs (moon >= 1.24), so without this
@@ -35,6 +44,7 @@ tasks:
       - "package.json"
       - "pnpm-lock.yaml"
     options:
+      runInCI: true
       runFromWorkspaceRoot: true
 
   raa-run:

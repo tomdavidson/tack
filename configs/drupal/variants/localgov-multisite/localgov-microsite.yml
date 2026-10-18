@@ -80,6 +80,8 @@ tasks:
       - "~:lint-md"
       - "~:lint-schema"
       - "~:lint-prose"
+    options:
+      runInCI: true
 
   lint-yaml-fix:
     extends: lint-yaml
@@ -103,13 +105,6 @@ tasks:
     deps:
       - "~:lint-yaml-fix"
       - "~:lint-md-fix"
-    options:
-      runInCI: false
-
-  verify:
-    command: noop
-    deps:
-      - "~:lint"
     options:
       runInCI: false
 

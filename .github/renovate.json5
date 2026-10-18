@@ -131,6 +131,14 @@
     {
       customType: "regex",
       managerFilePatterns: ["/(^|/)\\.prototools$/"],
+      matchStrings: ["gitleaks\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      depNameTemplate: "gitleaks/gitleaks",
+      datasourceTemplate: "github-releases",
+      extractVersionTemplate: "^v?(?<version>.*)$",
+    },
+    {
+      customType: "regex",
+      managerFilePatterns: ["/(^|/)\\.prototools$/"],
       matchStrings: ["tera\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
       depNameTemplate: "chevdor/tera-cli",
       datasourceTemplate: "github-releases",

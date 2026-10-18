@@ -1,15 +1,13 @@
-$schema: "https://moonrepo.dev/schemas/project.json"
+$schema: "https://moonrepo.dev/schemas/tasks.json"
 
-# Root project config, shared by every consumer. tack links this file to
-# <consumer>/moon.yml (files.moon.yml.target in .moon/tack.yml), so it is
-# the same file in tack and in every consumer, including tack itself, which
-# dog-foods the .moon package. Only workspace-generic tasks belong here.
-# Repo-specific root tasks go in an inherited task file with an
-# `inheritedBy` condition (tack's own live in .moon/tasks/tack-internal.yml);
-# consumers put theirs in a project, not in this file (ADR-0009).
-
-tags:
-  - "tooling"
+# Workspace root project tasks, inherited only by the `root` project
+# (`sources.root: "."` in `.moon/workspace-base.yml`), which is the only
+# project whose root directory contains `.moon/workspace.yml`.
+# Because the `root` project is declared via `sources.root: "."` and inherits
+# its tasks from here, neither tack nor consumer repos need a root `moon.yml`.
+inheritedBy:
+  file: ".moon/workspace.yml"
+  order: 10
 
 tasks:
   sync-release:
@@ -48,6 +46,7 @@ tasks:
       - "!**/*.tera*"
       - "!**/node_modules/**"
     options:
+      runInCI: true
       runFromWorkspaceRoot: true
       affectedFiles: true
 
@@ -59,31 +58,28 @@ tasks:
       runFromWorkspaceRoot: true
       affectedFiles: args
 
+  gitleaks:
+    script: "gitleaks git --no-banner --redact"
+    inputs:
+      - "/**/*"
+      - "/**/.*"
+      - "/**/.*/**/*"
+      - "!**/node_modules/**"
+    options:
+      runFromWorkspaceRoot: true
+
   lint:
     command: "noop"
     deps:
       - "~:lint-sh"
+      - "~:gitleaks"
+    options:
+      runInCI: true
 
   lint-fix:
     command: "noop"
     deps:
       - "~:lint-sh"
-    options:
-      runInCI: false
-
-  fix:
-    command: "noop"
-    deps:
-      - "~:fmt"
-      - "~:lint-fix"
-    options:
-      runInCI: false
-      runDepsInParallel: false
-
-  verify:
-    command: "noop"
-    deps:
-      - "~:fmt-check"
-      - "~:lint"
+      - "~:gitleaks"
     options:
       runInCI: false

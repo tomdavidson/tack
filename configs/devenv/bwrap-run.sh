@@ -100,13 +100,13 @@ resolve_cmd() {
   proto_home=${PROTO_HOME:-$HOME/.proto}
   cargo_home=${CARGO_HOME:-$HOME/.cargo}
 
-  if command -v proto > /dev/null 2>&1; then
-    if p=$(proto bin "$cmd" 2> /dev/null) && [ -n "$p" ] && [ -f "$p" ] && [ -x "$p" ]; then
-      printf '%s\n' "$p"
-      return 0
-    fi
-  fi
   if [ -f "$proto_home/shims/$cmd" ] && [ -x "$proto_home/shims/$cmd" ]; then
+    if command -v proto > /dev/null 2>&1; then
+      if p=$(proto bin "$cmd" 2> /dev/null) && [ -n "$p" ] && [ -f "$p" ] && [ -x "$p" ]; then
+        printf '%s\n' "$p"
+        return 0
+      fi
+    fi
     printf '%s\n' "$proto_home/shims/$cmd"
     return 0
   fi

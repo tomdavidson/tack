@@ -1,0 +1,2 @@
+# False positive: S3 presigned URL from temporary file upload in commit 6901b2c8
+6901b2c8891247f9cd0b17e4a6ac96df3bf84995:patterns/moon-workspace-pattern.md:aws-access-token:364

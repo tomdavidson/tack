@@ -2,7 +2,7 @@ $schema: "https://moonrepo.dev/schemas/tasks.json"
 
 # .moon/tasks/typescript.yml
 #
-# Inherited by all projects with toolchain: "typescript".
+# Inherited by all projects with language: "typescript".
 # See docs/adrs/0010-moon-task-organization.md.
 #
 # ┌──────────────┬──────────────────────────────────────────────────┐
@@ -13,14 +13,16 @@ $schema: "https://moonrepo.dev/schemas/tasks.json"
 # │ Typecheck    │ moon run ~:typecheck                             │
 # │ Test         │ moon run ~:test                                  │
 # │ Fast verify  │ moon run ~:verify                                │
+# │ Verify + fix │ moon run ~:vf                                    │
 # │ CI           │ moon ci                                          │
-# │ Pre-push     │ moon run ~:lint-fix --affected                   │
+# │ Pre-push     │ moon run :vf --affected                          │
 # │ One file     │ moon run ~:lint-es -- src/taxonomy.ts            │
 # │ Dev loop     │ bun .moon/scripts/watch-file.ts src/foo.ts -w    │
 # └──────────────┴──────────────────────────────────────────────────┘
 
 inheritedBy:
-  toolchains: "typescript"
+  languages: "typescript"
+  order: 10
 
 fileGroups:
   sources:
@@ -62,17 +64,21 @@ tasks:
     deps:
       - "~:lint-es"
       - "~:lint-ox"
+    options:
+      runInCI: true
 
   lint-es-fix:
     extends: "lint-es"
     args: ["--fix"]
     options:
+      cache: false
       runInCI: false
 
   lint-ox-fix:
     extends: "lint-ox"
     args: ["--fix"]
     options:
+      cache: false
       runInCI: false
 
   lint-fix:
@@ -81,6 +87,7 @@ tasks:
       - "~:lint-es-fix"
       - "~:lint-ox-fix"
     options:
+      cache: false
       runInCI: false
 
   typecheck:
@@ -93,8 +100,10 @@ tasks:
       - "@group(tests)"
       - "@group(configs)"
       - "/tsconfig.*.json"
+    options:
+      runInCI: true
 
-  test:
+  test-unit:
     command: "vitest"
     args:
       - "run"
@@ -102,15 +111,8 @@ tasks:
     inputs:
       - "@group(sources)"
       - "@group(tests)"
-
-  verify:
-    command: "noop"
-    deps:
-      - "~:typecheck"
-      - "~:lint"
-      - "~:test"
     options:
-      runInCI: false
+      runInCI: true
 
   wf:
     command: "bun"

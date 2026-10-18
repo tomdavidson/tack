@@ -77,7 +77,7 @@ shopt -s globstar dotglob nullglob extglob
 
 # Static fallback when not running from a git checkout (e.g. release tarball).
 # Bump on tagged release.
-TACK_VERSION_FALLBACK="0.1.0"
+TACK_VERSION_FALLBACK="1.0.0" # x-release-please-version
 
 # Diagnostic EXIT trap: any nonzero exit (including silent set -e
 # aborts that might otherwise vanish inside command substitution)
@@ -220,17 +220,21 @@ require_core_deps() {
     return 0
   fi
   require_proto
-  proto_trust_pinfile
-  # One tool per call: `proto install <tool> [version]` treats a second
-  # positional as a version spec, so `proto install yq tera` fails with
-  # "Failed to resolve tera to a valid supported version for yq".
-  log "proto install yq, tera (from configs/common/.prototools)"
-  for tool in yq tera; do
-    proto_in_pinfile_dir install "$tool" > /dev/null ||
-      die "proto could not install $tool; run: (cd $TACK_PINFILE_DIR && proto install $tool)"
-  done
-  YQ=$(proto_in_pinfile_dir bin yq) || die "proto bin yq failed"
-  TERA=$(proto_in_pinfile_dir bin tera) || die "proto bin tera failed"
+  YQ=$(proto_in_pinfile_dir bin yq 2> /dev/null || true)
+  TERA=$(proto_in_pinfile_dir bin tera 2> /dev/null || true)
+  if [ ! -x "$YQ" ] || [ ! -x "$TERA" ]; then
+    proto_trust_pinfile
+    # One tool per call: `proto install <tool> [version]` treats a second
+    # positional as a version spec, so `proto install yq tera` fails with
+    # "Failed to resolve tera to a valid supported version for yq".
+    log "proto install yq, tera (from configs/common/.prototools)"
+    for tool in yq tera; do
+      proto_in_pinfile_dir install "$tool" > /dev/null ||
+        die "proto could not install $tool; run: (cd $TACK_PINFILE_DIR && proto install $tool)"
+    done
+    YQ=$(proto_in_pinfile_dir bin yq) || die "proto bin yq failed"
+    TERA=$(proto_in_pinfile_dir bin tera) || die "proto bin tera failed"
+  fi
   [ -x "$YQ" ] || die "yq binary not executable: $YQ"
   [ -x "$TERA" ] || die "tera binary not executable: $TERA"
 }
@@ -333,7 +337,15 @@ guard_target() {
   die "refusing to write protected consumer path '$g_rel' from ${g_src#"$TACK_ROOT"/}: only configs/devenv and *.nix sources may produce host-executed files (ADR-0008)"
 }
 
-strip_marker() { printf '%s\n' "$1" | sed -E 's/\.(tera|copy|concat|merge)\./\./'; }
+strip_marker() {
+  sm_s=$1
+  for sm_m in tera copy concat merge; do
+    case "$sm_s" in
+      *".$sm_m."*) sm_s="${sm_s%%."$sm_m".*}.${sm_s#*."$sm_m".}" ;;
+    esac
+  done
+  printf '%s\n' "$sm_s"
+}
 rel_in_pkg() { printf '%s\n' "${1#"$2"/}"; }
 
 load_tackrc() {
@@ -374,9 +386,15 @@ pkg_excludes() {
 # relative to the package directory and unioned with consumer excludes.
 # Package ignores express the package's own contract; they apply even
 # when the package is CLI-selected (consumer excludes do not).
+# manifest_has_key MANIFEST KEY -- fast pre-check before spawning yq: exit 0
+# only when MANIFEST is non-empty and mentions KEY.
+manifest_has_key() {
+  [ -s "$1" ] && grep -Fq "$2" "$1"
+}
+
 manifest_ignores() {
   manifest=$1
-  [ -f "$manifest" ] || return 0
+  manifest_has_key "$manifest" "ignore" || return 0
   # Validate shape: ignore must be a sequence (or absent/null). A scalar
   # like the common YAML mistake
   #   ignore:
@@ -399,7 +417,7 @@ manifest_ignores() {
 # tack.yml `prune:` list, validated as a sequence like `ignore:`.
 manifest_prune() {
   manifest=$1
-  [ -f "$manifest" ] || return 0
+  manifest_has_key "$manifest" "prune" || return 0
   tag=$(yq -r '.prune | tag' "$manifest" 2> /dev/null || printf '!!null')
   case "$tag" in
     '!!seq' | '!!null') ;;
@@ -642,16 +660,16 @@ manifest_get() {
   manifest=$1
   src_rel=$2
   field=$3
-  [ -f "$manifest" ] || {
+  if ! manifest_has_key "$manifest" "$src_rel" || ! manifest_has_key "$manifest" "$field"; then
     printf ''
     return 0
-  }
+  fi
   yq -r ".files[\"$src_rel\"].$field // \"\"" "$manifest"
 }
 
 manifest_unfold() {
   manifest=$1
-  [ -f "$manifest" ] || return 0
+  manifest_has_key "$manifest" "unfold" || return 0
   yq -r '.link.unfold[]?' "$manifest"
 }
 
@@ -662,10 +680,10 @@ manifest_unfold() {
 # this prefix entirely.
 manifest_path_prefix() {
   manifest=$1
-  [ -f "$manifest" ] || {
+  if ! manifest_has_key "$manifest" "path_prefix"; then
     printf ''
     return 0
-  }
+  fi
   yq -r '.path_prefix // ""' "$manifest"
 }
 
@@ -676,7 +694,8 @@ manifest_path_prefix() {
 manifest_no_overwrite() {
   manifest=$1
   src_rel=$2
-  [ -f "$manifest" ] || return 1
+  manifest_has_key "$manifest" "$src_rel" || return 1
+  manifest_has_key "$manifest" "overwrite" || return 1
   # WARNING: do NOT use `// true` here. jq's alternative operator triggers
   # when the LHS is null OR false, so `false // true` evaluates to `true`,
   # masking the very value we're trying to detect. Read the raw value and
@@ -715,7 +734,7 @@ apply_prefix() {
 
 emit_mode_rules() {
   src=$1
-  [ -f "$src" ] || return 0
+  manifest_has_key "$src" "mode" || return 0
   # shellcheck disable=SC2016
   yq -r '.mode[]? | to_entries | .[0] | ((select(.value | tag == "!!str") | .key + "\t" + .value), (select(.value | tag == "!!seq") | .key as $k | .value[] | $k + "\t" + .))' "$src" 2> /dev/null || true
 }
@@ -841,7 +860,8 @@ relpath() {
   up=""
   common=$from
   while [ "$common" != "/" ] && [ "$to" != "$common" ] && [ "${to#"$common"/}" = "$to" ]; do
-    common=$(dirname "$common")
+    common=${common%/*}
+    [ -n "$common" ] || common="/"
     up="${up}../"
   done
   if [ "$to" = "$common" ]; then
@@ -858,9 +878,13 @@ relpath() {
 # links; a relative target survives clone, CI, and moving the checkout,
 # an absolute one encodes this machine's filesystem.
 relative_link_target() {
-  src_dir=$(abs_dir "$(dirname "$1")")
-  dest_dir=$(abs_dir "$(dirname "$2")")
-  relpath "$dest_dir" "$src_dir/$(basename "$1")"
+  rlt_src_d=${1%/*}
+  [ "$rlt_src_d" != "$1" ] || rlt_src_d="."
+  rlt_dest_d=${2%/*}
+  [ "$rlt_dest_d" != "$2" ] || rlt_dest_d="."
+  src_dir=$(abs_dir "$rlt_src_d")
+  dest_dir=$(abs_dir "$rlt_dest_d")
+  relpath "$dest_dir" "$src_dir/${1##*/}"
 }
 
 apply_link_or_copy() {
@@ -1019,6 +1043,9 @@ render_file() {
   if [ -n "$vars_from" ]; then
     ctx=$(resolve_vars_from "$vars_from" "$src_rel")
   else
+    if [ -z "${CURRENT_PKG_CTX:-}" ]; then
+      CURRENT_PKG_CTX=$(pkg_metadata_ctx "$CURRENT_PKG_NAME")
+    fi
     ctx="$CURRENT_PKG_CTX"
   fi
   [ -f "$ctx" ] || [ "$DRY_RUN" -eq 1 ] || die "vars_from not found: $ctx (from $src_rel)"
@@ -1253,9 +1280,9 @@ apply_package() {
   CURRENT_PKG_MANIFEST=$manifest
   CURRENT_PKG_PATH_PREFIX=$(manifest_path_prefix "$manifest")
 
-  # Build a per-package tera context: merged tackrc with .pkg bound to
-  # pkgs_metadata[<this pkg path>] (or {} if absent).
-  CURRENT_PKG_CTX=$(pkg_metadata_ctx "$pkg")
+  # Per-package tera context is built lazily in render_file only if needed.
+  CURRENT_PKG_NAME=$pkg
+  CURRENT_PKG_CTX=""
 
   # Per-package file-level exclude patterns. Two sources are unioned:
   #   1. tack.yml `ignore:` (package-declared; always applies, including

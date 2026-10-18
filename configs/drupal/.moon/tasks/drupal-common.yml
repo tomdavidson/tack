@@ -1,11 +1,11 @@
-# .moon/tasks/drupal/all.yml
+# .moon/tasks/drupal-common.yml
 # Delivered by configs/drupal (tack-owned: re-running tack overwrites it).
 # See docs/adrs/0010-moon-task-organization.md.
 #
 # Inherited by every project tagged "drupal":
 #   - the Drupal app   (layer: application, also tagged drupal-app)
 #   - custom modules   (layer: library, packages/drupal/*)
-# App-only lifecycle tasks live in .moon/tasks/drupal/app.yml.
+# App-only lifecycle tasks live in .moon/tasks/drupal-app.yml.
 #
 # ┌──────────────────┬───────────────────────────────────────────────┐
 # │ Use case         │ Command                                          │
@@ -23,7 +23,7 @@
 #
 # Paths come from fileGroups, not task copies. Defaults match the module
 # layout (src/, tests/). The Drupal app's moon.yml overrides sourceDirs,
-# sources, tests and configs for the site layout.
+# sources, tests and configs for the site layout (from drupal-common.yml).
 #
 # PHPUnit scope: test tasks run a phpunit.xml.dist testsuite by default
 # (site-wide). Projects scope to their own tests by setting PHPUNIT_TARGET
@@ -35,11 +35,9 @@
 # site. test-e2e reads the real port from $DEVENV_STATE/web.port.
 
 $schema: "https://moonrepo.dev/schemas/tasks.json"
-
 inheritedBy:
   tags: ["drupal"]
   order: 10
-
 fileGroups:
   sourceDirs:
     - "."
@@ -60,7 +58,6 @@ fileGroups:
     - "composer.lock"
     - "/composer.json"
     - "/composer.lock"
-
 tasks:
   lint:
     script: |
@@ -74,7 +71,6 @@ tasks:
       - "@group(configs)"
     options:
       runInCI: true
-
   lint-fix:
     script: |
       "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpcbf" \
@@ -84,7 +80,6 @@ tasks:
     options:
       cache: false
       runInCI: false
-
   typecheck:
     script: |
       "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpstan" analyse \
@@ -98,7 +93,6 @@ tasks:
       - "@group(configs)"
     options:
       runInCI: true
-
   # No services. Cached by moon. Fast inner dev loop.
   test-unit:
     script: |
@@ -113,7 +107,6 @@ tasks:
       - "@group(configs)"
     options:
       runInCI: true
-
   # Kernel tests. Needs MariaDB (SIMPLETEST_DB); test-prepare ensures the
   # services and site are up. Table-prefix isolation makes parallel safe.
   test-integration:
@@ -134,7 +127,6 @@ tasks:
     options:
       cache: false
       runInCI: false
-
   # Functional/browser tests against the live site. SIMPLETEST_BASE_URL is
   # resolved from the web process's allocated port, not the Nix base port.
   test-e2e:
@@ -157,9 +149,7 @@ tasks:
     options:
       cache: false
       runInCI: false
-
-  # All test tiers for this project. The app refines this in app.yml to run
-  # the full devenv test lifecycle instead.
+  # All test tiers for this project.
   test:
     command: noop
     deps:
@@ -168,13 +158,4 @@ tasks:
       - "~:test-e2e"
     options:
       runInCI: false
-
-  # Fast local/pre-push gate: static + unit. No services.
-  verify:
-    command: noop
-    deps:
-      - "~:lint"
-      - "~:typecheck"
-      - "~:test-unit"
-    options:
-      runInCI: false
+      mergeDeps: replace

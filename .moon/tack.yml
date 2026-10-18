@@ -20,17 +20,6 @@ prune:
   - "cache/*"
   - "hooks/*"
 
-files:
-  moon.yml:
-    # files.<src>.target is consumer-root-relative and bypasses path_prefix
-    # (tests/path_prefix.bats). "../moon.yml" here resolved to the parent
-    # of the consumer repo; tack.sh now refuses any ".." target (ADR-0008).
-    # Linked, not copied: the consumer's root moon.yml is a symlink to
-    # .moon/moon.yml, so root tasks are the same file everywhere and
-    # cannot drift (ADR-0009). In tack itself the link is moon.yml ->
-    # .moon/moon.yml.
-    target: moon.yml
-
 link:
   unfold:
     - .moon

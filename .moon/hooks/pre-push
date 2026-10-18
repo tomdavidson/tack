@@ -44,6 +44,9 @@ detect_trunk() {
 
 trunk="$(detect_trunk)"
 
+# ---- Secret scan (runs even on initial push) ----
+moon run root:gitleaks || { echo "gitleaks secret scan failed. Aborting git push."; exit 1; }
+
 # ---- Initial-push / no-upstream bail-out ----
 has_upstream=0
 git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1 && has_upstream=1
@@ -52,7 +55,7 @@ has_remote_refs=0
 git for-each-ref --count=1 refs/remotes/origin/ | grep -q . && has_remote_refs=1
 
 if (( ! has_upstream )) || (( ! has_remote_refs )); then
-  echo "Initial push or no upstream. Skipping fmt/lint-fix."
+  echo "Initial push or no upstream. Skipping vf."
   exit 0
 fi
 
@@ -70,8 +73,8 @@ else
   run_refs=()
 fi
 
-# ---- fmt + lint-fix ----
-moon run :fmt :lint-fix --affected "${run_refs[@]}" || { echo "fmt/lint-fix failed. Aborting git push."; exit 1; }
+# ---- Verify + fix (vf) ----
+moon run :vf --affected "${run_refs[@]}" || { echo "vf failed. Aborting git push."; exit 1; }
 
 # ---- Stage just the affected files ----
 # Keep only files that currently exist on disk

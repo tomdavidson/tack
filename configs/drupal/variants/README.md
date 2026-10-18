@@ -59,8 +59,8 @@ completes. For LocalGov this enables the demo module and grants the
 
 ## Moon task integration (ADR-0010)
 
-`configs/drupal` delivers `.moon/tasks/drupal/all.yml` and
-`.moon/tasks/drupal/app.yml` (tack-owned). Tag your projects to opt in:
+`configs/drupal` delivers `.moon/tasks/drupal-common.yml` and
+`.moon/tasks/drupal-app.yml` (tack-owned). Tag your projects to opt in:
 
 ```yaml
 # apps/hub/moon.yml (Drupal application)
@@ -81,8 +81,9 @@ typecheck         phpstan analyse               No services. Cached by moon.
 test-unit         phpunit --testsuite=unit      No services. Cached by moon.
 test-integration  #drupal-app:test-prepare + phpunit --testsuite=kernel
 test-e2e          #drupal-app:test-prepare + phpunit --testsuite=functional
-test              all test tiers (or devenv test on the app)
+test              all test tiers (unit + integration + e2e)
 verify            lint + typecheck + test-unit  Fast local/pre-push gate.
+dev               devenv up (foreground server)
 ```
 
 ### Service readiness

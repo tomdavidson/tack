@@ -142,4 +142,9 @@ package_files() {
   grep -q '# revert' "$TACK_ROOT/.github/actions/conventional-pr/action.yml"
   grep -q 'raa-run:' "$TACK_ROOT/.moon/tasks/tack-internal.yml"
   grep -q 'raa-rm:' "$TACK_ROOT/.moon/tasks/tack-internal.yml"
+  grep -q 'gitleaks =' "$TACK_ROOT/configs/common/.prototools"
+  grep -q 'gitleaks:' "$TACK_ROOT/.moon/tasks/root.yml"
+  grep -q 'moon run root:gitleaks' "$TACK_ROOT/.moon/workspace-base.yml"
+  grep -q 'osv-scanner-action' "$TACK_ROOT/.github/workflows/pr.yml"
+  grep -q 'osv-scanner-action' "$TACK_ROOT/.github/workflows/main.yml"
 }

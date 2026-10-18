@@ -48,6 +48,8 @@ tasks:
   lint:
     command: noop
     deps: ["~:lint-yaml", "~:lint-md", "~:lint-schema", "~:lint-prose"]
+    options:
+      runInCI: true
 
   lint-yaml-fix:
     extends: lint-yaml
@@ -64,12 +66,6 @@ tasks:
   lint-fix:
     command: noop
     deps: ["~:lint-yaml-fix", "~:lint-md-fix"]
-    options:
-      runInCI: false
-
-  verify:
-    command: noop
-    deps: ["~:lint"]
     options:
       runInCI: false
 

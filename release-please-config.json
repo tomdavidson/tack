@@ -15,6 +15,10 @@
     { "type": "chore", "section": "Miscellaneous", "hidden": true }
   ],
   "packages": {
-    ".": {}
+    ".": {
+      "extra-files": [
+        "tack.sh"
+      ]
+    }
   }
 }
