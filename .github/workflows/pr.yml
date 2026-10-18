@@ -2,7 +2,16 @@ name: Pull Request Pipeline
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, closed]
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+      - ready_for_review
+      - converted_to_draft
+      - labeled
+      - unlabeled
+      - closed
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -14,12 +23,16 @@ concurrency:
 jobs:
   config:
     name: CI Strategy
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     outputs:
       ci-matrix: ${{ steps.ci-matrix.outputs.matrix }}
       runner-count: ${{ steps.ci-matrix.outputs.count }}
     steps:
       - uses: tomdavidson/tack/.github/actions/setup@main
+      - uses: ./.github/actions/conventional-pr
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - id: ci-matrix
         uses: ./.github/actions/moon-ci-matrix
 
@@ -100,15 +113,19 @@ jobs:
 
   gate:
     name: PR Gate
-    if: always()
-    needs: [ci, audit, codeql]
+    if: always() && github.event.action != 'closed'
+    needs: [config, ci, audit, codeql]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - run: |
-          if [[ "${{ needs.ci.result }}" == "failure" || \
+          if [[ "${{ needs.config.result }}" != "success" || \
+                "${{ needs.ci.result }}" == "failure" || \
+                "${{ needs.ci.result }}" == "cancelled" || \
                 "${{ needs.audit.result }}" == "failure" || \
-                "${{ needs.codeql.result }}" == "failure" ]]; then
+                "${{ needs.audit.result }}" == "cancelled" || \
+                "${{ needs.codeql.result }}" == "failure" || \
+                "${{ needs.codeql.result }}" == "cancelled" ]]; then
             exit 1
           fi
         shell: bash
@@ -120,6 +137,7 @@ jobs:
     needs: [gate]
     if: >-
       !failure() && !cancelled()
+      && github.event.action != 'closed'
       && contains(github.event.pull_request.labels.*.name, 'review-app')
     runs-on: ubuntu-latest
     timeout-minutes: 2

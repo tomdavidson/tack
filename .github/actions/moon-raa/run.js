@@ -2,12 +2,11 @@ const { execSync } = require('child_process')
 const lib = require('./lib')
 
 const discoverProjects = core => {
-  const { projects } = JSON.parse(execSync('moon query projects --affected').toString())
+  const { projects } = JSON.parse(
+    execSync('moon query projects --affected --base origin/main --head HEAD').toString(),
+  )
 
-  const withRaa = projects.filter(p => p.config?.project?.metadata?.raa).map(p => ({
-    id: p.id,
-    raa: p.config.project.metadata.raa,
-  }))
+  const withRaa = projects.map(p => ({ id: p.id, raa: lib.resolveRaaConfig(p) })).filter(p => p.raa)
 
   return lib.partitionProjects(withRaa, core)
 }

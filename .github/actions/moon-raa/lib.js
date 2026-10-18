@@ -13,6 +13,17 @@ const buildProjectEntry = (prefix, prNumber) => project => ({
   rm: project.raa.rm,
 })
 
+const resolveRaaConfig = project => {
+  if (project.config?.project?.metadata?.raa) {
+    return project.config.project.metadata.raa
+  }
+  const tasks = project.tasks || {}
+  if (tasks['raa-run'] && tasks['raa-rm']) {
+    return { run: 'raa-run', rm: 'raa-rm' }
+  }
+  return null
+}
+
 const validateProject = project => {
   const raa = project.raa
   const missing = [!raa && 'raa metadata', raa && !raa.run && 'raa.run', raa && !raa.rm && 'raa.rm'].filter(
@@ -127,6 +138,7 @@ module.exports = {
   targetName,
   buildManifest,
   buildProjectEntry,
+  resolveRaaConfig,
   validateProject,
   partitionProjects,
   formatRunSummary,
