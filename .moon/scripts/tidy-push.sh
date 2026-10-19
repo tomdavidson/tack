@@ -111,7 +111,13 @@ preflight() {
   branch="$(git branch --show-current)"
   [[ -n $branch ]] || return 0
 
-  git fetch --prune "$remote" > /dev/null 2>&1 || say "warning: git fetch --prune failed; continuing offline"
+  if ! git fetch --prune "$remote" > /dev/null 2>&1; then
+    rule
+    say "x git fetch --prune $remote failed. Trunk and branch state cannot be verified; push aborted."
+    say "  Check network/remote access and retry. (The push itself needs the remote anyway.)"
+    rule
+    return 1
+  fi
 
   trunk="$(detect-trunk)"
   trunk_ref="$remote/$trunk"
@@ -332,9 +338,11 @@ finalize-push() {
     say "  -> $(git log -1 --oneline)"
   elif ((has_staged)); then
     rule
-    say "! Format fixes are staged but there is no unpushed commit to fold them into."
-    say "  Commit them yourself (git commit) and push again."
+    say "x Format fixes are staged but there is no unpushed commit to fold them into."
+    say "  Pushing now would ship unformatted commits and fail CI fmt-check."
+    say "  Commit them (git commit) and push again."
     rule
+    return 1
   fi
 
   [[ $mode == run ]] && return 0

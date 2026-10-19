@@ -53,11 +53,18 @@ tasks:
       cache: false
       runInCI: false
 
+  # Wrappers need explicit inputs: moon v2 `--affected` ignores graph
+  # relations, and root-level tasks default to NO inputs, so without these
+  # `moon run :vf --affected` silently skips root:vf (and so root:fmt).
   fix:
     command: "noop"
     deps:
       - "~:lint-fix"
       - "~:fmt"
+    inputs:
+      - "**/*"
+      - "**/.*"
+      - "**/.*/**/*"
     options:
       cache: false
       runInCI: false
@@ -70,6 +77,10 @@ tasks:
       - "~:lint"
       - "~:typecheck"
       - "~:test-unit"
+    inputs:
+      - "**/*"
+      - "**/.*"
+      - "**/.*/**/*"
     options:
       cache: false
       runInCI: false
@@ -80,6 +91,10 @@ tasks:
       - "~:fix"
       - "~:typecheck"
       - "~:test-unit"
+    inputs:
+      - "**/*"
+      - "**/.*"
+      - "**/.*/**/*"
     options:
       cache: false
       runInCI: false

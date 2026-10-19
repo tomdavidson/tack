@@ -14,6 +14,13 @@ set -euo pipefail
 # Re-entry guard: tidy-push.sh sets this when it pushes a rewritten HEAD itself.
 [[ "${SKIP_PRE_PUSH:-}" == "1" ]] && exit 0
 
+# Refuse a dirty tree: the fmt stage below runs `git add` on affected
+# files and would sweep unrelated uncommitted edits into the roll-up.
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Dirty working tree. Commit or stash all changes before pushing."
+  exit 1
+fi
+
 # Fetch --prune; block branches whose PR already merged or that diverged from the remote.
 .moon/scripts/tidy-push.sh preflight
 
@@ -67,17 +74,23 @@ fi
 
 # ---- Affected-file query + run refs ----
 if [[ "$branch" == "$trunk" ]]; then
-  mapfile -t affected_files < <(moon query changed-files --default-branch | jq -r '.files[]')
+  query_args=(--default-branch)
   run_refs=(--base "HEAD~1" --head HEAD)
-
 elif git show-ref --verify --quiet "refs/remotes/origin/$trunk"; then
-  mapfile -t affected_files < <(moon query changed-files --base "origin/$trunk" --head HEAD | jq -r '.files[]')
+  query_args=(--base "origin/$trunk" --head HEAD)
   run_refs=(--base "origin/$trunk" --head HEAD)
-
 else
-  mapfile -t affected_files < <(moon query changed-files --local | jq -r '.files[]')
+  query_args=(--local)
   run_refs=()
 fi
+
+# Capture first so a moon/jq failure is fatal; `mapfile < <(...)`
+# swallows the exit status and silently yields an empty list.
+changed_json="$(moon query changed-files "${query_args[@]}")" \
+  || { echo "moon query changed-files failed. Aborting git push."; exit 1; }
+jq -e '.files' <<< "$changed_json" > /dev/null \
+  || { echo "Unexpected moon query changed-files output. Aborting git push."; exit 1; }
+mapfile -t affected_files < <(jq -r '.files[]' <<< "$changed_json")
 
 # ---- Verify + fix (vf) ----
 moon run :vf --affected "${run_refs[@]}" || { echo "vf failed. Aborting git push."; exit 1; }
@@ -90,6 +103,12 @@ for f in "${affected_files[@]}"; do
 done
 
 ((${#existing[@]})) && git add -- "${existing[@]}"
+
+# ---- Fail closed: assert the tree is formatted exactly as CI will check it ----
+# vf only runs fmt; if dprint skipped or could not fix something, stop here
+# rather than letting CI's root:fmt-check be the first place it surfaces.
+moon run root:fmt-check --affected "${run_refs[@]}" \
+  || { echo "fmt-check failed after fmt. Fix formatting and push again."; exit 1; }
 
 # Fold staged format fixes into the unpushed commit(s), roll up, merge trunk.
 # If history changed, this pushes the new HEAD itself and exits 1 on purpose.
