@@ -1,13 +1,24 @@
 #!/usr/bin/env bash
 #
-# tidy-push.sh - tidy a short-lived PR branch before it is pushed.
+# tidy-push.sh - tidy a short-lived PR branch and push it.
 #
-# Usage (called from the moon pre-push hook):
-#   tidy-push.sh preflight       fetch --prune; block merged/diverged branches
-#   tidy-push.sh finalize-push   roll up unpushed commits, merge trunk, push
-#   tidy-push.sh run             manual roll-up of unpushed commits (no push)
-#   tidy-push.sh status          read-only: range and trunk mergeability
-#   tidy-push.sh trunk           print the trunk branch name
+# Usage:
+#   tidy-push.sh push [git-push opts]  fix + stage + roll-up + merge trunk + git push
+#                                      (what `git push` runs inside the devenv shell)
+#   tidy-push.sh pre-push              verify-only gate used by the moon pre-push hook
+#   tidy-push.sh preflight             fetch --prune; block merged/diverged branches
+#   tidy-push.sh run                   manual roll-up of unpushed commits (no push)
+#   tidy-push.sh status                read-only: range and trunk mergeability
+#   tidy-push.sh trunk                 print the trunk branch name
+#
+# Division of labour (no step runs twice):
+#   push      MUTATES: moon run :fix, git add -u, fold/roll-up, merge trunk, git push.
+#   pre-push  VERIFIES: moon run :verify (fmt-check, lint incl. gitleaks, typecheck,
+#             test-unit). Runs on every push, including the one issued by `push`.
+#             TIDY_PUSH_ACTIVE=1 only skips the refetch. Outside the shim, with a
+#             terminal, fmt + lint-fix run FIRST; if they change anything the result
+#             is folded into the unpushed commit and a second `git push` is requested.
+#             Nothing is ever pushed from inside the hook.
 #
 # Rules:
 #   - Only commits the remote has not seen (origin/<branch>..HEAD) are rewritten.
@@ -16,10 +27,7 @@
 #     trunk is never flattened.
 #   - The editor opens BEFORE history changes. Ctrl+C, a non-zero editor exit,
 #     or an empty message aborts with every commit untouched.
-#   - If HEAD changes, the hook pushes the new HEAD itself and exits 1, because
-#     the outer git push already chose the old SHA before the hook ran. It
-#     prints 'EXPECTED' first, so Git's red error is explained.
-#   - Any other non-zero exit prints 'UNEXPECTED' with fix hints.
+#   - Nothing here rewrites refs from inside a git hook; git push exits 0 on success.
 
 set -euo pipefail
 
@@ -27,23 +35,21 @@ remote="${PUSH_FLOW_REMOTE:-origin}"
 noise_re='^([-._]+|wip|fmt|fixup|temp|tmp|test|try.*|again|more)$'
 msg_file=""
 clean_msg=""
-expected_rewrite=0
 hint_on_fail=0
+run_refs=()
 
 cleanup() {
   local rc=$?
   [[ -n $msg_file && -e $msg_file ]] && rm -f "$msg_file"
   [[ -n $clean_msg && -e $clean_msg ]] && rm -f "$clean_msg"
-  if ((rc != 0 && rc != 2 && expected_rewrite == 0 && hint_on_fail == 1)); then
+  if ((rc != 0 && rc != 2 && hint_on_fail == 1)); then
     rule
-    say "x UNEXPECTED push failure. This is NOT the normal 'history rewritten' stop."
-    say "  (That one always prints 'EXPECTED' before Git's red error.)"
-    say "  Fixes to try, in order:"
+    say "x push stopped. Fixes to try, in order:"
     say "    1. Read the message above this one; it names the cause."
-    say "    2. git status -sb          # diverged, or no upstream?"
+    say "    2. git status -sb          # dirty tree, diverged, or no upstream?"
     say "    3. git fetch --prune && .moon/scripts/tidy-push.sh status"
     say "    4. git merge $remote/<branch>   # if the remote moved"
-    say "    5. moon run :vf, then fix lint/format/gitleaks findings"
+    say "    5. moon run :verify, then fix lint/format/type/test/gitleaks findings"
     say "    6. Roll-up aborted? Re-run git push and save a non-empty message"
     rule
   fi
@@ -54,9 +60,20 @@ trap cleanup EXIT
 say() { printf '%s\n' "$*" >&2; }
 rule() { say "--------------------------------------------------------"; }
 
+hint() {
+  say ""
+  say "  Pushes are auto-formatted and rolled up when you run 'git push' inside the"
+  say "  devenv shell (direnv allow, or: devenv shell). You are outside it, or the"
+  say "  shim was bypassed, so nothing was fixed for you."
+  say "  Outside the shell run:  moon run root:tidy -- push"
+}
+
 detect-trunk() {
   local t c
   t="$(git symbolic-ref --short "refs/remotes/$remote/HEAD" 2> /dev/null | sed "s|^$remote/||" || true)"
+  if [[ -z $t ]] && git remote set-head "$remote" --auto > /dev/null 2>&1; then
+    t="$(git symbolic-ref --short "refs/remotes/$remote/HEAD" 2> /dev/null | sed "s|^$remote/||" || true)"
+  fi
   if [[ -n $t ]]; then
     echo "$t"
     return 0
@@ -68,6 +85,28 @@ detect-trunk() {
     fi
   done
   echo main
+}
+
+# Sets the global run_refs array used for `moon ... --affected`.
+resolve-run-refs() {
+  local branch=$1 trunk=$2
+  run_refs=()
+  if [[ $branch == "$trunk" ]]; then
+    run_refs=(--base "HEAD~1" --head HEAD)
+  elif git show-ref --verify --quiet "refs/remotes/$remote/$trunk"; then
+    run_refs=(--base "$remote/$trunk" --head HEAD)
+  fi
+}
+
+require-clean-tree() {
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    rule
+    say "x Dirty working tree. Commit or stash all changes before pushing."
+    say "  (fix/verify operate on the tree; uncommitted edits would be swept in or checked instead of the commit.)"
+    rule
+    hint_on_fail=0
+    return 1
+  fi
 }
 
 is-noise() {
@@ -301,19 +340,35 @@ catch-up-trunk() {
   rule
 }
 
+# Fold staged fixes into the unpushed commit(s), roll them up, and (mode=push)
+# merge trunk. Never pushes.
 finalize-push() {
-  local mode=${1:-finalize-push}
-  local branch trunk trunk_ref base ahead has_staged=0 head_before head_after
+  local mode=${1:-push}
+  local branch trunk trunk_ref base ahead has_staged=0 head_before
   branch="$(git branch --show-current)"
   [[ -n $branch ]] || return 0
 
   trunk="$(detect-trunk)"
   trunk_ref="$remote/$trunk"
-  [[ $branch != "$trunk" ]] || return 0
+  git diff --cached --quiet || has_staged=1
+
+  # On trunk: no roll-up, no merge. Only fold staged fixes into an unpushed HEAD.
+  if [[ $branch == "$trunk" ]]; then
+    ((has_staged)) || return 0
+    if git show-ref --verify --quiet "refs/remotes/$trunk_ref" && git merge-base --is-ancestor HEAD "$trunk_ref"; then
+      rule
+      say "x Format fixes are staged but HEAD is already on $trunk_ref; nothing to fold them into."
+      say "  Commit them (git commit) and push again."
+      rule
+      return 1
+    fi
+    say "* folding format fixes into $(git rev-parse --short HEAD) on $trunk"
+    git commit -q --amend --no-edit --no-verify
+    return 0
+  fi
 
   base="$(resolve-base "$branch" "$trunk_ref")"
   ahead="$(git rev-list --count "$base..HEAD" 2> /dev/null || echo 0)"
-  git diff --cached --quiet || has_staged=1
   head_before="$(git rev-parse HEAD)"
 
   if ((ahead == 1)); then
@@ -346,26 +401,116 @@ finalize-push() {
   fi
 
   [[ $mode == run ]] && return 0
-
   catch-up-trunk "$branch" "$trunk_ref"
+  return 0
+}
 
-  head_after="$(git rev-parse HEAD)"
-  if [[ $head_after != "$head_before" ]]; then
-    local -a flags=()
-    git show-ref --verify --quiet "refs/remotes/$remote/$branch" || flags+=(-u)
-    say "* pushing $(git log -1 --oneline) to $remote/$branch"
-    SKIP_PRE_PUSH=1 git push "${flags[@]}" "$remote" "HEAD:refs/heads/$branch"
-    expected_rewrite=1
-    rule
-    say "OK pushed $(git log -1 --oneline) to $remote/$branch."
-    say ""
-    say "EXPECTED: Git will now print a red 'error: failed to push some refs'."
-    say "  Your history was tidied, so the outer 'git push' still held the old"
-    say "  commit and stops on purpose. Nothing is wrong and nothing to do."
-    say "  (Only worry if that red error appears WITHOUT this message.)"
-    rule
-    exit 1
+# `git push` inside the devenv shell lands here (via the scripts.git shim).
+push() {
+  local branch trunk
+  branch="$(git branch --show-current)"
+  if [[ -z $branch ]]; then
+    say "x Detached HEAD; nothing to tidy. Use plain git for this push."
+    return 1
   fi
+
+  # Dirty tree: offer to roll the tracked changes into this push instead of refusing.
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    if [[ -r /dev/tty && -w /dev/tty ]]; then
+      rule
+      say "! Uncommitted changes to tracked files:"
+      git status --short --untracked-files=no >&2
+      say "  They can be staged now and rolled into this push (untracked files are left alone)."
+      rule
+      read -r -p "Stage them and include in this push? [y/N] " ans < /dev/tty
+      if [[ ! $ans =~ ^[Yy]$ ]]; then
+        hint_on_fail=0
+        say "x Aborted. Commit or stash first, or answer y to include them."
+        return 1
+      fi
+      git add -u
+    else
+      require-clean-tree || return 1
+    fi
+  fi
+  preflight || return 1
+
+  trunk="$(detect-trunk)"
+  resolve-run-refs "$branch" "$trunk"
+
+  say "* fixing affected files (fmt + lint-fix)"
+  moon run :fix --affected "${run_refs[@]}" || {
+    say "x moon run :fix failed. Push aborted."
+    return 1
+  }
+  # Tree was clean before :fix, so every modification is a fix. Untracked files are left alone.
+  git add -u
+
+  finalize-push push || return 1
+
+  local -a flags=()
+  git show-ref --verify --quiet "refs/remotes/$remote/$branch" || flags+=(-u)
+  say "* pushing $(git log -1 --oneline) to $remote/$branch"
+  # TIDY_PUSH_ACTIVE: the git shim passes this call straight through, and the
+  # pre-push hook skips its refetch (it still runs gitleaks and :verify).
+  TIDY_PUSH_ACTIVE=1 git push "${flags[@]}" "$@" "$remote" "HEAD:refs/heads/$branch"
+}
+
+# Body of the moon-managed pre-push hook. Verifies; outside the shim with a
+# terminal it applies machine fixes locally first. Never pushes.
+pre-push() {
+  local branch trunk
+  branch="$(git branch --show-current)"
+  [[ -n $branch ]] || return 0
+
+  require-clean-tree || {
+    hint
+    return 1
+  }
+
+  if [[ ${TIDY_PUSH_ACTIVE:-} != 1 ]]; then
+    preflight || return 1
+  fi
+
+  trunk="$(detect-trunk)"
+  resolve-run-refs "$branch" "$trunk"
+
+  # Fix-first (outside the shim, with a terminal): fmt + lint-fix are cheap and
+  # idempotent, so running them before verify means a clean tree costs exactly
+  # one verify. If they change anything, fold it into the unpushed commit and
+  # stop: git already chose the old SHA for this push, and nothing is ever
+  # pushed from inside a hook. Without a terminal (IDE button, bot) stay
+  # verify-only so nothing mutates silently.
+  if [[ ${TIDY_PUSH_ACTIVE:-} != 1 && -r /dev/tty && -w /dev/tty ]]; then
+    moon run :fix --affected "${run_refs[@]}" || {
+      hint_on_fail=0
+      say "x :fix failed. Fix the findings above and push again."
+      return 1
+    }
+    git add -u
+    local head_before_tidy
+    head_before_tidy="$(git rev-parse HEAD)" || return 1
+    # Roll-up and trunk catch-up are independent of formatting changes.
+    finalize-push push || return 1
+    if [[ $(git rev-parse HEAD) != "$head_before_tidy" ]]; then
+      hint_on_fail=0
+      rule
+      say "OK tidied locally: $(git log -1 --oneline)."
+      say "   Nothing pushed yet. Run 'git push' again to verify and push the new HEAD."
+      say "   Inside the devenv shell this extra push is automatic."
+      rule
+      return 1
+    fi
+  fi
+
+  # root:verify -> root:lint -> root:gitleaks, so no separate scan is needed.
+  moon run :verify --affected "${run_refs[@]}" || {
+    hint_on_fail=0
+    say "x verify failed (fmt-check / lint+gitleaks / typecheck / test-unit). Push aborted."
+    # Only a non-shim, non-terminal push (IDE button, bot) skipped auto-fix.
+    [[ ${TIDY_PUSH_ACTIVE:-} == 1 || (-r /dev/tty && -w /dev/tty) ]] || hint
+    return 1
+  }
   return 0
 }
 
@@ -387,20 +532,26 @@ status() {
   fi
 }
 
-case "${1:-preflight}" in
+cmd="${1:-status}"
+[[ $# -gt 0 ]] && shift
+case "$cmd" in
   trunk) detect-trunk ;;
   preflight | check)
     hint_on_fail=1
     preflight
     ;;
-  finalize-push)
+  push)
     hint_on_fail=1
-    finalize-push finalize-push
+    push "$@"
+    ;;
+  pre-push)
+    hint_on_fail=1
+    pre-push
     ;;
   run | squash | tidy) preflight && finalize-push run ;;
   status) status ;;
   *)
-    say "usage: $0 [preflight|finalize-push|run|status|trunk]"
+    say "usage: $0 [push [git-push opts]|pre-push|preflight|run|status|trunk]"
     exit 2
     ;;
 esac

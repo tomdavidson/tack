@@ -144,7 +144,11 @@ package_files() {
   grep -q 'raa-rm:' "$TACK_ROOT/.moon/tasks/tack-internal.yml"
   grep -q 'gitleaks =' "$TACK_ROOT/configs/common/.prototools"
   grep -q 'gitleaks:' "$TACK_ROOT/.moon/tasks/root.yml"
-  grep -q 'moon run root:gitleaks' "$TACK_ROOT/.moon/workspace-base.yml"
+  # The hook delegates to the shared script; verify reaches gitleaks via lint.
+  grep -Fq '.moon/scripts/tidy-push.sh pre-push' "$TACK_ROOT/.moon/workspace-base.yml"
+  grep -Fq 'moon run :verify --affected' "$TACK_ROOT/.moon/scripts/tidy-push.sh"
+  [ "$(yq -r '.tasks.verify.deps[] | select(. == "~:lint")' "$TACK_ROOT/.moon/tasks/common.yml")" = '~:lint' ]
+  [ "$(yq -r '.tasks.lint.deps[] | select(. == "~:gitleaks")' "$TACK_ROOT/.moon/tasks/root.yml")" = '~:gitleaks' ]
   grep -q 'osv-scanner-action' "$TACK_ROOT/.github/workflows/pr.yml"
   grep -q 'osv-scanner-action' "$TACK_ROOT/.github/workflows/main.yml"
 }

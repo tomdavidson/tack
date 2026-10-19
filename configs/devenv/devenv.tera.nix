@@ -106,9 +106,36 @@ in {
 {% endif %}
   '';
 
-{% if vars.bwrap.enabled | default(value=true) %}
-  # bwrap-run: run dependency-executing tools inside a bubblewrap sandbox.
   scripts = {
+{% if vars.devenv.git_shim | default(value=true) %}
+    # `git push` from inside the shell runs tidy-push (fix, roll-up, merge trunk)
+    # before the real push. Everything else passes straight through to the first
+    # `git` on PATH that is not this shim. Opt out: vars.devenv.git_shim = false.
+    git.exec = ''
+      real_git="$(type -aP git | grep -v "^$DEVENV_PROFILE/bin/" | head -n1)"
+      if [[ -z "$real_git" ]]; then
+        echo "git shim: no real git found on PATH" >&2
+        exit 127
+      fi
+      if [[ "''${1:-}" == push && -t 0 && -t 1 && -z "''${TIDY_PUSH_ACTIVE:-}" ]]; then
+        shift
+        for a in "$@"; do
+          case "$a" in
+            --no-verify | --tags | --delete | -d | --mirror | --all | --force | -f | --force-with-lease*)
+              exec "$real_git" push "$@" ;;
+            -*) ;;
+            *) exec "$real_git" push "$@" ;;   # explicit remote/refspec: user knows what they want
+          esac
+        done
+        # Direct exec (not `moon run root:tidy`): same code path, without moon's
+        # task_runner wrapper noise around prompts and failures.
+        exec "''${DEVENV_ROOT}/.moon/scripts/tidy-push.sh" push "$@"
+      fi
+      exec "$real_git" "$@"
+    '';
+{% endif %}
+{% if vars.bwrap.enabled | default(value=true) %}
+    # bwrap-run: run dependency-executing tools inside a bubblewrap sandbox.
     bwrap-run.exec = ''
       exec env \
         BWRAP_REPO_ROOT=${lib.escapeShellArg projectRoot} \
@@ -124,6 +151,6 @@ in {
         ${lib.escapeShellArg bwrapRun} {{ tool }} "$@"
     '';
 {% endfor %}
-  };
 {% endif %}
+  };
 }

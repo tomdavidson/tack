@@ -58,6 +58,19 @@ tasks:
       runFromWorkspaceRoot: true
       affectedFiles: args
 
+  # `git push` inside the devenv shell runs `moon run root:tidy -- push`
+  # (scripts.git shim). Mutates only: fix, stage, roll-up, merge trunk, push.
+  # The pre-push hook (`tidy-push.sh pre-push`) does all verification.
+  tidy:
+    # `command` (not `script`): only command/args accept passthrough args after `--`.
+    command: "$workspaceRoot/.moon/scripts/tidy-push.sh"
+    options:
+      cache: false
+      runInCI: false
+      runFromWorkspaceRoot: true
+      interactive: true
+      outputStyle: "stream"
+
   gitleaks:
     script: "gitleaks git --no-banner --redact"
     inputs:
@@ -80,6 +93,5 @@ tasks:
     command: "noop"
     deps:
       - "~:lint-sh"
-      - "~:gitleaks"
     options:
       runInCI: false

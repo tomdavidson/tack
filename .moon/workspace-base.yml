@@ -27,111 +27,13 @@ vcs:
     # )
     pre-push:
       - |
-
           set -euo pipefail
-
-          # Re-entry guard: tidy-push.sh sets this when it pushes a rewritten HEAD itself.
-          [[ "${SKIP_PRE_PUSH:-}" == "1" ]] && exit 0
-
-          # Refuse a dirty tree: the fmt stage below runs `git add` on affected
-          # files and would sweep unrelated uncommitted edits into the roll-up.
-          if ! git diff --quiet || ! git diff --cached --quiet; then
-            echo "Dirty working tree. Commit or stash all changes before pushing."
-            exit 1
-          fi
-
-          # Fetch --prune; block branches whose PR already merged or that diverged from the remote.
-          .moon/scripts/tidy-push.sh preflight
-
-          branch="$(git branch --show-current)"
-
-          # ---- Trunk detection ----
-          detect_trunk() {
-            local t
-
-            # 1. Local symbolic ref (fastest; no network)
-            t="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)"
-            [[ -n "$t" ]] && { echo "$t"; return 0; }
-
-            # 2. Self-heal: ask origin once, then retry the symbolic ref
-            if git remote set-head origin --auto >/dev/null 2>&1; then
-              t="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)"
-              [[ -n "$t" ]] && { echo "$t"; return 0; }
-            fi
-
-            # 3. git init default (respects user config)
-            t="$(git config --get init.defaultBranch 2>/dev/null || true)"
-            [[ -n "$t" ]] && { echo "$t"; return 0; }
-
-            # 4. Common remote-tracking branches that actually exist
-            for c in main master trunk develop; do
-              if git show-ref --verify --quiet "refs/remotes/origin/$c"; then
-                echo "$c"; return 0
-              fi
-            done
-
-            # 5. Last resort
-            echo main
-          }
-
-          trunk="$(detect_trunk)"
-
-          # ---- Secret scan (runs even on initial push) ----
-          moon run root:gitleaks || { echo "gitleaks secret scan failed. Aborting git push."; exit 1; }
-
-          # ---- Initial-push / no-upstream bail-out ----
-          has_upstream=0
-          git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1 && has_upstream=1
-
-          has_remote_refs=0
-          git for-each-ref --count=1 refs/remotes/origin/ | grep -q . && has_remote_refs=1
-
-          if (( ! has_upstream )) || (( ! has_remote_refs )); then
-            echo "Initial push or no upstream. Skipping vf."
-            exit 0
-          fi
-
-          # ---- Affected-file query + run refs ----
-          if [[ "$branch" == "$trunk" ]]; then
-            query_args=(--default-branch)
-            run_refs=(--base "HEAD~1" --head HEAD)
-          elif git show-ref --verify --quiet "refs/remotes/origin/$trunk"; then
-            query_args=(--base "origin/$trunk" --head HEAD)
-            run_refs=(--base "origin/$trunk" --head HEAD)
-          else
-            query_args=(--local)
-            run_refs=()
-          fi
-
-          # Capture first so a moon/jq failure is fatal; `mapfile < <(...)`
-          # swallows the exit status and silently yields an empty list.
-          changed_json="$(moon query changed-files "${query_args[@]}")" \
-            || { echo "moon query changed-files failed. Aborting git push."; exit 1; }
-          jq -e '.files' <<< "$changed_json" > /dev/null \
-            || { echo "Unexpected moon query changed-files output. Aborting git push."; exit 1; }
-          mapfile -t affected_files < <(jq -r '.files[]' <<< "$changed_json")
-
-          # ---- Verify + fix (vf) ----
-          moon run :vf --affected "${run_refs[@]}" || { echo "vf failed. Aborting git push."; exit 1; }
-
-          # ---- Stage just the affected files ----
-          # Keep only files that currently exist on disk
-          existing=()
-          for f in "${affected_files[@]}"; do
-            [[ -e "$f" ]] && existing+=("$f")
-          done
-
-          ((${#existing[@]})) && git add -- "${existing[@]}"
-
-          # ---- Fail closed: assert the tree is formatted exactly as CI will check it ----
-          # vf only runs fmt; if dprint skipped or could not fix something, stop here
-          # rather than letting CI's root:fmt-check be the first place it surfaces.
-          moon run root:fmt-check --affected "${run_refs[@]}" \
-            || { echo "fmt-check failed after fmt. Fix formatting and push again."; exit 1; }
-
-          # Fold staged format fixes into the unpushed commit(s), roll up, merge trunk.
-          # If history changed, this pushes the new HEAD itself and exits 1 on purpose.
-          .moon/scripts/tidy-push.sh finalize-push
+          # Verify-only gate: dirty-tree guard, preflight (merged/diverged),
+          # gitleaks, moon run :verify --affected. Never formats, commits, or pushes.
+          # Formatting + roll-up happen in `git push` inside the devenv shell
+          # (scripts.git shim -> moon run root:tidy -- push), or manually via
+          # `moon run root:tidy -- push` outside it.
+          .moon/scripts/tidy-push.sh pre-push
 
 hasher:
   optimization: "accuracy"
