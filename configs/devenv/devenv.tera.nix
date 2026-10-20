@@ -7,8 +7,8 @@ let
   # absolute path. Wrappers pass BWRAP_REPO_ROOT so bwrap-run never
   # has to guess the repo root from the working directory.
   projectRoot = toString config.devenv.root;
-  bwrapRun = "${projectRoot}/.tack/configs/devenv/bwrap-run.sh";
-  bwrapAppArmor = "${projectRoot}/.tack/configs/devenv/bwrap-apparmor.sh";
+  bwrapRun = "${projectRoot}/{{ vars.devenv.tack_source | default(value='.tack') }}/configs/devenv/bwrap-run.sh";
+  bwrapAppArmor = "${projectRoot}/{{ vars.devenv.tack_source | default(value='.tack') }}/configs/devenv/bwrap-apparmor.sh";
 in {
 {% else %}
 {
@@ -109,27 +109,23 @@ in {
   scripts = {
 {% if vars.devenv.git_shim | default(value=true) %}
     # `git push` from inside the shell runs tidy-push (fix, roll-up, merge trunk)
-    # before the real push. Everything else passes straight through to the first
-    # `git` on PATH that is not this shim. Opt out: vars.devenv.git_shim = false.
+    # before the real push. Everything else passes straight through to the
+    # nixpkgs git pinned by devenv.lock. The real git is resolved at Nix
+    # evaluation time, never by searching PATH: any other git wrapper on the
+    # host that calls `git` by name would otherwise bounce back into this shim
+    # and fork until the OOM killer fires. Opt out: vars.devenv.git_shim = false.
     git.exec = ''
-      real_git="$(type -aP git | grep -v "^$DEVENV_PROFILE/bin/" | head -n1)"
-      if [[ -z "$real_git" ]]; then
-        echo "git shim: no real git found on PATH" >&2
-        exit 127
-      fi
-      if [[ "''${1:-}" == push && -t 0 && -t 1 && -z "''${TIDY_PUSH_ACTIVE:-}" ]]; then
-        shift
-        for a in "$@"; do
-          case "$a" in
-            --no-verify | --tags | --delete | -d | --mirror | --all | --force | -f | --force-with-lease*)
-              exec "$real_git" push "$@" ;;
-            -*) ;;
-            *) exec "$real_git" push "$@" ;;   # explicit remote/refspec: user knows what they want
-          esac
-        done
-        # Direct exec (not `moon run root:tidy`): same code path, without moon's
-        # task_runner wrapper noise around prompts and failures.
-        exec "''${DEVENV_ROOT}/.moon/scripts/tidy-push.sh" push "$@"
+      real_git=${lib.escapeShellArg (lib.getExe pkgs.git)}
+      # Preserve every explicit git invocation; only bare interactive push is tidied.
+      if [[ $# == 1 && $1 == push && -t 0 && -t 1 && -z "''${TIDY_PUSH_ACTIVE:-}" ]]; then
+        worktree="$("$real_git" rev-parse --show-toplevel 2>/dev/null)" || exec "$real_git" "$@"
+        project_root="''${DEVENV_ROOT:-}"
+        # Compare directory identity, not spelling; do not intercept nested repos.
+        if [[ -n "$project_root" && "$worktree" -ef "$project_root" && -x "$project_root/.moon/scripts/tidy-push.sh" ]]; then
+          cd -- "$worktree" || exit 1
+          # Direct exec avoids moon's outer task-runner noise around prompts.
+          exec "$worktree/.moon/scripts/tidy-push.sh" push
+        fi
       fi
       exec "$real_git" "$@"
     '';
