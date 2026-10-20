@@ -1,9 +1,7 @@
 $schema: "https://moonrepo.dev/schemas/tasks.json"
-
 inheritedBy:
   toolchains: "rust"
   order: 10
-
 fileGroups:
   cargo:
     - "Cargo.toml"
@@ -12,7 +10,6 @@ fileGroups:
   tests:
     - "benches/**/*"
     - "tests/**/*"
-
 tasks:
   cargo:
     command: "cargo"
@@ -20,25 +17,21 @@ tasks:
       CARGO_TERM_COLOR: "always"
     options:
       runInCI: false
-
   debug-env:
     script: printenv | grep -E '^(CARGO|MOON|PROTOC|PROTO|PATH)'
     env: *env
-
   build: &build
     command: "cargo build"
     inputs:
       - "@group(cargo)"
       - "@group(sources)"
     env: *env
-
   build-release:
-    <<: *build
+    !!merge <<: *build
     command: "cargo build --release"
     env: *env
     options:
       runInCI: false
-
   typecheck:
     command: "cargo check --all-targets"
     inputs:
@@ -46,7 +39,8 @@ tasks:
       - "@group(sources)"
       - "@group(tests)"
     env: *env
-
+    options:
+      runInCI: true
   dev:
     command: "cargo run"
     inputs:
@@ -54,7 +48,6 @@ tasks:
       - "@group(sources)"
     preset: "server"
     env: *env
-
   lint:
     command: "cargo clippy --all-targets"
     inputs:
@@ -63,14 +56,14 @@ tasks:
       - "@group(tests)"
       - "/.clippy.toml"
     env: *env
-
+    options:
+      runInCI: true
   lint-fix:
     extends: "lint"
     args: "--fix --allow-dirty --allow-staged"
     options:
       runInCI: false
-
-  test:
+  test-unit:
     command: "cargo nextest run --no-fail-fast -p $project"
     inputs:
       - "@group(cargo)"
@@ -79,23 +72,16 @@ tasks:
       - "/.config/nextest.*"
       - "fuzz/regressions/**/*"
     env: *env
-
+    options:
+      runInCI: true
   fmt-check:
     command: "cargo fmt --check"
     inputs:
       - "@group(cargo)"
       - "@group(sources)"
     env: *env
-
-  verify:
-    command: "noop"
-    deps:
-      - "~:typecheck"
-      - "~:lint"
-      - "~:test"
     options:
-      runInCI: false
-
+      runInCI: true
   audit:
     command: "cargo"
     args: ["deny", "check"]

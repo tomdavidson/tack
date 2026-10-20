@@ -184,3 +184,22 @@ A package may carry optional sub-packages in subdirectories. The parent lists th
 1. Never end a function, subshell, or `while`/`for` body on a bare `cmd1 && cmd2` or `cmd1 || cmd2` standalone statement. Wrap in `if cmd1; then cmd2; fi` or terminate with `:` / `return 0`.
 2. Functions called inside `var=$(fn)` must return `0` except on conditions the caller is prepared to distinguish; signal errors via stdout sentinels or `TACK_ERR_FILE`, not `die`.
 3. The diagnostic `EXIT` trap (`_tack_on_exit`) must not be clobbered by inner functions; use `tack_cleanup_add` to register scratch paths for removal.
+
+### Moon, Proto, and Bats Performance Discipline
+
+1. **Leverage Moon and Proto built-ins before hand-rolling shell logic:**
+   - Declare `toolchains` on Moon tasks (e.g. `toolchains: ["javascript", "node"]`) and use `script:` whenever shell expansion (`$(nproc)`, pipes, `eval`) is required (`command:` does not execute in a shell).
+   - For tasks that spawn `.prototools` plugins (`yq`, `tera`, `dprint`, `shellcheck`) hundreds of times in tight loops, run `eval "$(proto activate bash --export)"` first so resolved tool binary directories sit ahead of `~/.proto/shims` on `PATH` (avoiding per-call shim dispatch and `ldd` probes).
+   - Check `proto bin <tool>` before running `proto install <tool>`, and check whether `$PROTO_HOME/shims/<cmd>` exists before invoking `proto bin <cmd>` in wrappers like `bwrap-run.sh`.
+2. **Keep hot per-file loops in pure Bash:**
+   - Prefer parameter expansion (`${p%/*}`, `${p##*/}`) over forking `dirname`, `basename`, or `sed` inside per-file loops, and pre-check whether `tack.yml` is non-empty and contains a key (`manifest_has_key`) before spawning `yq`.
+3. **Why `bats --jobs` uses `--no-parallelize-within-files`:**
+   - Bats parallelizes **across** `.bats` files using GNU `parallel`, but parallelizes **within** a single `.bats` file using its own `lib/bats-core/semaphore.bash`.
+   - `semaphore.bash` polls `find "$BATS_SEMAPHORE_DIR" -name 'slot-*' | wc -l` and blocks on a hardcoded `sleep 1` (1 full second) whenever all slots are occupied. When combined with file-level `parallel`, `N` files × `N` within-file jobs contend on the same `N`-slot semaphore directory, causing hundreds of 1-second sleeps.
+   - Always pass `--no-parallelize-within-files` with `--jobs` so GNU `parallel` schedules `.bats` files across cores without triggering `semaphore.bash`.
+4. **Tracing process-spawn and tree-walk regressions:**
+   - To audit subprocess spawns (`execve`) or directory walks (`getdents64`) across `moon`, `bats`, and `bwrap` namespaces:
+     ```bash
+     strace -f -e trace=execve -o /tmp/exec.log moon run root:test-unit --cache=off
+     awk -F'"' '/execve\(/ {print $2}' /tmp/exec.log | sort | uniq -c | sort -rn | head -n 20
+     ```

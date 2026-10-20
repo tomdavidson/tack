@@ -25,7 +25,7 @@ tasks:
     options:
       mergeArgs: replace
 
-  test:
+  test-unit:
     command: "vitest"
     args: ["run"]
     toolchains: ["javascript", "node"]

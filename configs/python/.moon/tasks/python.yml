@@ -1,5 +1,4 @@
 $schema: "https://moonrepo.dev/schemas/tasks.json"
-
 # Inherited by projects with `tags: [python]` in moon.yml.
 # Moon does not manage the interpreter: each project owns .python-version,
 # pyproject.toml, uv.lock and .venv, and `uv run` syncs on demand.
@@ -7,7 +6,6 @@ $schema: "https://moonrepo.dev/schemas/tasks.json"
 inheritedBy:
   tags: "python"
   order: 10
-
 fileGroups:
   sources:
     - "**/*.py"
@@ -24,7 +22,6 @@ fileGroups:
     - "pyrightconfig.json"
     - "/ruff.toml"
     - "/.prototools"
-
 tasks:
   lint:
     command: "ruff check ."
@@ -33,13 +30,13 @@ tasks:
       - "@group(sources)"
       - "@group(tests)"
       - "@group(configs)"
-
+    options:
+      runInCI: true
   lint-fix:
     extends: "lint"
     args: ["--fix"]
     options:
       runInCI: false
-
   typecheck:
     command: "uv run --frozen basedpyright"
     toolchains: ["system"]
@@ -47,20 +44,14 @@ tasks:
       - "@group(sources)"
       - "@group(tests)"
       - "@group(configs)"
-
-  test:
+    options:
+      runInCI: true
+  test-unit:
     command: "uv run --frozen pytest"
     toolchains: ["system"]
     inputs:
       - "@group(sources)"
       - "@group(tests)"
       - "@group(configs)"
-
-  verify:
-    command: "noop"
-    deps:
-      - "~:lint"
-      - "~:typecheck"
-      - "~:test"
     options:
-      runInCI: false
+      runInCI: true

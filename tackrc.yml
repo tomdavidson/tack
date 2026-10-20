@@ -1,6 +1,11 @@
 # <TACK_ROOT>/tackrc.yml
 # Tack dogfooding itself: tack's own repo-root tackrc.
 
+vars:
+  devenv:
+    # Consumers use .tack; this repository is the tack source itself.
+    tack_source: "."
+
 overrides:
   # This repo owns its root .gitattributes/.gitignore (they are the source
   # of the shipped copies). Consumers do get them; only tack itself skips.
@@ -15,15 +20,13 @@ overrides:
       - .github/renovate.json5
   # Packages this repo cannot consume:
   #   devcontainer  needs vars.project.name / vars.devcontainer.* (no defaults)
-  #   devenv, php   no devenv.nix here
+  #   php           this repository does not use PHP
   #   drupal        would create a root composer.json via merge
   #   rust          would create a root Cargo.toml via concat
   #   python        would seed a root ruff.toml; this repo has no Python
   configs/devcontainer:
     exclude: ["**"]
   configs/python:
-    exclude: ["**"]
-  configs/devenv:
     exclude: ["**"]
   configs/php:
     exclude: ["**"]

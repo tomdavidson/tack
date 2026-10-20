@@ -1,11 +1,9 @@
 $schema: "https://moonrepo.dev/schemas/tasks.json"
-
 # Inherited by plain-PHP projects with `tags: [php]` in moon.yml.
 # Delivered by configs/php (tack-owned: re-running tack overwrites it).
 inheritedBy:
   tags: ["php"]
   order: 10
-
 fileGroups:
   sourceDirs:
     - "src"
@@ -22,7 +20,6 @@ fileGroups:
     - "composer.lock"
     - "/composer.json"
     - "/composer.lock"
-
 tasks:
   lint:
     script: |
@@ -36,7 +33,6 @@ tasks:
       - "@group(configs)"
     options:
       runInCI: true
-
   lint-fix:
     script: |
       "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpcbf" \
@@ -46,7 +42,6 @@ tasks:
     options:
       cache: false
       runInCI: false
-
   typecheck:
     script: |
       "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpstan" analyse \
@@ -60,7 +55,6 @@ tasks:
       - "@group(configs)"
     options:
       runInCI: true
-
   test-unit:
     script: |
       "${APP_ROOT:-$workspaceRoot}/vendor/bin/phpunit" \
@@ -73,19 +67,3 @@ tasks:
       - "@group(configs)"
     options:
       runInCI: true
-
-  test:
-    command: "noop"
-    deps:
-      - "~:test-unit"
-    options:
-      runInCI: false
-
-  verify:
-    command: "noop"
-    deps:
-      - "~:lint"
-      - "~:typecheck"
-      - "~:test-unit"
-    options:
-      runInCI: false

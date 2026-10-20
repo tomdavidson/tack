@@ -38,8 +38,8 @@
 #
 # MOON TASKS AND TEMPLATES (ADR 0010)
 # -----------------------------------
-# .moon/tasks/drupal/all.yml -> .moon/tasks/drupal/all.yml  (tack-owned; tags: drupal)
-# .moon/tasks/drupal/app.yml -> .moon/tasks/drupal/app.yml  (tack-owned; drupal + application)
+# .moon/tasks/drupal-common.yml -> .moon/tasks/drupal-common.yml  (tack-owned; tags: drupal)
+# .moon/tasks/drupal-app.yml    -> .moon/tasks/drupal-app.yml     (tack-owned; drupal + application)
 # templates/drupal-module/ -> .moon/templates/drupal-module/
 #   Run: moon generate drupal-module
 #   Scaffolds packages/drupal/<name>/moon.yml for a Drupal module project.
@@ -70,36 +70,26 @@ ignore:
 
 files:
   phpcs.xml.dist:
-    target: phpcs.xml.dist
     overwrite: false
   phpstan.neon.dist:
-    target: phpstan.neon.dist
     overwrite: false
   phpunit.xml.dist:
-    target: phpunit.xml.dist
     overwrite: false
-  dprint.merge.json:
-    target: dprint.json
-  .moon/tasks/drupal/all.yml:
-    target: .moon/tasks/drupal/all.yml
-  .moon/tasks/drupal/app.yml:
-    target: .moon/tasks/drupal/app.yml
+  .moon/tasks/drupal-common.yml:
+    target: .moon/tasks/drupal-common.yml
+  .moon/tasks/drupal-app.yml:
+    target: .moon/tasks/drupal-app.yml
   templates/drupal-module/template.yml:
     target: .moon/templates/drupal-module/template.yml
   templates/drupal-module/moon.yml.tera:
     target: .moon/templates/drupal-module/moon.yml.tera
   services/cron/Containerfile:
-    target: services/cron/Containerfile
     overwrite: false
   services/cron/backup-db.sh:
-    target: services/cron/backup-db.sh
     overwrite: false
   services/cron/crontab:
-    target: services/cron/crontab
     overwrite: false
   services/cron/fly.toml:
-    target: services/cron/fly.toml
     overwrite: false
   services/db/fly.toml:
-    target: services/db/fly.toml
     overwrite: false

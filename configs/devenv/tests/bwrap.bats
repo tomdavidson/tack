@@ -95,10 +95,16 @@ require_bwrap() {
   apply_devenv
   run grep -F "BWRAP_REPO_ROOT=" "$TARGET/devenv.nix"
   assert_success
-  run grep -F "DEVENV_ROOT" "$TARGET/devenv.nix"
-  assert_failure
-  run grep -F 'PWD' "$TARGET/devenv.nix"
-  assert_failure
+  # Inspect only wrappers that execute bwrapRun; the git shim has its own root.
+  wrappers=$(sed -n '/^[[:space:]]*bwrap-run.exec =/,/^[[:space:]]*};/p' "$TARGET/devenv.nix")
+  [[ -n $wrappers ]]
+  for tool in bwrap-run node npx pnpm moon cargo rustc; do
+    block=$(printf '%s\n' "$wrappers" | sed -n "/^[[:space:]]*${tool}\.exec =/,/^[[:space:]]*'';/p")
+    [[ -n $block ]]
+    [[ $block == *'BWRAP_REPO_ROOT=${lib.escapeShellArg projectRoot}'* ]]
+    [[ $block != *DEVENV_ROOT* ]]
+    [[ $block != *PWD* ]]
+  done
 }
 
 @test "devenv yaml keeps only the nixpkgs input when enabled" {

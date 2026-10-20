@@ -1,6 +1,6 @@
 # moon.yml — Drupal module {{ name }}.
 # Generated from the drupal-module template. You own this file.
-# Tasks are inherited from .moon/tasks/drupal/all.yml (tack-owned).
+# Tasks are inherited from .moon/tasks/drupal-common.yml (tack-owned).
 # The default fileGroups (src/, tests/) already match the module layout.
 
 $schema: "https://moonrepo.dev/schemas/project.json"

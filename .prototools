@@ -1,5 +1,6 @@
 # >= 0.55 required: dprint.json uses npm: plugin specifiers (dprint-plugin-nix).
 dprint = "0.63.0"
+gitleaks = "8.30.1"
 lnko = "0.2"
 yq = "4.53.3"
 moon = "2.6.0"
@@ -11,6 +12,7 @@ node = "22.22.1"
 pnpm = "10.32.1"
 
 [plugins]
+gitleaks = "https://tomdavidson.github.io/proto/gitleaks.toml"
 lnko = "https://tomdavidson.github.io/proto/lnko.toml"
 dprint = "https://tomdavidson.github.io/proto/dprint.toml"
 yq = "github://muuvmuuv/proto-plugins/yq_tool"

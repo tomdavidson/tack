@@ -36,6 +36,8 @@ Session.vim
 .helix/
 
 # ---- Direnv / env ----
+.devenv/
+.direnv/
 .envrc.local
 .env
 .env.*

@@ -1,17 +1,16 @@
-# .moon/tasks/drupal/app.yml
+# .moon/tasks/drupal-app.yml
 # Delivered by configs/drupal (tack-owned: re-running tack overwrites it).
 # See docs/adrs/0010-moon-task-organization.md.
 #
 # Inherited only by the Drupal application: tagged "drupal" AND layer
 # "application". Modules (layer: library) never get these tasks.
-# order: 20 applies this file after drupal/all.yml (order: 10).
+# order: 20 applies this file after drupal-common.yml (order: 10).
 #
 # ┌──────────────────┬───────────────────────────────────────────────┐
 # │ Use case         │ Command                                          │
 # ├──────────────────┼───────────────────────────────────────────────┤
-# │ Start services   │ moon run :services-up    (devenv up --detach)    │
+# │ Dev stack        │ moon run :dev            (devenv up)             │
 # │ Prepare for test │ moon run :test-prepare   (install or deploy)     │
-# │ Full devenv CI   │ moon run :test           (devenv test; ci.sh)    │
 # │ Deploy (dev)     │ moon run :deploy         (services must be up)   │
 # │ Reset (dev)      │ moon run :reset          (services must be up)   │
 # └──────────────────┴───────────────────────────────────────────────┘
@@ -27,10 +26,11 @@ inheritedBy:
   order: 20
 
 tasks:
-  services-up:
-    script: "devenv up --detach"
+  dev:
+    command: "devenv"
+    args: ["up"]
+    preset: "server"
     options:
-      cache: false
       runInCI: false
       runFromWorkspaceRoot: true
 
@@ -45,20 +45,6 @@ tasks:
         devenv tasks run drupal:deploy
       fi
     options:
-      cache: false
-      runInCI: false
-      runFromWorkspaceRoot: true
-
-  # Refines test from drupal/all.yml: the app runs the full devenv test
-  # lifecycle (install + smoke + idempotence + PHPUnit custom suite)
-  # instead of the per-tier aggregate. Explicit merge per ADR 0010.
-  test:
-    command: devenv
-    args: ["test"]
-    deps: []
-    options:
-      mergeArgs: replace
-      mergeDeps: replace
       cache: false
       runInCI: false
       runFromWorkspaceRoot: true

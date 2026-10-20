@@ -1,0 +1,101 @@
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+# Universal task wrappers and default no-op leaf stubs inherited by every
+# project in the workspace (including root). Language/framework task files
+# (.moon/tasks/*.yml, including root.yml) only define the concrete leaf
+# tasks they actually implement (`lint`, `lint-fix`, `typecheck`, `test-unit`,
+# `fmt`, `fmt-check`, etc.).
+inheritedBy:
+  order: 0
+
+tasks:
+  # Default no-op leaf stubs so `fix`, `verify`, `vf`, and `test` always
+  # resolve their `~:...` deps on every project, even when a project has
+  # no project-scoped formatter, typechecker, or unit tests.
+  fmt:
+    command: "noop"
+    options:
+      cache: false
+      runInCI: false
+
+  fmt-check:
+    command: "noop"
+    options:
+      runInCI: false
+
+  lint:
+    command: "noop"
+    options:
+      runInCI: false
+
+  lint-fix:
+    command: "noop"
+    options:
+      cache: false
+      runInCI: false
+
+  typecheck:
+    command: "noop"
+    options:
+      runInCI: false
+
+  test-unit:
+    command: "noop"
+    options:
+      runInCI: false
+
+  # Universal wrapper tasks (ADR-0010)
+  test:
+    command: "noop"
+    deps:
+      - "~:test-unit"
+    options:
+      cache: false
+      runInCI: false
+
+  # Wrappers need explicit inputs: moon v2 `--affected` ignores graph
+  # relations, and root-level tasks default to NO inputs, so without these
+  # `moon run :vf --affected` silently skips root:vf (and so root:fmt).
+  fix:
+    command: "noop"
+    deps:
+      - "~:lint-fix"
+      - "~:fmt"
+    inputs:
+      - "**/*"
+      - "**/.*"
+      - "**/.*/**/*"
+    options:
+      cache: false
+      runInCI: false
+      runDepsInParallel: false
+
+  verify:
+    command: "noop"
+    deps:
+      - "~:fmt-check"
+      - "~:lint"
+      - "~:typecheck"
+      - "~:test-unit"
+    inputs:
+      - "**/*"
+      - "**/.*"
+      - "**/.*/**/*"
+    options:
+      cache: false
+      runInCI: false
+
+  vf:
+    command: "noop"
+    deps:
+      - "~:fix"
+      - "~:typecheck"
+      - "~:test-unit"
+    inputs:
+      - "**/*"
+      - "**/.*"
+      - "**/.*/**/*"
+    options:
+      cache: false
+      runInCI: false
+      runDepsInParallel: false

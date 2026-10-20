@@ -42,11 +42,8 @@ path_without() {
     [ -n "$p" ] || continue
     if [ -x "$p/$bin" ]; then
       stub="$(mktemp -d "${TARGET:-${TMPDIR:-/tmp}}/pathstub.XXXXXX")"
-      for f in "$p"/*; do
-        name=${f##*/}
-        [ "$name" = "$bin" ] && continue
-        [ -x "$f" ] && ln -s "$f" "$stub/$name"
-      done
+      ln -s "$p"/* "$stub/" 2>/dev/null || true
+      rm -f "$stub/$bin"
       p=$stub
     fi
     out="${out:+$out:}$p"
