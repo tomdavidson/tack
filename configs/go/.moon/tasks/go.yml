@@ -1,0 +1,81 @@
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+# Inherited by projects with `toolchains: "go"` (ADR-0010).
+inheritedBy:
+  toolchains: "go"
+  order: 10
+
+fileGroups:
+  sources:
+    - "go.mod"
+    - "go.sum"
+    - "**/*.go"
+    - "!**/*_test.go"
+  tests:
+    - "**/*_test.go"
+  configs:
+    - "/.golangci.yml"
+    - "/.prototools"
+
+tasks:
+  build:
+    command: "go"
+    args:
+      - "build"
+      - "./..."
+    inputs:
+      - "@group(sources)"
+    options:
+      runInCI: true
+
+  typecheck:
+    command: "go"
+    args:
+      - "vet"
+      - "./..."
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+    options:
+      runInCI: true
+
+  lint:
+    command: "golangci-lint"
+    args:
+      - "run"
+      - "--config"
+      - "$workspaceRoot/.golangci.yml"
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+    options:
+      runInCI: true
+
+  lint-fix:
+    extends: "lint"
+    args:
+      - "--fix"
+    options:
+      cache: false
+      runInCI: false
+
+  test-unit:
+    command: "go"
+    args:
+      - "test"
+      - "-race"
+      - "./..."
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+    options:
+      runInCI: true
+
+  audit:
+    command: "govulncheck"
+    args:
+      - "./..."
+    inputs:
+      - "@group(sources)"
+    options:
+      runInCI: false

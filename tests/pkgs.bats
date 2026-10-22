@@ -50,7 +50,8 @@ applied() {
 # Each pkg's marker.txt has the same name, so they collide on link if more
 # than one is applied. Use distinct file names per pkg in multi-pkg tests.
 mk_unique_pkg() {
-  rel=$1; tag=$2
+  rel=$1
+  tag=$2
   mkdir -p "$ALT_ROOT/$rel"
   printf 'marker for %s\n' "$rel" > "$ALT_ROOT/$rel/${tag}.txt"
 }
@@ -59,7 +60,7 @@ mk_unique_pkg() {
 
 @test "pkgs: configs/* applies every package under configs/" {
   mk_unique_pkg configs/alpha alpha
-  mk_unique_pkg configs/beta  beta
+  mk_unique_pkg configs/beta beta
   mk_unique_pkg configs/gamma gamma
   write_defaults 'pkgs:
   - "configs/*"
@@ -73,7 +74,7 @@ mk_unique_pkg() {
 
 @test "overrides.<pkg>.exclude == ['**'] removes one package" {
   mk_unique_pkg configs/alpha alpha
-  mk_unique_pkg configs/beta  beta
+  mk_unique_pkg configs/beta beta
   mk_unique_pkg configs/gamma gamma
   write_defaults 'pkgs:
   - "configs/*"
@@ -89,9 +90,9 @@ overrides:
 }
 
 @test "overrides: multiple ['**'] entries remove multiple packages" {
-  mk_unique_pkg configs/keep        keep
-  mk_unique_pkg configs/exp-foo     expfoo
-  mk_unique_pkg configs/exp-bar     expbar
+  mk_unique_pkg configs/keep keep
+  mk_unique_pkg configs/exp-foo expfoo
+  mk_unique_pkg configs/exp-bar expbar
   # overrides keys are literal pkg paths, not globs. To exclude a set,
   # list each one explicitly. Pkg-path glob support in overrides keys
   # is a separate feature, not implemented here.
@@ -143,7 +144,7 @@ overrides:
 
 @test "CLI args override pkgs and overrides entirely" {
   mk_unique_pkg configs/alpha alpha
-  mk_unique_pkg configs/beta  beta
+  mk_unique_pkg configs/beta beta
   write_defaults 'pkgs:
   - configs/alpha
 overrides:
@@ -160,7 +161,7 @@ overrides:
 
 @test "pkgs_metadata: subtree is exposed as .pkg in tera context" {
   mkdir -p "$ALT_ROOT/configs/moon"
-  cat > "$ALT_ROOT/configs/moon/toolchain.tera.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/moon/toolchain.tera.yml" << 'EOF'
 first: {{ pkg.toolchains[0] }}
 count: {{ pkg.toolchains | length }}
 EOF
@@ -181,7 +182,7 @@ pkgs_metadata:
 
 @test "pkgs_metadata: missing entry yields empty .pkg, default filter works" {
   mkdir -p "$ALT_ROOT/configs/orphan"
-  cat > "$ALT_ROOT/configs/orphan/x.tera.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/orphan/x.tera.yml" << 'EOF'
 name: {{ pkg.name | default(value="none") }}
 EOF
   write_defaults 'pkgs:

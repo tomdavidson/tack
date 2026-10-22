@@ -1,0 +1,5 @@
+{
+  "extends": [
+    "./.tack/configs/rust/dprint-rust.json"
+  ]
+}

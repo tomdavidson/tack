@@ -1,0 +1,8 @@
+opentofu = "1.10.0"
+tflint = "0.58.0"
+trivy = "0.65.0"
+
+[plugins]
+opentofu = "github://muuvmuuv/proto-plugins/opentofu"
+tflint = "github://muuvmuuv/proto-plugins/tflint"
+trivy = "github://muuvmuuv/proto-plugins/trivy"

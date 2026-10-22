@@ -42,24 +42,13 @@
       "unsortedImports": true
     }
   },
-  "exec": {
-    "cwd": "${originConfigDir}",
-    "commands": [
-      {
-        "command": "rustfmt --edition 2024",
-        "exts": [
-          "rs"
-        ]
-      },
-      {
-        "command": "shfmt -i {{indent_width}} -s -ci -sr",
-        "exts": [
-          "sh",
-          "bash"
-        ]
-      }
-    ]
+  "shfmt": {
+    "indentWidth": 2,
+    "binaryNextLine": true,
+    "switchCaseIndent": true,
+    "spaceRedirects": true
   },
+  "sql": {},
   "excludes": [
     "**/*-lock.json",
     "**/*-lock.yaml",
@@ -77,17 +66,18 @@
     "**/uv.lock"
   ],
   "plugins": [
-    "https://plugins.dprint.dev/typescript-0.95.8.wasm",
-    "https://plugins.dprint.dev/json-0.20.0.wasm",
-    "https://plugins.dprint.dev/markdown-0.19.0.wasm",
-    "https://plugins.dprint.dev/toml-0.6.4.wasm",
-    "https://plugins.dprint.dev/g-plane/pretty_yaml-v0.5.1.wasm",
-    "https://plugins.dprint.dev/g-plane/markup_fmt-v0.19.0.wasm",
-    "https://plugins.dprint.dev/g-plane/malva-v0.15.2.wasm",
-    "https://plugins.dprint.dev/dockerfile-0.3.3.wasm",
+    "https://plugins.dprint.dev/typescript-0.96.1.wasm",
+    "https://plugins.dprint.dev/json-0.25.2.wasm",
+    "https://plugins.dprint.dev/markdown-0.27.1.wasm",
+    "https://plugins.dprint.dev/toml-0.9.0.wasm",
+    "https://plugins.dprint.dev/g-plane/pretty_yaml-v0.6.0.wasm",
+    "https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.6.wasm",
+    "https://plugins.dprint.dev/g-plane/malva-v0.16.0.wasm",
+    "https://plugins.dprint.dev/dockerfile-0.7.0.wasm",
     "https://plugins.dprint.dev/g-plane/pretty_graphql-v0.2.3.wasm",
-    "https://plugins.dprint.dev/ruff-0.11.0.wasm",
-    "https://plugins.dprint.dev/exec-0.6.2.json@df98f54ffd3092b8a841aedd6d098a2651f16d0a796a40535774f1a8b4b9d463",
-    "npm:@kachick/dprint-plugin-nix@0.1.1"
+    "https://plugins.dprint.dev/ruff-0.11.1.wasm",
+    "npm:@dprint/shfmt@0.1.0",
+    "https://plugins.dprint.dev/sql-0.2.0.wasm",
+    "npm:@dprint/alejandra@0.1.0"
   ]
 }

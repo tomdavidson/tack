@@ -7,18 +7,18 @@ setup() {
   bats_load_library bats-assert
   bats_load_library bats-file
 
-  HERE="$( cd "$( dirname "$BATS_TEST_FILENAME" )" >/dev/null 2>&1 && pwd )"
+  HERE="$(cd "$(dirname "$BATS_TEST_FILENAME")" > /dev/null 2>&1 && pwd)"
   FIXTURE="$HERE/fixtures"
   TACK_SH="$HERE/../tack.sh"
   TARGET="$(mktemp -d -t tack-smoke.XXXXXX)"
 
-  cat > "$TARGET/Cargo.toml" <<EOF
+  cat > "$TARGET/Cargo.toml" << EOF
 [workspace.package]
 edition = "2021"
 EOF
 
   # Seed a consumer-root tackrc.yml so bare vars_from: tackrc.yml resolves.
-  cat > "$TARGET/tackrc.yml" <<'EOF'
+  cat > "$TARGET/tackrc.yml" << 'EOF'
 vars:
   who: world
 EOF
@@ -42,7 +42,7 @@ path_without() {
     [ -n "$p" ] || continue
     if [ -x "$p/$bin" ]; then
       stub="$(mktemp -d "${TARGET:-${TMPDIR:-/tmp}}/pathstub.XXXXXX")"
-      ln -s "$p"/* "$stub/" 2>/dev/null || true
+      ln -s "$p"/* "$stub/" 2> /dev/null || true
       rm -f "$stub/$bin"
       p=$stub
     fi
@@ -64,9 +64,15 @@ path_without() {
   [ -L "$TARGET/plain.txt" ]
   resolved=$(readlink "$TARGET/plain.txt")
   case "$resolved" in
-    /*) printf 'link target must be relative (consumers commit these): %s\n' "$resolved" >&2; return 1 ;;
+    /*)
+      printf 'link target must be relative (consumers commit these): %s\n' "$resolved" >&2
+      return 1
+      ;;
     *configs/example/plain.txt) : ;;
-    *) printf 'unexpected link target: %s\n' "$resolved" >&2; return 1 ;;
+    *)
+      printf 'unexpected link target: %s\n' "$resolved" >&2
+      return 1
+      ;;
   esac
   # and the relative target actually resolves from the link's directory
   [ -f "$TARGET/plain.txt" ]
@@ -77,7 +83,10 @@ path_without() {
   "$TACK_SH" --target "$TARGET" configs/example
   resolved=$(readlink "$TARGET/plain.txt")
   case "$resolved" in
-    /*) printf 'stale absolute link was not repaired: %s\n' "$resolved" >&2; return 1 ;;
+    /*)
+      printf 'stale absolute link was not repaired: %s\n' "$resolved" >&2
+      return 1
+      ;;
   esac
   [ -f "$TARGET/plain.txt" ]
 }
@@ -91,7 +100,7 @@ path_without() {
 @test "vars_from resolves against consumer root (TARGET)" {
   # Override the seeded rc with a distinguishing value so we can prove the
   # template read from TARGET and not from some package-relative fallback.
-  cat > "$TARGET/tackrc.yml" <<'EOF'
+  cat > "$TARGET/tackrc.yml" << 'EOF'
 vars:
   who: consumer-root
 EOF
@@ -139,11 +148,11 @@ EOF
   ALT_ROOT="$(mktemp -d -t tack-alt-root.XXXXXX)"
   mkdir -p "$ALT_ROOT/configs/bare"
   printf 'vars: {}\n' > "$ALT_ROOT/tackrc-defaults.yml"
-  cat > "$ALT_ROOT/configs/bare/clippy.concat.toml" <<'EOF'
+  cat > "$ALT_ROOT/configs/bare/clippy.concat.toml" << 'EOF'
 [workspace.lints.clippy]
 unwrap_used = "warn"
 EOF
-  cat > "$ALT_ROOT/configs/bare/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/bare/tack.yml" << 'EOF'
 files:
   clippy.concat.toml:
     target: Cargo.toml
@@ -173,11 +182,11 @@ EOF
 
 @test "dry-run makes no filesystem changes" {
   DRY_TARGET="$(mktemp -d -t tack-dry.XXXXXX)"
-  cat > "$DRY_TARGET/Cargo.toml" <<EOF
+  cat > "$DRY_TARGET/Cargo.toml" << EOF
 [workspace.package]
 edition = "2021"
 EOF
-  cat > "$DRY_TARGET/tackrc.yml" <<'EOF'
+  cat > "$DRY_TARGET/tackrc.yml" << 'EOF'
 vars:
   who: world
 EOF
@@ -234,7 +243,7 @@ EOF
   # the PATH fallback. Strip tera from PATH, then re-provide yq (if
   # available) via a stub dir so we isolate the failure to tera.
   stub_dir="$(mktemp -d)"
-  if command -v yq >/dev/null 2>&1; then
+  if command -v yq > /dev/null 2>&1; then
     ln -s "$(command -v yq)" "$stub_dir/yq"
   fi
   new_path=$(path_without tera)
@@ -276,11 +285,11 @@ EOF
 
 @test "target path with spaces is handled correctly" {
   SPACED="$(mktemp -d -t 'tack smoke XXXX')"
-  cat > "$SPACED/Cargo.toml" <<EOF
+  cat > "$SPACED/Cargo.toml" << EOF
 [workspace.package]
 edition = "2021"
 EOF
-  cat > "$SPACED/tackrc.yml" <<'EOF'
+  cat > "$SPACED/tackrc.yml" << 'EOF'
 vars:
   who: world
 EOF

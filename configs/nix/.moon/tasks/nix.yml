@@ -1,0 +1,100 @@
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+# Inherited by projects with `tags: [nix]` in moon.yml.
+# Delivered by configs/nix (ADR-0010).
+inheritedBy:
+  tags: "nix"
+  order: 10
+
+fileGroups:
+  sources:
+    - "**/*.nix"
+    - "!**/.devenv/**"
+    - "!**/.direnv/**"
+  configs:
+    - "flake.nix"
+    - "flake.lock"
+    - "/statix.toml"
+
+tasks:
+  lint-statix:
+    command: "statix"
+    args:
+      - "check"
+      - "."
+      - "--config"
+      - "$workspaceRoot/statix.toml"
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(configs)"
+    options:
+      runInCI: true
+
+  lint-deadnix:
+    # --no-lambda-pattern-names: NixOS modules take `{ config, pkgs, lib, ... }:`
+    # by convention even when a specific module file only uses a subset.
+    command: "deadnix"
+    args:
+      - "--fail"
+      - "--no-lambda-pattern-names"
+      - "."
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(configs)"
+    options:
+      runInCI: true
+
+  lint:
+    command: "noop"
+    deps:
+      - "~:lint-statix"
+      - "~:lint-deadnix"
+    options:
+      runInCI: true
+
+  lint-fix-statix:
+    command: "statix"
+    args:
+      - "fix"
+      - "."
+      - "--config"
+      - "$workspaceRoot/statix.toml"
+    toolchains: ["system"]
+    options:
+      cache: false
+      runInCI: false
+
+  lint-fix-deadnix:
+    command: "deadnix"
+    args:
+      - "--edit"
+      - "--no-lambda-pattern-names"
+      - "."
+    toolchains: ["system"]
+    options:
+      cache: false
+      runInCI: false
+
+  lint-fix:
+    command: "noop"
+    deps:
+      - "~:lint-fix-statix"
+      - "~:lint-fix-deadnix"
+    options:
+      cache: false
+      runInCI: false
+      runDepsInParallel: false
+
+  typecheck:
+    command: "nix"
+    args:
+      - "flake"
+      - "check"
+      - "--no-build"
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(configs)"
+    options:
+      runInCI: true

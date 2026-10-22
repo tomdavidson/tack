@@ -1,0 +1,22 @@
+# configs/nix/tack.yml
+# Standalone Nix / NixOS / Flake authoring baseline.
+# Consumers that only use a rendered devenv.nix do NOT need this package
+# (dprint-common.json already formats *.nix via alejandra).
+#
+# Enable for NixOS, flake, or module repositories:
+#   pkgs:
+#     - configs/common
+#     - configs/devenv
+#     - configs/nix
+#   vars:
+#     devenv:
+#       imports:
+#         - ./.tack/configs/nix/nix.nix
+#
+# statix.toml is linked directly to the consumer root (ADR-0009 Mode 1).
+ignore:
+  - nix.nix
+
+files:
+  .moon/tasks/nix.yml:
+    target: .moon/tasks/nix.yml

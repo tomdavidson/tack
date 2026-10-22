@@ -1,0 +1,5 @@
+{
+  "extends": [
+    "./.tack/configs/go/dprint-go.json"
+  ]
+}

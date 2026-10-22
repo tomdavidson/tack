@@ -34,11 +34,11 @@ run_tack_pkgs() {
 @test "ignore: single literal pattern skips matching file" {
   printf 'k\n' > "$ALT_ROOT/configs/demo/keep.txt"
   printf 's\n' > "$ALT_ROOT/configs/demo/skip.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 ignore:
   - skip.txt
 EOF
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 EOF
   run_tack_pkgs
@@ -52,11 +52,11 @@ EOF
   printf 'k\n' > "$ALT_ROOT/configs/demo/src/keep.sh"
   printf 's\n' > "$ALT_ROOT/configs/demo/src/debug/a.local.sh"
   printf 's\n' > "$ALT_ROOT/configs/demo/src/nested/deep/b.local.sh"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 ignore:
   - "*.local.*"
 EOF
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 EOF
   run_tack_pkgs
@@ -70,12 +70,12 @@ EOF
   printf 'a\n' > "$ALT_ROOT/configs/demo/a.txt"
   printf 'b\n' > "$ALT_ROOT/configs/demo/b.txt"
   printf 'c\n' > "$ALT_ROOT/configs/demo/c.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 ignore:
   - b.txt
   - c.txt
 EOF
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 EOF
   run_tack_pkgs
@@ -91,11 +91,11 @@ EOF
   printf 'k\n' > "$ALT_ROOT/configs/demo/kept.txt"
   printf 'p\n' > "$ALT_ROOT/configs/demo/pkg-skip.txt"
   printf 'c\n' > "$ALT_ROOT/configs/demo/consumer-skip.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 ignore:
   - pkg-skip.txt
 EOF
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 overrides:
   configs/demo:
@@ -113,7 +113,7 @@ EOF
 @test "ignore: package ignore applies under CLI selection (package contract)" {
   printf 'k\n' > "$ALT_ROOT/configs/demo/kept.txt"
   printf 'p\n' > "$ALT_ROOT/configs/demo/pkg-skip.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 ignore:
   - pkg-skip.txt
 EOF
@@ -128,7 +128,7 @@ EOF
   printf 'k\n' > "$ALT_ROOT/configs/demo/kept.txt"
   printf 'c\n' > "$ALT_ROOT/configs/demo/consumer-skip.txt"
   : > "$ALT_ROOT/configs/demo/tack.yml"
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 overrides:
   configs/demo:
     exclude: ["consumer-skip.txt"]
@@ -145,7 +145,7 @@ EOF
   printf 'a\n' > "$ALT_ROOT/configs/demo/a.txt"
   printf 'b\n' > "$ALT_ROOT/configs/demo/b.txt"
   : > "$ALT_ROOT/configs/demo/tack.yml"
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 EOF
   run_tack_pkgs
@@ -157,11 +157,11 @@ EOF
 @test "ignore: applies to content markers (merge file is skipped)" {
   printf '{"x":1}' > "$ALT_ROOT/configs/demo/a.merge.json"
   printf '{"y":2}' > "$ALT_ROOT/configs/demo/b.merge.json"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 ignore:
   - a.merge.json
 EOF
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 EOF
   run_tack_pkgs
@@ -175,11 +175,11 @@ EOF
 @test "ignore: ignoring source name does not block tera rendering to that name" {
   printf 'literal: true\n' > "$ALT_ROOT/configs/demo/workspace.yml"
   printf 'rendered: {{ vars.who | default(value=\"world\") }}\n' > "$ALT_ROOT/configs/demo/workspace.tera.yml"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 ignore:
   - workspace.yml
 EOF
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 vars:
   who: tack
@@ -195,12 +195,12 @@ EOF
 @test "ignore: malformed scalar (block-folded) is rejected with a clear error" {
   printf 't\n' > "$ALT_ROOT/configs/demo/toolchains.yml"
   printf 'w\n' > "$ALT_ROOT/configs/demo/workspace.yml"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 ignore:
   toolchains.yml
   workspace.yml
 EOF
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 EOF
   run_tack_pkgs
@@ -215,7 +215,7 @@ EOF
   mkdir -p "$ALT_ROOT/configs/demo/templates/astro-plugin"
   printf 'pkg\n' > "$ALT_ROOT/configs/demo/templates/astro-plugin/package.json"
   : > "$ALT_ROOT/configs/demo/tack.yml"
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 EOF
   run_tack_pkgs
@@ -231,11 +231,11 @@ EOF
   mkdir -p "$ALT_ROOT/configs/demo/templates/astro-plugin"
   printf 'pkg\n' > "$ALT_ROOT/configs/demo/templates/astro-plugin/package.json"
   printf 'x\n' > "$ALT_ROOT/configs/demo/skip.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 ignore:
   - skip.txt
 EOF
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 EOF
   run_tack_pkgs

@@ -1,0 +1,6 @@
+# https://moonrepo.dev/docs/config/toolchain
+$schema: "https://moonrepo.dev/schemas/toolchain.json"
+
+go:
+  bins:
+    - "golang.org/x/vuln/cmd/govulncheck@latest"

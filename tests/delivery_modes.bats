@@ -121,6 +121,45 @@ package_files() {
   ! grep -q '"packageManager"' "$TACK_ROOT/configs/web/package.merge.json"
 }
 
+@test "ADR-0006/0009/0010/0011: configs/rust, configs/nix, configs/go, and configs/tofu follow delivery-mode and toolchain conventions" {
+  # configs/rust
+  [ -f "$TACK_ROOT/configs/rust/dprint-rust.json" ]
+  [ -f "$TACK_ROOT/configs/rust/dprint.merge.json" ]
+  [ -f "$TACK_ROOT/configs/rust/clippy-cargo.merge.toml" ]
+  [ -f "$TACK_ROOT/.moon/toolchains-rust.yml" ]
+  grep -qE '^\s*-\s*dprint-rust\.json\s*$' "$TACK_ROOT/configs/rust/tack.yml"
+  grep -q './.tack/configs/rust/dprint-rust.json' "$TACK_ROOT/configs/rust/dprint.merge.json"
+
+  # configs/nix
+  [ -f "$TACK_ROOT/configs/nix/nix.nix" ]
+  [ -f "$TACK_ROOT/configs/nix/statix.toml" ]
+  [ -f "$TACK_ROOT/configs/nix/.moon/tasks/nix.yml" ]
+  grep -qE '^\s*-\s*nix\.nix\s*$' "$TACK_ROOT/configs/nix/tack.yml"
+
+  # configs/go
+  [ -f "$TACK_ROOT/configs/go/prototools.merge.toml" ]
+  [ -f "$TACK_ROOT/configs/go/dprint-go.json" ]
+  [ -f "$TACK_ROOT/configs/go/dprint.merge.json" ]
+  [ -f "$TACK_ROOT/configs/go/golangci.yml" ]
+  [ -f "$TACK_ROOT/configs/go/golangci.copy.yml" ]
+  [ -f "$TACK_ROOT/configs/go/.moon/toolchains-go.yml" ]
+  [ -f "$TACK_ROOT/configs/go/.moon/tasks/go.yml" ]
+  grep -qE '^\s*-\s*dprint-go\.json\s*$' "$TACK_ROOT/configs/go/tack.yml"
+  grep -qE '^\s*-\s*golangci\.yml\s*$' "$TACK_ROOT/configs/go/tack.yml"
+  grep -q './.tack/configs/go/dprint-go.json' "$TACK_ROOT/configs/go/dprint.merge.json"
+  grep -q '.tack/configs/go/golangci.yml' "$TACK_ROOT/configs/go/golangci.copy.yml"
+
+  # configs/tofu
+  [ -f "$TACK_ROOT/configs/tofu/prototools.merge.toml" ]
+  [ -f "$TACK_ROOT/configs/tofu/dprint-tofu.json" ]
+  [ -f "$TACK_ROOT/configs/tofu/dprint.merge.json" ]
+  [ -f "$TACK_ROOT/configs/tofu/tflint.copy.hcl" ]
+  [ -f "$TACK_ROOT/configs/tofu/tofu.concat.gitignore" ]
+  [ -f "$TACK_ROOT/configs/tofu/.moon/tasks/tofu.yml" ]
+  grep -qE '^\s*-\s*dprint-tofu\.json\s*$' "$TACK_ROOT/configs/tofu/tack.yml"
+  grep -q './.tack/configs/tofu/dprint-tofu.json' "$TACK_ROOT/configs/tofu/dprint.merge.json"
+}
+
 @test "ADR-0009: configs/renovate ships shared default.json5 preset and seed-once .github/renovate.json5 stub" {
   [ -f "$TACK_ROOT/configs/renovate/default.json5" ]
   [ -f "$TACK_ROOT/configs/renovate/.github/renovate.json5" ]

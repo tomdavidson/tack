@@ -55,7 +55,7 @@ run_tack() {
 
 @test "files.target: overrides render destination" {
   printf 'hello {{ vars.name }}\n' > "$ALT_ROOT/configs/demo/greeting.tera.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   greeting.tera.txt:
     vars_from: '@tack/tackrc-defaults.yml'
@@ -71,7 +71,7 @@ EOF
 
 @test "files.target: overrides copy marker destination" {
   printf 'x\n' > "$ALT_ROOT/configs/demo/cfg.copy.json"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   cfg.copy.json:
     target: elsewhere/x.json
@@ -84,7 +84,7 @@ EOF
 
 @test "files.target on unmarked file in link mode yields a symlink at the override" {
   printf 'plain\n' > "$ALT_ROOT/configs/demo/file.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 mode:
   - link: "**"
 files:
@@ -104,7 +104,7 @@ EOF
 
 @test "files.target on unmarked file in copy mode still copies to the override" {
   printf 'plain\n' > "$ALT_ROOT/configs/demo/file.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 mode:
   - copy: "**"
 files:
@@ -120,7 +120,7 @@ EOF
 # ----- path_prefix -----
 
 @test "path_prefix: prefixes derived render/copy/concat/merge targets" {
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 path_prefix: sub
 files:
   r.tera.txt:
@@ -144,7 +144,7 @@ EOF
 }
 
 @test "path_prefix: link mode lands symlinks under the prefix" {
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 path_prefix: sub
 EOF
   printf 'data\n' > "$ALT_ROOT/configs/demo/conf.yml"
@@ -155,7 +155,7 @@ EOF
 }
 
 @test "files.target escapes path_prefix in link mode" {
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 path_prefix: sub
 files:
   root.yml:
@@ -172,7 +172,7 @@ EOF
 }
 
 @test "files.target escapes path_prefix" {
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 path_prefix: sub
 files:
   root.copy.yml:

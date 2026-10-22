@@ -50,11 +50,11 @@ make_cache() {
 
 @test "prune: dir/* pattern skips the whole subtree and logs once" {
   make_cache
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 prune:
   - "cache/*"
 EOF
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 EOF
   run_tack_pkgs
@@ -69,7 +69,7 @@ EOF
 
 @test "prune: content markers inside a pruned subtree are never processed" {
   make_cache
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 prune:
   - cache
 EOF
@@ -84,7 +84,7 @@ EOF
 
 @test "prune: applies under CLI selection (package contract)" {
   make_cache
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 prune:
   - "cache/**"
 EOF
@@ -100,7 +100,7 @@ EOF
   printf 'x\n' > "$ALT_ROOT/configs/demo/a/node_modules/x/index.js"
   printf 'y\n' > "$ALT_ROOT/configs/demo/b/node_modules/y/index.js"
   printf 'k\n' > "$ALT_ROOT/configs/demo/a/keep.js"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 prune:
   - "*/node_modules"
 EOF
@@ -115,7 +115,7 @@ EOF
 @test "prune: missing key is a no-op and ignore still works alongside" {
   make_cache
   printf 's\n' > "$ALT_ROOT/configs/demo/skip.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 ignore:
   - skip.txt
 prune:
@@ -132,7 +132,7 @@ EOF
 
 @test "prune: malformed scalar is rejected with a clear error" {
   make_cache
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 prune:
   cache/*
 EOF

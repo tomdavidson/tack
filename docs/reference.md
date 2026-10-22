@@ -9,14 +9,14 @@ Complete reference for `tack`'s control files (`tackrc.yml` and `tack.yml`), fil
 From the **consumer** repo root:
 
 ```bash
-.tack/tack.sh                       # apply pkgs from merged tackrc
-.tack/tack.sh --dry-run             # print actions, change nothing
-.tack/tack.sh --overwrite           # re-seed overwrite:false files, discarding consumer edits
-.tack/tack.sh --target some/dir     # apply into a different target
-.tack/tack.sh configs/rust scripts  # apply specific packages, ignoring tackrc pkgs
-.tack/tack.sh -- --weird-pkg-name   # end-of-options sentinel
-.tack/tack.sh --version             # tack <git-describe> (<branch>)
-.tack/tack.sh --help                # full usage
+.tack/tack.sh                      # apply pkgs from merged tackrc
+.tack/tack.sh --dry-run            # print actions, change nothing
+.tack/tack.sh --overwrite          # re-seed overwrite:false files, discarding consumer edits
+.tack/tack.sh --target some/dir    # apply into a different target
+.tack/tack.sh configs/rust scripts # apply specific packages, ignoring tackrc pkgs
+.tack/tack.sh -- --weird-pkg-name  # end-of-options sentinel
+.tack/tack.sh --version            # tack <git-describe> (<branch>)
+.tack/tack.sh --help               # full usage
 ```
 
 | Option              | Description                                                                           |

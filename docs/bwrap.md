@@ -179,7 +179,7 @@ If it prints `0`, nothing is needed. If it prints `1` (Ubuntu 23.10+,
 KDE Neon on 24.04), bwrap is blocked until a profile allows it:
 
 ```sh
-bwrap-apparmor install   # one-time sudo; writes /etc/apparmor.d/bwrap-run-<hash>
+bwrap-apparmor install # one-time sudo; writes /etc/apparmor.d/bwrap-run-<hash>
 ```
 
 `bwrap-apparmor` writes the profile bound to the exact bwrap path it

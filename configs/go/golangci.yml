@@ -1,0 +1,25 @@
+# configs/go/golangci.yml
+# Shared golangci-lint v2 ruleset read through .tack.
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - contextcheck
+    - errcheck
+    - errorlint
+    - exhaustive
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - nilerr
+    - noctx
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - unconvert
+    - unused
+    - wastedassign

@@ -56,7 +56,7 @@ Nothing in `tack` pins Python. `uv` downloads a managed interpreter per project 
 
 ```bash
 cd apps/my-tool
-uv python pin 3.14          # writes .python-version
+uv python pin 3.14 # writes .python-version
 uv add --dev pytest basedpyright
 uv sync
 ```
@@ -95,9 +95,13 @@ pkgs:
 
 ```nix
 # devenv.nix
-{ pkgs, lib, config, ... }:
 {
-  imports = [ ./.tack/configs/drupal/drupal.nix ];
+  pkgs,
+  lib,
+  config,
+  ...
+}: {
+  imports = [./.tack/configs/drupal/drupal.nix];
   env.APP_ROOT = "${config.devenv.root}/apps/my-app";
   services.postgres.enable = true;
 }
@@ -119,10 +123,10 @@ vars:
 ```
 
 ```bash
-.tack/tack.sh                         # deliver nix, tasks, templates, Caddyfile
-moon generate dlg-ms -- --name hub    # scaffold apps/hub/
-devenv up                             # MariaDB, RustFS, composer, FrankenPHP
-devenv tasks run drupal:setup         # first-time install (+ demo content)
+.tack/tack.sh                      # deliver nix, tasks, templates, Caddyfile
+moon generate dlg-ms -- --name hub # scaffold apps/hub/
+devenv up                          # MariaDB, RustFS, composer, FrankenPHP
+devenv tasks run drupal:setup      # first-time install (+ demo content)
 ```
 
 ---
@@ -131,6 +135,75 @@ devenv tasks run drupal:setup         # first-time install (+ demo content)
 
 | Piece                                         | What it provides                                                                                             |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `configs/rust/.clippy.toml` & `.rustfmt.toml` | Symlinked to the consumer root (`rustfmt` runs via `dprint` exec plugin)                                     |
+| `configs/rust/.clippy.toml` & `.rustfmt.toml` | Symlinked to the consumer root (`rustfmt` runs via `dprint` exec plugin in `dprint-rust.json`)               |
 | `configs/rust/clippy-cargo.merge.toml`        | Merges `[workspace.lints.rust]` and `[workspace.lints.clippy]` into root `Cargo.toml` (`target: Cargo.toml`) |
-| `configs/rust/.moon/tasks/rust.yml`           | Inherited Moon tasks (`build`, `typecheck`, `lint`, `test`, `verify`, `audit`) for `toolchains: "rust"`      |
+| `configs/rust/.moon/tasks/rust.yml`           | Inherited Moon tasks (`build`, `typecheck`, `lint`, `test-unit`, `verify`, `audit`) for `toolchains: "rust"` |
+| `.moon/toolchains-rust.yml`                   | Toolchain fragment extended in `.moon/toolchains.yml` when `moon.toolchains` includes `rust`                 |
+
+---
+
+## 5. Nix (`configs/nix`)
+
+| Piece                             | What it provides                                                                                                                                                 |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `configs/nix/nix.nix` (devenv)    | `pkgs.statix` and `pkgs.deadnix` (unwrapped so `statix fix` and `deadnix --edit` can edit `*.nix`; `dprint-common.json` formats `*.nix` via `@dprint/alejandra`) |
+| `configs/nix/statix.toml`         | Shared `statix` configuration (`disabled = ["empty_pattern"]`), symlinked to the consumer root                                                                   |
+| `configs/nix/.moon/tasks/nix.yml` | Inherited Moon tasks (`lint-statix`, `lint-deadnix`, `lint`, `lint-fix`, `typecheck`) for projects tagged `nix`                                                  |
+
+```yaml
+# tackrc.yml
+pkgs:
+  - configs/common
+  - configs/devenv
+  - configs/nix
+  - .moon
+vars:
+  devenv:
+    imports:
+      - ./.tack/configs/nix/nix.nix
+```
+
+---
+
+## 6. Go (`configs/go`)
+
+| Piece                                | What it provides                                                                                                           |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `configs/go/prototools.merge.toml`   | Merges `go` and `golangci-lint` (via `github://muuvmuuv/proto-plugins/golangci-lint`) into `.prototools`                   |
+| `configs/go/dprint-go.json`          | `npm:@jakebailey/dprint-plugin-gofumpt@0.0.19` configuration excluding `**/vendor`, extended via `dprint.merge.json`       |
+| `configs/go/golangci.yml`            | Shared `golangci-lint` v2 baseline in `.tack`, included by the seed-once `.golangci.yml` stub (`golangci.copy.yml`)        |
+| `configs/go/.moon/toolchains-go.yml` | Toolchain fragment (`govulncheck`) extended in `.moon/toolchains.yml` when `moon.toolchains` includes `go`                 |
+| `configs/go/.moon/tasks/go.yml`      | Inherited Moon tasks (`build`, `typecheck`, `lint`, `lint-fix`, `test-unit`, `audit`) for projects with `toolchains: "go"` |
+
+```yaml
+# tackrc.yml
+moon:
+  toolchains:
+    - go
+pkgs:
+  - configs/common
+  - configs/devenv
+  - configs/go
+  - .moon
+```
+
+---
+
+## 7. OpenTofu (`configs/tofu`)
+
+| Piece                                | What it provides                                                                                                                     |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `configs/tofu/prototools.merge.toml` | Merges `opentofu`, `tflint`, and `trivy` (via `muuvmuuv/proto-plugins`) into `.prototools`                                           |
+| `configs/tofu/dprint-tofu.json`      | `npm:@dprint/terraform@0.1.0` configuration excluding `**/.terraform/**`, extended via `dprint.merge.json`                           |
+| `configs/tofu/tflint.copy.hcl`       | Seed-once `.tflint.hcl` (`overwrite: false`) with the `terraform` recommended preset; consumers add cloud plugins                    |
+| `configs/tofu/tofu.concat.gitignore` | Appends `**/.terraform/`, `*.tfstate*`, `*.tfvars` (except `*.tfvars.example`), and `*.tfplan` to `.gitignore`                       |
+| `configs/tofu/.moon/tasks/tofu.yml`  | Inherited Moon tasks (`typecheck`, `lint-tflint`, `lint-trivy`, `lint`, `lint-fix`, `test-unit`, `plan`, `apply`) for `tags: [tofu]` |
+
+```yaml
+# tackrc.yml
+pkgs:
+  - configs/common
+  - configs/devenv
+  - configs/tofu
+  - .moon
+```

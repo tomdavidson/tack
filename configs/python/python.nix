@@ -25,14 +25,11 @@
   lib,
   config,
   ...
-}:
-
-let
+}: let
   projectRoot = toString config.devenv.root;
   bwrapRun = "${projectRoot}/.tack/configs/devenv/bwrap-run.sh";
-in
-{
-  packages = [ pkgs.uv ];
+in {
+  packages = [pkgs.uv];
 
   env.UV_MANAGED_PYTHON = lib.mkDefault "1";
 

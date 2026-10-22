@@ -3,9 +3,7 @@
   lib,
   config,
   ...
-}:
-
-let
+}: let
   # bwrap scripts stay in the .tack submodule and are never materialized
   # into the consumer repo (ADR-0007); the devenv wrappers invoke them by
   # absolute path. Wrappers pass BWRAP_REPO_ROOT so bwrap-run never
@@ -13,25 +11,20 @@ let
   projectRoot = toString config.devenv.root;
   bwrapRun = "${projectRoot}/./configs/devenv/bwrap-run.sh";
   bwrapAppArmor = "${projectRoot}/./configs/devenv/bwrap-apparmor.sh";
-in
-{
-
+in {
   # packages lists additional system-level tools available in the dev shell.
   # Add entries here for tools not managed by proto.
   # PHP, Composer, and services are added by the drupal variant module.
   packages = with pkgs; [
-
     # bwrap-run sandboxing: bwrap comes from this nixpkgs (pinned by
     # devenv.lock), so the AppArmor profile managed by bwrap-apparmor
     # matches the binary the shell actually executes.
     bubblewrap
     apparmor-utils
-
   ];
 
   # env sets environment variables available inside devenv shell and processes.
   env = {
-
   };
 
   # enterShell runs once when the shell starts.
@@ -45,7 +38,6 @@ in
   '';
 
   scripts = {
-
     # `git push` from inside the shell runs tidy-push (fix, roll-up, merge trunk)
     # before the real push. Everything else passes straight through to the
     # nixpkgs git pinned by devenv.lock. The real git is resolved at Nix
@@ -113,6 +105,5 @@ in
         BWRAP_REPO_ROOT=${lib.escapeShellArg projectRoot} \
         ${lib.escapeShellArg bwrapRun} rustc "$@"
     '';
-
   };
 }

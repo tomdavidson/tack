@@ -245,7 +245,7 @@ Unit-test pure helpers directly with values and no container. Unit-test orchestr
 ### Fast Local Verification
 
 ```bash
-moon run my_module:verify        # runs lint (phpcs) + typecheck (phpstan) + test-unit (phpunit)
+moon run my_module:verify # runs lint (phpcs) + typecheck (phpstan) + test-unit (phpunit)
 ```
 
 ## Anti-Patterns

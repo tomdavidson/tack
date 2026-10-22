@@ -1,0 +1,25 @@
+# configs/tofu/tack.yml
+# OpenTofu (Terraform-compatible IaC) linting, formatting, and security baseline (ADR-0006, ADR-0009, ADR-0010, ADR-0011).
+#
+# Consumer tackrc.yml:
+#   pkgs:
+#     - configs/common
+#     - configs/devenv
+#     - configs/tofu
+#     - .moon
+ignore:
+  # read through .tack via `extends`, never materialized
+  - dprint-tofu.json
+
+files:
+  prototools.merge.toml:
+    target: .prototools
+  dprint.merge.json:
+    target: dprint.json
+  tflint.copy.hcl:
+    target: .tflint.hcl
+    overwrite: false
+  tofu.concat.gitignore:
+    target: .gitignore
+  .moon/tasks/tofu.yml:
+    target: .moon/tasks/tofu.yml

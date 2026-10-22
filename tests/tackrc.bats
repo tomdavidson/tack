@@ -7,12 +7,12 @@ setup() {
   bats_load_library bats-assert
   bats_load_library bats-file
 
-  HERE="$( cd "$( dirname "$BATS_TEST_FILENAME" )" >/dev/null 2>&1 && pwd )"
+  HERE="$(cd "$(dirname "$BATS_TEST_FILENAME")" > /dev/null 2>&1 && pwd)"
   FIXTURE="$HERE/fixtures"
   TACK_SH="$HERE/../tack.sh"
   TARGET="$(mktemp -d -t tack-tackrc.XXXXXX)"
 
-  cat > "$TARGET/Cargo.toml" <<EOF
+  cat > "$TARGET/Cargo.toml" << EOF
 [workspace.package]
 edition = "2021"
 EOF
@@ -36,7 +36,7 @@ path_without() {
     [ -n "$p" ] || continue
     if [ -x "$p/$bin" ]; then
       stub="$(mktemp -d "${TARGET:-${TMPDIR:-/tmp}}/pathstub.XXXXXX")"
-      ln -s "$p"/* "$stub/" 2>/dev/null || true
+      ln -s "$p"/* "$stub/" 2> /dev/null || true
       rm -f "$stub/$bin"
       p=$stub
     fi
@@ -59,7 +59,7 @@ path_without() {
 }
 
 @test "consumer scalar overrides default scalar (deep merge)" {
-  cat > "$TARGET/tackrc.yml" <<'EOF'
+  cat > "$TARGET/tackrc.yml" << 'EOF'
 vars:
   who: consumer-who
 EOF
@@ -71,7 +71,7 @@ EOF
 }
 
 @test "consumer adds new key without dropping defaults" {
-  cat > "$TARGET/tackrc.yml" <<'EOF'
+  cat > "$TARGET/tackrc.yml" << 'EOF'
 vars:
   who: world
   extra: bonus
@@ -83,7 +83,7 @@ EOF
 }
 
 @test "list in consumer replaces list in defaults" {
-  cat > "$TARGET/tackrc.yml" <<'EOF'
+  cat > "$TARGET/tackrc.yml" << 'EOF'
 vars:
   who: world
 moon:
@@ -100,7 +100,7 @@ EOF
   # The existing greeting.tera.yml declares vars_from: tackrc.yml.
   # That token must redirect to the merged tackrc, so a key only present
   # in defaults (vars.who: default-who) is visible when consumer omits it.
-  cat > "$TARGET/tackrc.yml" <<'EOF'
+  cat > "$TARGET/tackrc.yml" << 'EOF'
 moon:
   toolchains:
     - rust
@@ -156,7 +156,7 @@ EOF
 # ---------- default tera ctx = merged tackrc ----------
 
 @test "render without vars_from uses merged tackrc as context" {
-  cat > "$TARGET/tackrc.yml" <<'EOF'
+  cat > "$TARGET/tackrc.yml" << 'EOF'
 vars:
   who: ctx-test
 EOF

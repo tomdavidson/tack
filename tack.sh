@@ -186,8 +186,8 @@ require_proto() {
 proto_trust_pinfile() {
   [ -n "${CI:-}" ] && return 0
   if proto trust --help > /dev/null 2>&1; then
-    proto trust "$TACK_PINFILE_DIR/.prototools" > /dev/null 2>&1 ||
-      die "proto trust failed for $TACK_PINFILE_DIR/.prototools"
+    proto trust "$TACK_PINFILE_DIR/.prototools" > /dev/null 2>&1 \
+      || die "proto trust failed for $TACK_PINFILE_DIR/.prototools"
   fi
   return 0
 }
@@ -229,8 +229,8 @@ require_core_deps() {
     # "Failed to resolve tera to a valid supported version for yq".
     log "proto install yq, tera (from configs/common/.prototools)"
     for tool in yq tera; do
-      proto_in_pinfile_dir install "$tool" > /dev/null ||
-        die "proto could not install $tool; run: (cd $TACK_PINFILE_DIR && proto install $tool)"
+      proto_in_pinfile_dir install "$tool" > /dev/null \
+        || die "proto could not install $tool; run: (cd $TACK_PINFILE_DIR && proto install $tool)"
     done
     YQ=$(proto_in_pinfile_dir bin yq) || die "proto bin yq failed"
     TERA=$(proto_in_pinfile_dir bin tera) || die "proto bin tera failed"
@@ -1108,8 +1108,8 @@ concat_append() {
   line1=$(grep -v -E '^[[:space:]]*(#|$)' "$src" | sed -n '1p')
   line2=$(grep -v -E '^[[:space:]]*(#|$)' "$src" | sed -n '2p')
   [ -n "$line1" ] || die "concat source has no non-comment content: $src"
-  if [ -n "$line2" ] &&
-    awk -v a="$line1" -v b="$line2" '
+  if [ -n "$line2" ] \
+    && awk -v a="$line1" -v b="$line2" '
        prev == a && $0 == b { found=1; exit }
        { prev=$0 }
        END { exit !found }
@@ -1214,8 +1214,8 @@ merge_file() {
     return 0
   fi
 
-  yq -p "$fmt" -o "$fmt" '.' "$src" > /dev/null 2>&1 ||
-    die "merge fragment is not valid $fmt: $src"
+  yq -p "$fmt" -o "$fmt" '.' "$src" > /dev/null 2>&1 \
+    || die "merge fragment is not valid $fmt: $src"
 
   # Missing target is treated as empty data: synthesize an empty seed
   # in the right format and merge against it. This makes merge a
@@ -1231,8 +1231,8 @@ merge_file() {
     esac
     src_target="$seed"
   else
-    yq -p "$fmt" -o "$fmt" '.' "$dest" > /dev/null 2>&1 ||
-      die "merge target is not valid $fmt: $dest"
+    yq -p "$fmt" -o "$fmt" '.' "$dest" > /dev/null 2>&1 \
+      || die "merge target is not valid $fmt: $dest"
     src_target="$dest"
   fi
 
@@ -1327,8 +1327,8 @@ _h_concat() { concat_file "$1" "$2" "$3" "$4"; }
 _h_merge() { merge_file "$1" "$2" "$3" "$4"; }
 
 print_version() {
-  if command -v git > /dev/null 2>&1 &&
-    git -C "$TACK_ROOT" rev-parse --git-dir > /dev/null 2>&1; then
+  if command -v git > /dev/null 2>&1 \
+    && git -C "$TACK_ROOT" rev-parse --git-dir > /dev/null 2>&1; then
     desc=$(git -C "$TACK_ROOT" describe --tags --always --dirty 2> /dev/null || true)
     branch=$(git -C "$TACK_ROOT" rev-parse --abbrev-ref HEAD 2> /dev/null || true)
     if [ -n "$desc" ] && [ -n "$branch" ] && [ "$branch" != "HEAD" ]; then

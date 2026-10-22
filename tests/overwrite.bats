@@ -38,7 +38,7 @@ run_tack_overwrite() {
   # the copy must land in the consumer rather than follow the link back
   # into the package source.
   printf 'pkg-content\n' > "$ALT_ROOT/configs/demo/cfg.copy.json"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   cfg.copy.json:
     overwrite: false
@@ -57,7 +57,7 @@ EOF
 
 @test "--overwrite re-seeds an overwrite:false file, discarding consumer edits" {
   printf 'pkg-content\n' > "$ALT_ROOT/configs/demo/cfg.copy.json"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   cfg.copy.json:
     overwrite: false
@@ -77,7 +77,7 @@ EOF
 
 @test "overwrite false: copy creates first run, skips second when target exists" {
   printf 'pkg-content\n' > "$ALT_ROOT/configs/demo/cfg.copy.json"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   cfg.copy.json:
     overwrite: false
@@ -95,7 +95,7 @@ EOF
 
 @test "overwrite false: render creates first run, skips second" {
   printf 'rendered={{ vars.x | default(value="x") }}\n' > "$ALT_ROOT/configs/demo/r.tera.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   r.tera.txt:
     overwrite: false
@@ -113,7 +113,7 @@ EOF
 
 @test "overwrite false: concat creates first run, skips second" {
   printf 'fragment-line\n' > "$ALT_ROOT/configs/demo/n.concat.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   n.concat.txt:
     overwrite: false
@@ -132,7 +132,7 @@ EOF
 
 @test "overwrite false: merge creates first run, leaves consumer edits on second" {
   printf '{"v":1}\n' > "$ALT_ROOT/configs/demo/m.merge.json"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   m.merge.json:
     overwrite: false
@@ -153,7 +153,7 @@ EOF
 
 @test "overwrite false: unmarked file under link mode is coerced to copy and skips on second run" {
   printf 'pkg-plain\n' > "$ALT_ROOT/configs/demo/file.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 mode:
   - link: "**"
 files:

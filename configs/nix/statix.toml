@@ -1,0 +1,7 @@
+# Shared statix configuration for Nix / NixOS repositories.
+# NixOS module arguments (`{ config, lib, pkgs, ... }:`) routinely leave
+# standard module parameters unused in individual files; deadnix handles
+# unused bindings with `--no-lambda-pattern-names` instead.
+disabled = [
+  "empty_pattern",
+]

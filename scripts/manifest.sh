@@ -33,10 +33,10 @@ BUNDLE_FILE="${PROJ}-bundle.txt"
 
 # Collect tracked + untracked source files, excluding noise.
 file_list() {
-  git ls-files --cached --others --exclude-standard |
-    grep -E '\.(ts|astro|json|md|mjs|yml|yaml)$' |
-    grep -v -E '(node_modules/|dist/|\.astro/|\.turbo/)' |
-    sort
+  git ls-files --cached --others --exclude-standard \
+    | grep -E '\.(ts|astro|json|md|mjs|yml|yaml)$' \
+    | grep -v -E '(node_modules/|dist/|\.astro/|\.turbo/)' \
+    | sort
 }
 
 # --- Manifest ---
