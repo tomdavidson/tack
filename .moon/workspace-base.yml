@@ -27,13 +27,13 @@ vcs:
     # )
     pre-push:
       - |
-          set -euo pipefail
-          # Verify-only gate: dirty-tree guard, preflight (merged/diverged),
-          # gitleaks, moon run :verify --affected. Never formats, commits, or pushes.
-          # Formatting + roll-up happen in `git push` inside the devenv shell
-          # (scripts.git shim -> moon run root:tidy -- push), or manually via
-          # `moon run root:tidy -- push` outside it.
-          .moon/scripts/tidy-push.sh pre-push
+        set -euo pipefail
+        # Verify-only gate: dirty-tree guard, preflight (merged/diverged),
+        # gitleaks, moon run :verify --affected. Never formats, commits, or pushes.
+        # Formatting + roll-up happen in `git push` inside the devenv shell
+        # (scripts.git shim -> moon run root:tidy -- push), or manually via
+        # `moon run root:tidy -- push` outside it.
+        .moon/scripts/tidy-push.sh pre-push
 
 hasher:
   optimization: "accuracy"

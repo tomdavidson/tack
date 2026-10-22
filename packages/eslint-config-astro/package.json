@@ -2,6 +2,8 @@
   "name": "@tack/eslint-config-astro",
   "version": "0.1.0",
   "description": "ESLint flat config for Astro files. Treats .astro as the infrastructure/view layer with FP relaxations, structural limits, unicorn, and node rules.",
+  "keywords": ["eslint", "eslintconfig", "astro", "functional", "clean-architecture"],
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/index.mjs",
@@ -9,8 +11,6 @@
   },
   "main": "./src/index.mjs",
   "files": ["src"],
-  "keywords": ["eslint", "eslintconfig", "astro", "functional", "clean-architecture"],
-  "license": "MIT",
   "dependencies": {
     "eslint-plugin-astro": "^1.0.0",
     "eslint-plugin-functional": "^9.0.0",

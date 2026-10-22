@@ -271,6 +271,11 @@ main() {
   cmd=$1
   shift
 
+  if [ "$print_cmd" -eq 1 ]; then
+    resolve_cmd "$cmd"
+    exit 0
+  fi
+
   # Already inside a sandbox: exec directly. Devenv script wrappers resolve
   # through bwrap-run again when a sandboxed tool invokes them by name; this makes
   # that a plain exec of the real binary instead of a nested bwrap attempt.
@@ -279,11 +284,6 @@ main() {
   fi
 
   exec_cmd=$(resolve_cmd "$cmd")
-
-  if [ "$print_cmd" -eq 1 ]; then
-    printf '%s\n' "$exec_cmd"
-    exit 0
-  fi
 
   bwrap_bin=${BWRAP_BIN:-$(command -v bwrap || true)}
   [ -n "$bwrap_bin" ] || die "bwrap not found; set BWRAP_BIN or add bubblewrap to PATH"
@@ -350,6 +350,10 @@ $repo_root"
     "$cache_root/cargo/registry" \
     "$cache_root/cargo/git" \
     "$cache_root/cargo-home" \
+    "$cache_root/go-build" \
+    "$cache_root/go-mod" \
+    "$cache_root/golangci-lint" \
+    "$cache_root/tofu-plugins" \
     "$cache_root/proto" 2> /dev/null || true
 
   mkdir -p "$cache_root/uv-python"
@@ -505,6 +509,8 @@ EOF
   done < <(env)
   args+=(
     --setenv BWRAP_ACTIVE 1
+    --setenv PROTO_SKIP_USED_AT 1
+    --setenv MOON_SKIP_SETUP_TOOLCHAIN true
     --setenv pnpm_config_store_dir "$pnpm_store"
     --setenv pnpm_config_cache_dir "$cache_root/pnpm-cache"
     --setenv PIP_CACHE_DIR "$cache_root/pip"
@@ -512,6 +518,10 @@ EOF
     --setenv UV_PYTHON_INSTALL_DIR "$cache_root/uv-python"
     --setenv UV_PYTHON_BIN_DIR "$cache_root/uv-python/bin"
     --setenv PYTHONDONTWRITEBYTECODE 1
+    --setenv GOCACHE "$cache_root/go-build"
+    --setenv GOMODCACHE "$cache_root/go-mod"
+    --setenv GOLANGCI_LINT_CACHE "$cache_root/golangci-lint"
+    --setenv TF_PLUGIN_CACHE_DIR "$cache_root/tofu-plugins"
   )
   if [ ! -d "$cargo_home_host" ]; then
     # No rust toolchain on the host (cargo likely from nix/devenv): point

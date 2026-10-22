@@ -1,0 +1,29 @@
+# configs/go/tack.yml
+# Go toolchain, linting, and formatting baseline (ADR-0006, ADR-0009, ADR-0010).
+#
+# Consumer tackrc.yml:
+#   moon:
+#     toolchains:
+#       - go
+#   pkgs:
+#     - configs/common
+#     - configs/devenv
+#     - configs/go
+#     - .moon
+ignore:
+  # read through .tack via `extends` / `includes`, never materialized
+  - dprint-go.json
+  - golangci.yml
+
+files:
+  prototools.merge.toml:
+    target: .prototools
+  dprint.merge.json:
+    target: dprint.json
+  golangci.copy.yml:
+    target: .golangci.yml
+    overwrite: false
+  .moon/toolchains-go.yml:
+    target: .moon/toolchains-go.yml
+  .moon/tasks/go.yml:
+    target: .moon/tasks/go.yml

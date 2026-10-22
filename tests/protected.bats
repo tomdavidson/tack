@@ -49,7 +49,7 @@ assert_refused() {
 
 @test "protected: files.<src>.target redirect to devenv.nix is refused" {
   printf '{ }\n' > "$ALT_ROOT/configs/demo/innocent.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   innocent.txt:
     target: devenv.nix
@@ -62,7 +62,7 @@ EOF
 @test "protected: files.<src>.target redirect into .git/hooks is refused" {
   mkdir -p "$CONSUMER/.git/hooks"
   printf '#!/bin/sh\necho pwned\n' > "$ALT_ROOT/configs/demo/hook.sh"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   hook.sh:
     target: .git/hooks/pre-push
@@ -74,7 +74,7 @@ EOF
 
 @test "protected: tera render targeting .envrc from a data package is refused" {
   printf 'export X={{ vars.x | default(value=1) }}\n' > "$ALT_ROOT/configs/demo/.envrc.tera.sh"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   .envrc.tera.sh:
     target: .envrc
@@ -94,7 +94,7 @@ EOF
 
 @test "protected: path traversal in a target override is refused" {
   printf 'x\n' > "$ALT_ROOT/configs/demo/a.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   a.txt:
     target: ../escape.txt
@@ -106,7 +106,7 @@ EOF
 
 @test "protected: linking into .tack/ itself is refused" {
   printf 'x\n' > "$ALT_ROOT/configs/demo/a.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 path_prefix: .tack
 EOF
   run_tack configs/demo

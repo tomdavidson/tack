@@ -44,8 +44,8 @@ public_read_policy() {
 
 allow_anonymous_read() {
   local bucket="$1"
-  public_read_policy "${bucket}" |
-    s3_request -o /dev/null -X PUT -H "Content-Type: application/json" --data-binary @- "${ENDPOINT}/${bucket}?policy"
+  public_read_policy "${bucket}" \
+    | s3_request -o /dev/null -X PUT -H "Content-Type: application/json" --data-binary @- "${ENDPOINT}/${bucket}?policy"
   log "Anonymous read enabled on ${bucket}."
 }
 

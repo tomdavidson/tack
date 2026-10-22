@@ -1,0 +1,7 @@
+# Seed-once .golangci.yml stub (ADR-0009 Mode 2).
+# Shared rules live in .tack/configs/go/golangci.yml; add repo-specific
+# overrides or exclusions below.
+version: "2"
+
+includes:
+  - .tack/configs/go/golangci.yml

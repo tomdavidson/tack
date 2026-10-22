@@ -100,3 +100,5 @@ vars:
       - moon
       - cargo
       - rustc
+      - go
+      - golangci-lint

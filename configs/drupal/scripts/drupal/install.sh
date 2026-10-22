@@ -101,9 +101,9 @@ site_state() {
   fi
   profile="$(export_profile)"
   modules="$(drush config:get core.extension module --format=yaml 2> /dev/null || true)"
-  if [[ -n ${profile} ]] &&
-    grep -qE "^[[:space:]]*${profile}:" <<< "${modules}" &&
-    grep -qE '^[[:space:]]*user:' <<< "${modules}"; then
+  if [[ -n ${profile} ]] \
+    && grep -qE "^[[:space:]]*${profile}:" <<< "${modules}" \
+    && grep -qE '^[[:space:]]*user:' <<< "${modules}"; then
     echo installed
   else
     echo partial
@@ -127,8 +127,8 @@ install_from_config() {
   local args=(--existing-config -y -v --account-name=admin --uri="${uri}")
   [[ -n ${DRUPAL_ADMIN_PASSWORD:-} ]] && args+=(--account-pass="${DRUPAL_ADMIN_PASSWORD}")
 
-  has_exported_config ||
-    die "${CONFIG_SYNC_DIR} has no exported config. Export it (drush cex) and commit it before installing."
+  has_exported_config \
+    || die "${CONFIG_SYNC_DIR} has no exported config. Export it (drush cex) and commit it before installing."
   profile="$(export_profile)"
   [[ -n ${profile} ]] || die "No profile: key in ${CORE_EXTENSION_FILE}."
 
@@ -190,8 +190,8 @@ main() {
         log "Drupal already installed; running the deploy path."
         ;;
       partial)
-        [[ ${APP_ENV} == "production" ]] &&
-          die "Half-installed in production; refusing to drop ${DB_NAME} automatically."
+        [[ ${APP_ENV} == "production" ]] \
+          && die "Half-installed in production; refusing to drop ${DB_NAME} automatically."
         log "Half-installed site detected; dropping and reinstalling."
         drop_database
         install_from_config

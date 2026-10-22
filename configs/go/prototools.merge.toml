@@ -1,0 +1,5 @@
+go = "1.25.0"
+golangci-lint = "2.5.0"
+
+[plugins]
+golangci-lint = "github://muuvmuuv/proto-plugins/golangci-lint"

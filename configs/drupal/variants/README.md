@@ -30,11 +30,15 @@ vars:
 
 ```nix
 # devenv.nix
-{ pkgs, lib, config, ... }:
 {
-  imports = [ ./.tack/configs/drupal/variants/dlg-ms.nix ];
+  pkgs,
+  lib,
+  config,
+  ...
+}: {
+  imports = [./.tack/configs/drupal/variants/dlg-ms.nix];
 
-  env.APP_ROOT  = "${config.devenv.root}/apps/hub";
+  env.APP_ROOT = "${config.devenv.root}/apps/hub";
   env.HASH_SALT = "your-project-specific-value";
 }
 ```

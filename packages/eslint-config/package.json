@@ -2,6 +2,16 @@
   "name": "@tack/eslint-config",
   "version": "0.1.0",
   "description": "ESLint flat config for TypeScript with clean architecture boundaries, FP enforcement, oxlint, and oxlint dedup.",
+  "keywords": [
+    "eslint",
+    "eslintconfig",
+    "oxlint",
+    "typescript",
+    "functional",
+    "clean-architecture",
+    "boundaries"
+  ],
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/index.mjs",
@@ -15,16 +25,6 @@
     "install-oxlintrc": "./src/install-oxlintrc.mjs"
   },
   "files": ["src"],
-  "keywords": [
-    "eslint",
-    "eslintconfig",
-    "oxlint",
-    "typescript",
-    "functional",
-    "clean-architecture",
-    "boundaries"
-  ],
-  "license": "MIT",
   "dependencies": {
     "eslint-plugin-boundaries": "^6.0.0",
     "eslint-plugin-functional": "^9.0.0",

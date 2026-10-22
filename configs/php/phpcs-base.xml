@@ -2,8 +2,8 @@
 <ruleset name="tack-php-base">
   <description>Shared Strategic FP and Clean Code PHP_CodeSniffer guardrails for PHP and Drupal.</description>
 
-  <arg name="colors"/>
-  <arg value="p"/>
+  <arg name="colors" />
+  <arg value="p" />
 
   <exclude-pattern>*/node_modules/*</exclude-pattern>
   <exclude-pattern>*/vendor/*</exclude-pattern>
@@ -11,63 +11,63 @@
   <!-- Flat control flow: warn past nesting depth 2, error past 3. -->
   <rule ref="Generic.Metrics.NestingLevel">
     <properties>
-      <property name="nestingLevel" value="2"/>
-      <property name="absoluteNestingLevel" value="3"/>
+      <property name="nestingLevel" value="2" />
+      <property name="absoluteNestingLevel" value="3" />
     </properties>
   </rule>
 
   <!-- Cap cyclomatic complexity per function/method: warn past 8, error past 10. -->
   <rule ref="Generic.Metrics.CyclomaticComplexity">
     <properties>
-      <property name="complexity" value="8"/>
-      <property name="absoluteComplexity" value="10"/>
+      <property name="complexity" value="8" />
+      <property name="absoluteComplexity" value="10" />
     </properties>
   </rule>
 
   <!-- Keep functions small (<= 30 lines). -->
   <rule ref="SlevomatCodingStandard.Functions.FunctionLength">
     <properties>
-      <property name="maxLinesLength" value="30"/>
+      <property name="maxLinesLength" value="30" />
     </properties>
   </rule>
 
   <!-- Guard clauses and flat control flow: forbid else after return/throw/continue/break. -->
-  <rule ref="SlevomatCodingStandard.ControlStructures.EarlyExit"/>
-  <rule ref="SlevomatCodingStandard.ControlStructures.DisallowContinueWithoutIntegerOperandInSwitch"/>
+  <rule ref="SlevomatCodingStandard.ControlStructures.EarlyExit" />
+  <rule ref="SlevomatCodingStandard.ControlStructures.DisallowContinueWithoutIntegerOperandInSwitch" />
 
   <!-- Require declare(strict_types=1); at the top of every PHP file. -->
   <rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes">
     <properties>
-      <property name="linesCountBeforeDeclare" value="1"/>
-      <property name="linesCountAfterDeclare" value="1"/>
-      <property name="spacesCountAroundEqualsSign" value="0"/>
+      <property name="linesCountBeforeDeclare" value="1" />
+      <property name="linesCountAfterDeclare" value="1" />
+      <property name="spacesCountAroundEqualsSign" value="0" />
     </properties>
   </rule>
 
   <!-- Explicit native + PHPDoc generic types. -->
-  <rule ref="SlevomatCodingStandard.TypeHints.ParameterTypeHint"/>
-  <rule ref="SlevomatCodingStandard.TypeHints.ReturnTypeHint"/>
-  <rule ref="SlevomatCodingStandard.TypeHints.PropertyTypeHint"/>
-  <rule ref="SlevomatCodingStandard.TypeHints.DisallowMixedTypeHint"/>
+  <rule ref="SlevomatCodingStandard.TypeHints.ParameterTypeHint" />
+  <rule ref="SlevomatCodingStandard.TypeHints.ReturnTypeHint" />
+  <rule ref="SlevomatCodingStandard.TypeHints.PropertyTypeHint" />
+  <rule ref="SlevomatCodingStandard.TypeHints.DisallowMixedTypeHint" />
 
   <!-- Pure closures and anti-OOP hygiene. -->
-  <rule ref="SlevomatCodingStandard.Classes.DisallowLateStaticBindingForConstants"/>
-  <rule ref="SlevomatCodingStandard.Functions.StaticClosure"/>
-  <rule ref="SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable"/>
+  <rule ref="SlevomatCodingStandard.Classes.DisallowLateStaticBindingForConstants" />
+  <rule ref="SlevomatCodingStandard.Functions.StaticClosure" />
+  <rule ref="SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable" />
 
   <!-- Ban debug, scope-polluting, and process-killing functions in custom code. -->
   <rule ref="Generic.PHP.ForbiddenFunctions">
     <properties>
       <property name="forbiddenFunctions" type="array">
-        <element key="eval" value="null"/>
-        <element key="extract" value="null"/>
-        <element key="compact" value="null"/>
-        <element key="dd" value="null"/>
-        <element key="dump" value="null"/>
-        <element key="var_dump" value="null"/>
-        <element key="print_r" value="null"/>
-        <element key="die" value="null"/>
-        <element key="exit" value="null"/>
+        <element key="eval" value="null" />
+        <element key="extract" value="null" />
+        <element key="compact" value="null" />
+        <element key="dd" value="null" />
+        <element key="dump" value="null" />
+        <element key="var_dump" value="null" />
+        <element key="print_r" value="null" />
+        <element key="die" value="null" />
+        <element key="exit" value="null" />
       </property>
     </properties>
   </rule>

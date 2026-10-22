@@ -8,6 +8,11 @@
 #
 # clippy-cargo.merge.toml deep-merges [workspace.lints.rust] and
 # [workspace.lints.clippy] into the consumer's root Cargo.toml via yq (ADR-0009).
+ignore:
+  - dprint-rust.json
+
 files:
+  dprint.merge.json:
+    target: dprint.json
   clippy-cargo.merge.toml:
     target: Cargo.toml

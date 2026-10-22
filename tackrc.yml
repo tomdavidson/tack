@@ -24,6 +24,9 @@ overrides:
   #   drupal        would create a root composer.json via merge
   #   rust          would create a root Cargo.toml via concat
   #   python        would seed a root ruff.toml; this repo has no Python
+  #   nix           tack uses nixfmt in its own dprint.json and devenv tasks
+  #   go            this repository does not use Go
+  #   tofu          this repository does not use OpenTofu
   configs/devcontainer:
     exclude: ["**"]
   configs/python:
@@ -33,6 +36,12 @@ overrides:
   configs/drupal:
     exclude: ["**"]
   configs/rust:
+    exclude: ["**"]
+  configs/nix:
+    exclude: ["**"]
+  configs/go:
+    exclude: ["**"]
+  configs/tofu:
     exclude: ["**"]
   configs/web:
     exclude: ["**"]

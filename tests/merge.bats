@@ -28,9 +28,12 @@ teardown() {
 # write_pkg <frag-basename> <frag-body> <target-path-rel-to-consumer> <target-body>
 # Manifest declares files[<frag-basename>].target = <target-path-rel-to-consumer>.
 write_pkg() {
-  frag_name="$1"; frag_body="$2"; tgt_rel="$3"; tgt_body="$4"
+  frag_name="$1"
+  frag_body="$2"
+  tgt_rel="$3"
+  tgt_body="$4"
   printf '%s' "$frag_body" > "$ALT_ROOT/configs/demo/$frag_name"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<EOF
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << EOF
 files:
   $frag_name:
     target: $tgt_rel
@@ -81,7 +84,7 @@ edition = "2024"
 
 @test "merge: missing target file is created from fragment" {
   printf '{"x":1}' > "$ALT_ROOT/configs/demo/a.merge.json"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   a.merge.json:
     target: created.json
@@ -205,7 +208,7 @@ a: 1
   printf '{"v":2}' > "$ALT_ROOT/configs/demo/a.merge.json"
   printf 'k: 2
 ' > "$ALT_ROOT/configs/demo/b.merge.yml"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 files:
   a.merge.json: { target: pkg.json }
   b.merge.yml:  { target: pkg.yml  }

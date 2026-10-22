@@ -39,7 +39,7 @@ git submodule add https://github.com/tomdavidson/tack .tack
 git submodule update --init --recursive
 
 # 2. (Optional) Configure selected packages in tackrc.yml
-cat > tackrc.yml <<'YAML'
+cat > tackrc.yml << 'YAML'
 pkgs:
   - configs/common
   - configs/devenv
@@ -61,17 +61,17 @@ Prerequisite: [`proto`](https://moonrepo.dev/docs/proto/install) (`curl -fsSL ht
 
 ```bash
 # Apply packages
-.tack/tack.sh                       # apply pkgs from merged tackrc.yml
-.tack/tack.sh --dry-run             # preview actions without writing
-.tack/tack.sh --overwrite           # re-seed overwrite:false files
-.tack/tack.sh configs/rust          # apply specific package(s)
+.tack/tack.sh              # apply pkgs from merged tackrc.yml
+.tack/tack.sh --dry-run    # preview actions without writing
+.tack/tack.sh --overwrite  # re-seed overwrite:false files
+.tack/tack.sh configs/rust # apply specific package(s)
 
 # Workspace Moon tasks (inherited from .moon)
-moon run :fmt                       # format all files via dprint
-moon run :fmt-check                 # check formatting
-moon run :lint                      # run linters across projects
-moon run :test                      # run tests (bats in tack; vitest/pytest/nextest in consumers)
-moon run :verify                    # typecheck + lint + test
+moon run :fmt       # format all files via dprint
+moon run :fmt-check # check formatting
+moon run :lint      # run linters across projects
+moon run :test      # run tests (bats in tack; vitest/pytest/nextest in consumers)
+moon run :verify    # typecheck + lint + test
 ```
 
 ---

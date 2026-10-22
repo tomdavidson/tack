@@ -1,0 +1,104 @@
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+# Inherited by projects with `tags: [tofu]` in moon.yml (ADR-0010, ADR-0011).
+inheritedBy:
+  tags: "tofu"
+  order: 10
+
+fileGroups:
+  sources:
+    - "**/*.tf"
+    - "**/*.tofu"
+    - "**/*.tfvars"
+    - "!**/.terraform/**"
+  tests:
+    - "tests/**/*.tftest.hcl"
+    - "**/*.tftest.hcl"
+    - "**/*.tftest.tofu"
+  configs:
+    - ".terraform.lock.hcl"
+    - ".tflint.hcl"
+    - "/.tflint.hcl"
+    - "/.prototools"
+
+tasks:
+  typecheck:
+    script: "tofu init -backend=false && tofu validate"
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(configs)"
+    options:
+      runInCI: true
+
+  lint-tflint:
+    command: "tflint"
+    args:
+      - "--recursive"
+      - "--config"
+      - "$workspaceRoot/.tflint.hcl"
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(configs)"
+    options:
+      runInCI: true
+
+  lint-trivy:
+    command: "trivy"
+    args:
+      - "config"
+      - "."
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(configs)"
+    options:
+      runInCI: true
+
+  lint:
+    command: "noop"
+    deps:
+      - "~:lint-tflint"
+      - "~:lint-trivy"
+    options:
+      runInCI: true
+
+  lint-fix:
+    command: "tflint"
+    args:
+      - "--recursive"
+      - "--fix"
+      - "--config"
+      - "$workspaceRoot/.tflint.hcl"
+    toolchains: ["system"]
+    options:
+      cache: false
+      runInCI: false
+
+  test-unit:
+    script: "tofu init -backend=false && tofu test"
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+      - "@group(configs)"
+    options:
+      runInCI: true
+
+  plan:
+    command: "tofu"
+    args:
+      - "plan"
+    toolchains: ["system"]
+    options:
+      cache: false
+      runInCI: false
+
+  apply:
+    command: "tofu"
+    args:
+      - "apply"
+    toolchains: ["system"]
+    options:
+      cache: false
+      runInCI: false

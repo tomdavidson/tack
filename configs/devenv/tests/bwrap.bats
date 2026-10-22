@@ -13,7 +13,7 @@ setup() {
   bats_load_library bats-assert
   bats_load_library bats-file
 
-  HERE="$(cd "$(dirname "$BATS_TEST_FILENAME")" >/dev/null 2>&1 && pwd)"
+  HERE="$(cd "$(dirname "$BATS_TEST_FILENAME")" > /dev/null 2>&1 && pwd)"
   REPO="$(cd "$HERE/../../.." && pwd)"
   TACK_SH="$REPO/tack.sh"
   BWRAP_SH="$REPO/configs/devenv/bwrap-run.sh"
@@ -49,16 +49,17 @@ make_tree() {
 # "setting up uid map: Permission denied" until an AppArmor profile grants
 # userns to this bwrap binary (configs/devenv/bwrap-apparmor.sh install).
 require_bwrap() {
-  command -v bwrap >/dev/null 2>&1 || skip "bwrap not installed (sandbox not in use on this host)"
-  bwrap --unshare-user --ro-bind / / true >/dev/null 2>&1 ||
-    fail "bwrap is installed but cannot create a user namespace (kernel.apparmor_restrict_unprivileged_userns). Run: configs/devenv/bwrap-apparmor.sh install"
+  [ -z "${BWRAP_ACTIVE:-}" ] || skip "already inside bwrap sandbox (nested userns disabled)"
+  command -v bwrap > /dev/null 2>&1 || skip "bwrap not installed (sandbox not in use on this host)"
+  bwrap --unshare-user --ro-bind / / true > /dev/null 2>&1 \
+    || fail "bwrap is installed but cannot create a user namespace (kernel.apparmor_restrict_unprivileged_userns). Run: configs/devenv/bwrap-apparmor.sh install"
 }
 
 # ---------- devenv template rendering ----------
 
 @test "devenv renders bwrap-run scripts for every default tool" {
   apply_devenv
-  for tool in node npx pnpm moon cargo rustc; do
+  for tool in node npx pnpm moon cargo rustc go golangci-lint; do
     run grep -F "${tool}.exec" "$TARGET/devenv.nix"
     assert_success
     run grep -F "bwrapRun} ${tool}" "$TARGET/devenv.nix"
@@ -98,7 +99,7 @@ require_bwrap() {
   # Inspect only wrappers that execute bwrapRun; the git shim has its own root.
   wrappers=$(sed -n '/^[[:space:]]*bwrap-run.exec =/,/^[[:space:]]*};/p' "$TARGET/devenv.nix")
   [[ -n $wrappers ]]
-  for tool in bwrap-run node npx pnpm moon cargo rustc; do
+  for tool in bwrap-run node npx pnpm moon cargo rustc go golangci-lint; do
     block=$(printf '%s\n' "$wrappers" | sed -n "/^[[:space:]]*${tool}\.exec =/,/^[[:space:]]*'';/p")
     [[ -n $block ]]
     [[ $block == *'BWRAP_REPO_ROOT=${lib.escapeShellArg projectRoot}'* ]]
@@ -116,7 +117,7 @@ require_bwrap() {
 }
 
 @test "devenv omits all bwrap wiring when disabled" {
-  cat > "$TARGET/tackrc.yml" <<'EOF'
+  cat > "$TARGET/tackrc.yml" << 'EOF'
 vars:
   bwrap:
     enabled: false
@@ -130,7 +131,7 @@ EOF
 }
 
 @test "devenv consumer tools list is honored" {
-  cat > "$TARGET/tackrc.yml" <<'EOF'
+  cat > "$TARGET/tackrc.yml" << 'EOF'
 vars:
   bwrap:
     tools:
@@ -145,7 +146,7 @@ EOF
 }
 
 @test "devenv env vars render through vars.devenv" {
-  cat > "$TARGET/tackrc.yml" <<'EOF'
+  cat > "$TARGET/tackrc.yml" << 'EOF'
 vars:
   devenv:
     env:
@@ -208,43 +209,49 @@ EOF
   require_bwrap
   tree="$TARGET/tree"
   make_tree "$tree"
-  (cd "$tree/mod"
-  run bash "$BWRAP_SH" bash -c "touch '$tree/marker'"
-  assert_success
-  assert_file_exists "$tree/marker")
+  (
+    cd "$tree/mod"
+    run bash "$BWRAP_SH" bash -c "touch '$tree/marker'"
+    assert_success
+    assert_file_exists "$tree/marker"
+  )
 }
 
 @test "root fallback stops at a linked worktree .git file" {
   require_bwrap
   tree="$TARGET/tree"
   make_tree "$tree"
-  (cd "$tree/wt"
-  # the sandbox /tmp is a tmpfs, so the touch itself succeeds inside it;
-  # the observable is whether the host file appears. Stopping at the
-  # worktree means the parent never becomes writable.
-  run bash "$BWRAP_SH" bash -c "touch '$tree/marker'"
-  assert_success
-  assert_file_not_exists "$tree/marker"
-  # the worktree root itself is writable
-  run bash "$BWRAP_SH" bash -c "touch '$tree/wt/inner'"
-  assert_success
-  assert_file_exists "$tree/wt/inner")
+  (
+    cd "$tree/wt"
+    # the sandbox /tmp is a tmpfs, so the touch itself succeeds inside it;
+    # the observable is whether the host file appears. Stopping at the
+    # worktree means the parent never becomes writable.
+    run bash "$BWRAP_SH" bash -c "touch '$tree/marker'"
+    assert_success
+    assert_file_not_exists "$tree/marker"
+    # the worktree root itself is writable
+    run bash "$BWRAP_SH" bash -c "touch '$tree/wt/inner'"
+    assert_success
+    assert_file_exists "$tree/wt/inner"
+  )
 }
 
 @test "BWRAP_REPO_ROOT overrides root detection" {
   require_bwrap
   tree="$TARGET/tree"
   make_tree "$tree"
-  (cd "$tree/mod"
-  # detection alone would make $tree writable (submodule walk); the
-  # override narrows the sandbox to the submodule, so a host file never
-  # appears outside it
-  run env BWRAP_REPO_ROOT="$tree/mod" bash "$BWRAP_SH" bash -c "touch '$tree/marker'"
-  assert_success
-  assert_file_not_exists "$tree/marker"
-  run env BWRAP_REPO_ROOT="$tree/mod" bash "$BWRAP_SH" bash -c "touch '$tree/mod/inner'"
-  assert_success
-  assert_file_exists "$tree/mod/inner")
+  (
+    cd "$tree/mod"
+    # detection alone would make $tree writable (submodule walk); the
+    # override narrows the sandbox to the submodule, so a host file never
+    # appears outside it
+    run env BWRAP_REPO_ROOT="$tree/mod" bash "$BWRAP_SH" bash -c "touch '$tree/marker'"
+    assert_success
+    assert_file_not_exists "$tree/marker"
+    run env BWRAP_REPO_ROOT="$tree/mod" bash "$BWRAP_SH" bash -c "touch '$tree/mod/inner'"
+    assert_success
+    assert_file_exists "$tree/mod/inner"
+  )
 }
 
 # ---------- ADR-0008: writable .tack, read-only host-executed surface ----------
@@ -271,8 +278,8 @@ allowed_tack_ref() {
   # extension survives and the *.nix rule applies. Trailing slashes and
   # sentence punctuation ("...python.nix." in a comment) are stripped.
   # shellcheck disable=SC2086
-  refs=$(cat $files | sed 's/{{[^}]*}}/VAR/g' |
-    grep -oE '\.tack/[A-Za-z0-9_./-]+' | sed -e 's#^\.tack/##' -e 's#[./]*$##' | sort -u)
+  refs=$(cat $files | sed 's/{{[^}]*}}/VAR/g' \
+    | grep -oE '\.tack/[A-Za-z0-9_./-]+' | sed -e 's#^\.tack/##' -e 's#[./]*$##' | sort -u)
   bad=""
   while IFS= read -r r; do
     [ -n "$r" ] || continue
@@ -357,8 +364,10 @@ assert_tack_surface() {
   require_bwrap
   dir="$TARGET/consumer"
   make_consumer "$dir" submodule
-  (cd "$dir"
-  run env BWRAP_REPO_ROOT="$dir" BWRAP_STRICT=1 bash "$BWRAP_SH" bash -c "echo x >> '$dir/.tack/configs/python/ruff.toml'"
-  assert_failure
-  assert_output --partial 'Read-only file system')
+  (
+    cd "$dir"
+    run env BWRAP_REPO_ROOT="$dir" BWRAP_STRICT=1 bash "$BWRAP_SH" bash -c "echo x >> '$dir/.tack/configs/python/ruff.toml'"
+    assert_failure
+    assert_output --partial 'Read-only file system'
+  )
 }

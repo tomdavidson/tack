@@ -15,22 +15,22 @@
   lib,
   config,
   ...
-}:
-
-let
+}: let
   php = pkgs.php83.buildEnv {
-    extensions =
-      { all, enabled }:
+    extensions = {
+      all,
+      enabled,
+    }:
       with all;
-      enabled
-      ++ [
-        apcu
-        bcmath
-        gd
-        intl
-        opcache
-        zip
-      ];
+        enabled
+        ++ [
+          apcu
+          bcmath
+          gd
+          intl
+          opcache
+          zip
+        ];
     extraConfig = ''
       memory_limit = 512M
       max_execution_time = 120
@@ -42,9 +42,8 @@ let
 
   # Path to tack scripts inside the submodule.
   tackScripts = ".tack/configs/drupal/scripts";
-in
-{
-  imports = [ ../php/php.nix ];
+in {
+  imports = [../php/php.nix];
 
   # ---------------------------------------------------------------------------
   # Environment
@@ -113,19 +112,19 @@ in
     description = "composer install (scaffolds web/ and vendor/)";
     status = "test -f '${appRoot}/vendor/autoload.php'";
     exec = "cd '${appRoot}' && composer install --no-interaction";
-    before = [ "devenv:processes:web" ];
+    before = ["devenv:processes:web"];
   };
 
   tasks."drupal:deploy" = {
     description = "updatedb, config:import, cache:rebuild, cron key, drift gate";
     exec = "${tackScripts}/drupal/deploy.sh";
-    after = [ "app:composer" ];
+    after = ["app:composer"];
   };
 
   tasks."drupal:reset" = {
     description = "Drop and reinstall from config/sync (forces reinstall)";
     exec = "${tackScripts}/drupal/install.sh --force";
-    after = [ "app:composer" ];
+    after = ["app:composer"];
   };
 
   # ---------------------------------------------------------------------------

@@ -1,23 +1,10 @@
 {
   "$schema": "https://dprint.dev/schemas/v0.json",
   "exec": {
-    "cwd": "${configDir}",
+    "cwd": "${originConfigDir}",
     "commands": [
       {
-        "command": "rustfmt --edition 2024",
-        "exts": [
-          "rs"
-        ]
-      },
-      {
-        "command": "shfmt -i {{indent_width}} -s -ci -sr",
-        "exts": [
-          "sh",
-          "bash"
-        ]
-      },
-      {
-        "command": "sh -c 'phpcbf --standard=phpcs.xml.dist -q --stdin-path={{file_path}} - || [ $? -eq 1 ]'",
+        "command": "sh -c 'out=$(phpcbf --standard=phpcs.xml.dist -q --stdin-path=\"$1\" -); status=$?; [ $status -eq 0 ] || [ $status -eq 1 ] && printf \"%s\" \"$out\" || exit $status' _ {{file_path}}",
         "exts": [
           "php",
           "module",

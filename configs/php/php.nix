@@ -23,13 +23,10 @@
   lib,
   config,
   ...
-}:
-
-let
+}: let
   projectRoot = toString config.devenv.root;
   bwrapRun = "${projectRoot}/.tack/configs/devenv/bwrap-run.sh";
-in
-{
+in {
   languages.php = {
     enable = lib.mkDefault true;
     version = lib.mkDefault "8.3";

@@ -51,7 +51,7 @@ run_tack_pkgs() {
 
 @test "package mode: copy rule overrides default link" {
   printf 'hello\n' > "$ALT_ROOT/configs/demo/plain.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 mode:
   - copy: "plain.txt"
 EOF
@@ -64,7 +64,7 @@ EOF
 
 @test "package mode: link rule overrides .copy. marker" {
   printf 'hi\n' > "$ALT_ROOT/configs/demo/foo.copy.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 mode:
   - link: "foo.copy.txt"
 EOF
@@ -77,37 +77,43 @@ EOF
   mkdir -p "$ALT_ROOT/configs/demo/sub"
   printf 'a\n' > "$ALT_ROOT/configs/demo/a.yml"
   printf 'b\n' > "$ALT_ROOT/configs/demo/sub/b.yml"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 mode:
   - copy: ["a.yml", "sub/**/*.yml"]
 EOF
   run_tack
   [ "$status" -eq 0 ]
-  [ -f "$CONSUMER/a.yml" ]; run test -L "$CONSUMER/a.yml"; [ "$status" -ne 0 ]
-  [ -f "$CONSUMER/sub/b.yml" ]; run test -L "$CONSUMER/sub/b.yml"; [ "$status" -ne 0 ]
+  [ -f "$CONSUMER/a.yml" ]
+  run test -L "$CONSUMER/a.yml"
+  [ "$status" -ne 0 ]
+  [ -f "$CONSUMER/sub/b.yml" ]
+  run test -L "$CONSUMER/sub/b.yml"
+  [ "$status" -ne 0 ]
 }
 
 @test "package mode: first match wins for overlapping rules" {
   printf 'x\n' > "$ALT_ROOT/configs/demo/a.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 mode:
   - copy: "a.txt"
   - link: "**"
 EOF
   run_tack
   [ "$status" -eq 0 ]
-  [ -f "$CONSUMER/a.txt" ]; run test -L "$CONSUMER/a.txt"; [ "$status" -ne 0 ]
+  [ -f "$CONSUMER/a.txt" ]
+  run test -L "$CONSUMER/a.txt"
+  [ "$status" -ne 0 ]
 }
 
 # ----- consumer override -----
 
 @test "consumer mode: copy rule wins over package link rule" {
   printf 'x\n' > "$ALT_ROOT/configs/demo/a.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 mode:
   - link: "**"
 EOF
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 overrides:
   configs/demo:
@@ -116,16 +122,18 @@ overrides:
 EOF
   run_tack_pkgs
   [ "$status" -eq 0 ]
-  [ -f "$CONSUMER/a.txt" ]; run test -L "$CONSUMER/a.txt"; [ "$status" -ne 0 ]
+  [ -f "$CONSUMER/a.txt" ]
+  run test -L "$CONSUMER/a.txt"
+  [ "$status" -ne 0 ]
 }
 
 @test "consumer mode: link rule wins over package copy rule" {
   printf 'x\n' > "$ALT_ROOT/configs/demo/a.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 mode:
   - copy: "**"
 EOF
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 overrides:
   configs/demo:
@@ -141,7 +149,7 @@ EOF
 
 @test "content marker: .merge.json unaffected by mode link rule" {
   printf '{"x":1}' > "$ALT_ROOT/configs/demo/a.merge.json"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 mode:
   - link: "**"
 files:
@@ -162,11 +170,11 @@ EOF
 @test "excludes drop file before mode resolution" {
   printf 'x\n' > "$ALT_ROOT/configs/demo/skip.txt"
   printf 'y\n' > "$ALT_ROOT/configs/demo/keep.txt"
-  cat > "$ALT_ROOT/configs/demo/tack.yml" <<'EOF'
+  cat > "$ALT_ROOT/configs/demo/tack.yml" << 'EOF'
 mode:
   - copy: "**"
 EOF
-  cat > "$CONSUMER/tackrc.yml" <<'EOF'
+  cat > "$CONSUMER/tackrc.yml" << 'EOF'
 pkgs: ["configs/demo"]
 overrides:
   configs/demo:

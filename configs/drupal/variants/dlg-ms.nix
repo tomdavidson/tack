@@ -13,9 +13,7 @@
   lib,
   config,
   ...
-}:
-
-let
+}: let
   # Single source for dev credentials.
   dbName = "drupal";
   dbTestName = "drupal_test";
@@ -43,28 +41,29 @@ let
     echo "  Drupal admin    admin / $DRUPAL_ADMIN_PASSWORD   (or: drush uli)"
     echo ""
   '';
-in
-{
-  imports = [ ../drupal.nix ];
+in {
+  imports = [../drupal.nix];
 
   # ---------------------------------------------------------------------------
   # Additional PHP extensions for DLG-MS (pdo_mysql for MariaDB).
   # ---------------------------------------------------------------------------
   languages.php.package = lib.mkForce (
     pkgs.php83.buildEnv {
-      extensions =
-        { all, enabled }:
+      extensions = {
+        all,
+        enabled,
+      }:
         with all;
-        enabled
-        ++ [
-          apcu
-          bcmath
-          gd
-          intl
-          opcache
-          pdo_mysql
-          zip
-        ];
+          enabled
+          ++ [
+            apcu
+            bcmath
+            gd
+            intl
+            opcache
+            pdo_mysql
+            zip
+          ];
       extraConfig = ''
         memory_limit = 512M
         max_execution_time = 120
@@ -75,7 +74,7 @@ in
   # ---------------------------------------------------------------------------
   # Additional packages
   # ---------------------------------------------------------------------------
-  packages = with pkgs; [ mariadb_114.client ];
+  packages = with pkgs; [mariadb_114.client];
 
   # ---------------------------------------------------------------------------
   # Environment — DB, S3, PHPUnit
@@ -145,15 +144,15 @@ in
         FLUSH PRIVILEGES;
       "
     '';
-    after = [ "devenv:processes:mysql@ready" ];
-    before = [ "devenv:processes:web" ];
+    after = ["devenv:processes:mysql@ready"];
+    before = ["devenv:processes:web"];
   };
 
   tasks."s3:buckets" = {
     description = "Create files and backup buckets on RustFS (idempotent)";
     exec = "${tackScripts}/s3/bootstrap-buckets.sh";
-    after = [ "devenv:processes:rustfs@ready" ];
-    before = [ "devenv:processes:web" ];
+    after = ["devenv:processes:rustfs@ready"];
+    before = ["devenv:processes:web"];
   };
 
   tasks."drupal:setup" = {
