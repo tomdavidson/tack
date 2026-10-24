@@ -20,6 +20,20 @@ prune:
   - "cache/*"
   - "hooks/*"
 
+# Moon v2.6 InheritedTasksManager walks .moon/tasks/ with DirEntry::file_type()
+# (lstat) and skips symlinks, so task files must be copied rather than linked.
+mode:
+  - copy: "tasks/**"
+
+# Consumer-owned after the first render (ADR-0009 mode 3): workspace.yml
+# carries the consumer's projects.globs and toolchains.yml its proto pin.
+# Re-rendering on every apply discarded those edits.
+files:
+  workspace.tera.yml:
+    overwrite: false
+  toolchains.tera.yml:
+    overwrite: false
+
 link:
   unfold:
     - .moon
