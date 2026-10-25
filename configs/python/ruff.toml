@@ -12,11 +12,10 @@
 # be ignored by dprint and only confuse editors running ruff directly.
 #
 # Why line-length is still set here: Ruff does not read .editorconfig
-# (astral-sh/ruff#1530), and `ruff check --fix` (including isort I001 and
-# multi-line autofixes) uses `line-length` (default 88) to decide when to
-# wrap generated code. Keeping `line-length = 100` aligned with
-# dprint.json "lineWidth" prevents `lint-fix` and `dprint fmt` from
-# fighting between 88 and 100 chars.
+# (astral-sh/ruff#1530), and `ruff check --fix` multi-line autofixes use
+# `line-length` (default 88) to decide when to wrap generated code. Keeping
+# `line-length = 100` aligned with dprint.json "lineWidth" prevents
+# `lint-fix` and `dprint fmt` from fighting between 88 and 100 chars.
 #
 # Interpreter requirements belong to each project. A project-local
 # ruff.toml extends the consumer-root stub (`extend = "../../ruff.toml"`)
@@ -30,7 +29,10 @@ select = [
   "E", # pycodestyle errors
   "W", # pycodestyle warnings
   "F", # pyflakes
-  "I", # isort
+  # DISABLED: dprint (@dprint/ruff fixLintErrors.unsortedImports) owns import
+  # sorting (matching TS). Enabling "I" here makes ruff check --fix and WASM
+  # dprint fmt fight over first-party vs third-party grouping in monorepos.
+  # "I", # isort
   "UP", # pyupgrade (modern Python syntax & union types)
   "B", # flake8-bugbear (B006/B008 no mutable defaults, B904 raise-from)
   "SIM", # flake8-simplify

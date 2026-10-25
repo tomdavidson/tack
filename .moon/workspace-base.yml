@@ -37,3 +37,13 @@ vcs:
 
 hasher:
   optimization: "accuracy"
+  ignorePatterns:
+    - ".tack/**"
+    - "**/.devenv/**"
+    - "**/.venv/**"
+    - "**/node_modules/**"
+  ignoreMissingPatterns:
+    - "**/.devenv/**"
+    - "**/ruff.toml"
+    - "**/.ruff.toml"
+    - "**/pyrightconfig.json"

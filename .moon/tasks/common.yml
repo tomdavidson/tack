@@ -8,6 +8,19 @@ $schema: "https://moonrepo.dev/schemas/tasks.json"
 inheritedBy:
   order: 0
 
+fileGroups:
+  # Catch-all project files, excluding gitignored tool directories that contain
+  # directory symlinks (pnpm node_modules, Python .venv, Nix .devenv). Moon's
+  # glob walker (wax) expands task input globs before filtering by .gitignore
+  # and returns directory symlinks as file candidates, triggering
+  # `moon_task_hasher` "only files can be hashed" warnings (#32).
+  all:
+    - "**/*"
+    - "!.tack/**"
+    - "!**/.devenv/**"
+    - "!**/.venv/**"
+    - "!**/node_modules/**"
+
 tasks:
   # Default no-op leaf stubs so `fix`, `verify`, `vf`, and `test` always
   # resolve their `~:...` deps on every project, even when a project has
@@ -62,9 +75,7 @@ tasks:
       - "~:lint-fix"
       - "~:fmt"
     inputs:
-      - "**/*"
-      - "**/.*"
-      - "**/.*/**/*"
+      - "@group(all)"
     options:
       cache: false
       runInCI: false
@@ -78,9 +89,7 @@ tasks:
       - "~:typecheck"
       - "~:test-unit"
     inputs:
-      - "**/*"
-      - "**/.*"
-      - "**/.*/**/*"
+      - "@group(all)"
     options:
       cache: false
       runInCI: false
@@ -92,9 +101,7 @@ tasks:
       - "~:typecheck"
       - "~:test-unit"
     inputs:
-      - "**/*"
-      - "**/.*"
-      - "**/.*/**/*"
+      - "@group(all)"
     options:
       cache: false
       runInCI: false
