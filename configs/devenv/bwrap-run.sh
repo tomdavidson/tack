@@ -354,7 +354,10 @@ $repo_root"
     "$cache_root/go-mod" \
     "$cache_root/golangci-lint" \
     "$cache_root/tofu-plugins" \
-    "$cache_root/proto" 2> /dev/null || true
+    "$cache_root/dprint" \
+    "$cache_root/proto" \
+    "$cache_root/moon" \
+    "$cache_root/wasmtime" 2> /dev/null || true
 
   mkdir -p "$cache_root/uv-python"
 
@@ -401,7 +404,11 @@ $repo_root"
   # Home: empty tmpfs, then bind back only toolchains (read-only) and
   # writable caches. Host credentials (~/.ssh, ~/.aws, ~/.config, gitconfig
   # tokens) stay hidden.
-  args+=(--tmpfs "$HOME")
+  args+=(
+    --tmpfs "$HOME"
+    --bind "$cache_root/moon" "$HOME/.moon"
+    --bind "$cache_root/wasmtime" "$HOME/.cache/wasmtime"
+  )
   if [ -d "$proto_home" ]; then
     args+=(--ro-bind "$proto_home" "$proto_home")
     if [ -d "$proto_home/cache" ]; then
@@ -522,6 +529,7 @@ EOF
     --setenv GOMODCACHE "$cache_root/go-mod"
     --setenv GOLANGCI_LINT_CACHE "$cache_root/golangci-lint"
     --setenv TF_PLUGIN_CACHE_DIR "$cache_root/tofu-plugins"
+    --setenv DPRINT_CACHE_DIR "$cache_root/dprint"
   )
   if [ ! -d "$cargo_home_host" ]; then
     # No rust toolchain on the host (cargo likely from nix/devenv): point
