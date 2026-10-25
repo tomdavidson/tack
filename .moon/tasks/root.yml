@@ -24,14 +24,8 @@ tasks:
   fmt:
     script: "dprint fmt"
     inputs:
-      - "/**/*"
-      - "/**/.*"
-      - "/**/.*/**/*"
+      - "@group(all)"
       - "!**/*.tera*"
-      # Workspace-rooted /**/* returns pnpm's dependency symlinks under
-      # packages/*/node_modules despite .gitignore; the hasher then warns
-      # "only files can be hashed" for each. See #32.
-      - "!**/node_modules/**"
     options:
       runInCI: false
       runFromWorkspaceRoot: true
@@ -40,11 +34,8 @@ tasks:
   fmt-check:
     script: "dprint check"
     inputs:
-      - "/**/*"
-      - "/**/.*"
-      - "/**/.*/**/*"
+      - "@group(all)"
       - "!**/*.tera*"
-      - "!**/node_modules/**"
     options:
       runInCI: true
       runFromWorkspaceRoot: true
@@ -74,10 +65,7 @@ tasks:
   gitleaks:
     script: "gitleaks git --no-banner --redact"
     inputs:
-      - "/**/*"
-      - "/**/.*"
-      - "/**/.*/**/*"
-      - "!**/node_modules/**"
+      - "@group(all)"
     options:
       runFromWorkspaceRoot: true
 
