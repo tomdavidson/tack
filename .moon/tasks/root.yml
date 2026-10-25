@@ -22,7 +22,7 @@ tasks:
       runFromWorkspaceRoot: true
 
   fmt:
-    script: "dprint fmt"
+    command: "dprint fmt --allow-no-files"
     inputs:
       - "@group(all)"
       - "!**/*.tera*"
@@ -32,7 +32,7 @@ tasks:
       affectedFiles: args
 
   fmt-check:
-    script: "dprint check"
+    command: "dprint check --allow-no-files"
     inputs:
       - "@group(all)"
       - "!**/*.tera*"

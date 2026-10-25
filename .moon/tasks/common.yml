@@ -16,6 +16,7 @@ fileGroups:
   # `moon_task_hasher` "only files can be hashed" warnings (#32).
   all:
     - "**/*"
+    - "!.tack/**"
     - "!**/.devenv/**"
     - "!**/.venv/**"
     - "!**/node_modules/**"
