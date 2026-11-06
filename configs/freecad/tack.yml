@@ -1,0 +1,53 @@
+# configs/freecad: headless FreeCAD pinned by devenv for moon tasks (ADR-0011).
+#
+# Requires configs/common, configs/devenv, configs/python (sandboxed uv),
+# and .moon. The modelling GUI stays host-installed; this pack pins only
+# the FreeCADCmd that tasks execute, so it is the same binary inside the
+# bwrap sandbox, in CI, and on every contributor's machine.
+#
+# Consumer tackrc.yml:
+#   pkgs:
+#     - configs/common
+#     - configs/devenv
+#     - configs/python
+#     - configs/freecad
+#     - .moon
+#   vars:
+#     devenv:
+#       imports:
+#         - ./.tack/configs/python/python.nix
+#         - ./.tack/configs/freecad/freecad.nix
+#
+# Consumer devenv.yaml (seed-once; add by hand if already rendered).
+# nixos-25.11 carries FreeCAD 1.0.2; the 1.1 line needs:
+#   inputs:
+#     nixpkgs-freecad:
+#       url: github:NixOS/nixpkgs/nixos-unstable
+#
+# Consumer devenv.nix, after the import block:
+#   env.FREECAD_LENS_PROJECT = "${config.devenv.root}/pkgs/freecad-lens";  # in-repo lens
+#   # or
+#   env.FREECAD_LENS_SPEC = "freecad-lens==0.x";                           # published/git spec
+#
+# Projects opt in with `tags: [freecad]` in moon.yml. Each project holds
+# one model: <name>.FCStd, freecad-lens.toml, objects.csv, sheets/.
+#
+# CONTRACT FOR THE DRIVING TOOL (freecad-lens): prefer $FREECADCMD over any
+# in-process `import FreeCAD`; print the spawned FreeCAD's version and
+# refuse when it does not satisfy `[model] freecad` in freecad-lens.toml.
+#
+# DELIVERED FILES
+# ---------------
+# .moon/tasks/freecad.yml -> .moon/tasks/freecad.yml  (copy; moon skips
+#   symlinks under .moon/tasks, see .moon/tack.yml)
+# freecad.nix stays in .tack and is imported by path (ADR-0008/0009).
+
+ignore:
+  - freecad.nix
+
+files:
+  .moon/tasks/freecad.yml:
+    target: .moon/tasks/freecad.yml
+
+mode:
+  - copy: ".moon/tasks/**"
