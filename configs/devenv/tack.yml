@@ -13,9 +13,12 @@ mode:
 # bwrap-run.sh and bwrap-apparmor.sh stay inside tack's namespace:
 # consumers execute them through the .tack submodule path, so their
 # location in the consuming repository has no meaning and they are not
-# materialized. The sandbox test suite is tack-internal too: it
-# references tack.sh and the template sources, which consumers lack.
+# materialized. bwrap.nix is a devenv module other modules import by
+# path (ADR-0009 decision 6), never materialized. The sandbox test suite
+# is tack-internal too: it references tack.sh and the template sources,
+# which consumers lack.
 ignore:
   - bwrap-run.sh
   - bwrap-apparmor.sh
+  - bwrap.nix
   - tests/**
