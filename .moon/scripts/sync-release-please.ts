@@ -19,7 +19,10 @@
  * CI usage: run with --check flag to fail if files are stale (no writes).
  */
 import { execSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import {
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = join(new URL('.', import.meta.url).pathname, '..')

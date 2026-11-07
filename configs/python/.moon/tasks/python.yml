@@ -26,6 +26,8 @@ tasks:
   lint:
     command: "ruff check ."
     toolchains: ["system"]
+    deps:
+      - "~:lint-complexity"
     inputs:
       - "@group(sources)"
       - "@group(tests)"
@@ -37,6 +39,17 @@ tasks:
     args: ["--fix"]
     options:
       runInCI: false
+  # Cognitive complexity <= 8 is the "one idea" limit (toms-clean-code.md
+  # Function Shape). Ruff has no cognitive-complexity rule (C901 is
+  # cyclomatic), so complexipy runs as its own step via the sandboxed uv.
+  lint-complexity:
+    command: "uvx complexipy --max-complexity-allowed 8 ."
+    toolchains: ["system"]
+    inputs:
+      - "@group(sources)"
+      - "@group(tests)"
+    options:
+      runInCI: true
   typecheck:
     command: "uv run --frozen basedpyright"
     toolchains: ["system"]

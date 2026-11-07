@@ -14,7 +14,10 @@
 import tsConfig from '@tack/eslint-config'
 import { defineConfig } from 'eslint/config'
 import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import {
+  dirname,
+  resolve,
+} from 'node:path'
 
 function findConsumerRoot(start = process.cwd()) {
   let dir = resolve(start)

@@ -47,6 +47,10 @@ tasks:
       - "@group(sources)"
       - "@group(tests)"
       - "/eslint.config.mjs"
+      # Rules live in the shared config package. In tack it is a workspace
+      # package; in consumers these match nothing and the lockfile hash covers it.
+      - "/packages/eslint-config/src/**/*"
+      - "/packages/eslint-config-astro/src/**/*"
 
   lint-ox:
     command: "oxlint"
@@ -58,6 +62,7 @@ tasks:
       - "@group(sources)"
       - "@group(tests)"
       - "/oxlintrc.json"
+      - "/packages/eslint-config/src/**/*"
 
   lint:
     command: "noop"

@@ -8,26 +8,33 @@
   <exclude-pattern>*/node_modules/*</exclude-pattern>
   <exclude-pattern>*/vendor/*</exclude-pattern>
 
-  <!-- Flat control flow: warn past nesting depth 2, error past 3. -->
-  <rule ref="Generic.Metrics.NestingLevel">
+  <!-- Cognitive complexity <= 8: the lintable proxy for "one idea" (toms-clean-code.md). -->
+  <rule ref="SlevomatCodingStandard.Complexity.Cognitive">
     <properties>
-      <property name="nestingLevel" value="2" />
-      <property name="absoluteNestingLevel" value="3" />
+      <property name="maxComplexity" value="8" />
     </properties>
   </rule>
 
-  <!-- Cap cyclomatic complexity per function/method: warn past 8, error past 10. -->
+  <!-- Flat control flow: no nested branches inside loops. Error past depth 2. -->
+  <rule ref="Generic.Metrics.NestingLevel">
+    <properties>
+      <property name="nestingLevel" value="2" />
+      <property name="absoluteNestingLevel" value="2" />
+    </properties>
+  </rule>
+
+  <!-- Cyclomatic backstop behind Cognitive: error past 10. -->
   <rule ref="Generic.Metrics.CyclomaticComplexity">
     <properties>
-      <property name="complexity" value="8" />
+      <property name="complexity" value="10" />
       <property name="absoluteComplexity" value="10" />
     </properties>
   </rule>
 
-  <!-- Keep functions small (<= 30 lines). -->
+  <!-- Fits on one screen (<= 60 lines); aim for about 30. Length is a smell, complexity is the limit. -->
   <rule ref="SlevomatCodingStandard.Functions.FunctionLength">
     <properties>
-      <property name="maxLinesLength" value="30" />
+      <property name="maxLinesLength" value="60" />
     </properties>
   </rule>
 

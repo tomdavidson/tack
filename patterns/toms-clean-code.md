@@ -6,23 +6,24 @@ Good OOP requires mass pattern knowledge to avoid pitfalls. Strategic FP yields 
 
 Pragmatic over dogmatic. The goal is **better code**, not paradigm or purity points.
 
-## Language Guides & Enforcement Rule
+## Universal Invariants
 
-Every language guide splits rules into **Toolchain-Enforced** (backed by CI linters and typecheckers) and **Advisory** (architectural and review rules that remain advisory until a linter can enforce them):
+Every language guide splits rules into **Toolchain-Enforced** (backed by CI linters and typecheckers) and **Advisory** (architectural and review rules that remain advisory until a linter can enforce them). The invariants below hold in every language; the guides say how each is enforced.
 
-- [TypeScript](lang-typescript.md) (`oxlint` + `@tack/eslint-config` + `tsc`)
-- [Rust](lang-rust.md) (`clippy` + `.clippy.toml` + `rustfmt`)
-- [Python](lang-python.md) (`ruff` + `basedpyright`)
-- [PHP](lang-php.md) (`phpcs` + `SlevomatCodingStandard` + `phpstan`)
+Toolchain-enforced means zero warnings: linters and typecheckers run at their strictest setting and CI fails on any warning. A suppression is scoped to one construct and carries a reason. Code that confuses the analyzer is rewritten, not excused.
 
-| Universal Invariant               | TypeScript                           | Rust                                  | Python                                        | PHP                                        |
-| --------------------------------- | ------------------------------------ | ------------------------------------- | --------------------------------------------- | ------------------------------------------ |
-| **Data ≠ Behavior (No OOP)**      | `type` + plain objects + arrow fns   | `struct`/`enum` + free pure functions | `@dataclass(frozen=True, slots=True)` + fns   | Readonly DTOs/VOs + pure service functions |
-| **Algebraic State (Sum Types)**   | Discriminated unions + `switch`      | `enum` + exhaustive `match`           | Union types + `match`/`case` + `assert_never` | Backed enums / sealed unions (`phpstan`)   |
-| **Explicit Return & Param Types** | `explicit-function-return-type: err` | Compiler-enforced on every `fn`       | `ANN` (`ruff`) + `basedpyright`               | `declare(strict_types=1)` + `phpstan` L6+  |
-| **Errors as Values**              | `neverthrow` `Result<T, E>`          | `Result<T, E>` + `thiserror` + `?`    | Union `T \| DomainError` (`Result[T, E]`)     | Domain result/VO returns; catch at edges   |
-| **Zero Nested Branches in Loops** | `max-depth: 2`, `no-else-return`     | `excessive-nesting = 2`, `let else`   | `max-nested-blocks = 2` (`PLR1702`), `RET`    | Guard clauses + extracted pure helpers     |
-| **Small Functions & Signatures**  | ≤ 25 lines, ≤ 3 params, no bool flag | ≤ 30 lines, ≤ 4 params, ≤ 1 bool      | ≤ 30 stmts, ≤ 4 params, no bool flag (`FBT`)  | Small methods, command/options DTOs        |
+| Universal Invariant               | Meaning                                                                        |
+| --------------------------------- | ------------------------------------------------------------------------------ |
+| **Data ≠ Behavior (No OOP)**      | Plain data structures and free pure functions; no class hierarchies            |
+| **Algebraic State (Sum Types)**   | Tagged unions / enums with exhaustive matching                                 |
+| **Explicit Return & Param Types** | Every function signature declares its parameter and return types               |
+| **Errors as Values**              | Explicit result types (`Result<T, E>`); no exceptions for domain failures      |
+| **Zero Nested Branches in Loops** | Guard clauses and extracted pure helpers; max nesting depth 2                  |
+| **Low Complexity**                | Shallow nesting, few branches and parameters; length is a smell, not the limit |
+
+> **About examples:** Examples that illustrate structure (pipelines, guards, composition) may
+> use placeholder names such as `u`, `x`, `f`, or `handle` and may omit type annotations.
+> Examples that illustrate naming follow every naming rule.
 
 ## Core Principles
 
@@ -47,12 +48,14 @@ Don't mutate; create new.
 const updated = { ...user, name: "New" }
 ```
 
-Mutate when performance demands it. Comment why.
+Mutation is a problem only when it is observable outside the function. Building up an array
+with `push` before returning it is fine; shared or cross-boundary mutation never is. When a
+linter flags local mutation, suppress it at function scope with a one-line justification. When
+mutation is chosen for performance, say so in that justification.
 
-> **Locally scoped mutation is fine.** Mutation is only a problem when it is observable outside
-> the function. Building up an array with `push` before returning it is acceptable. Lint rules
-> that flag local mutation (`no-param-reassign`, `functional/no-let`) can be disabled at the
-> function scope with a brief comment. Shared or cross-boundary mutation is never acceptable.
+Give every binding the smallest possible scope: declare it at first use, and never reuse a
+binding for a second meaning. Fewer places a value can change means fewer places to look when
+it is wrong.
 
 ### Explicit Errors as Data
 
@@ -65,25 +68,29 @@ parseConfig(raw): Result<Config, ParseError>
 
 Exceptions for truly exceptional cases only. Business logic failures are expected—model them.
 
-### No Nulls
+A `Result` is handled or discarded explicitly with a reason, never silently. Invariants a type
+cannot express are checked where the value enters the domain and returned as a typed error,
+never as an abort.
 
-Use `Option<T>` (or explicit union narrowing) for values that may be absent. No ambiguous `null` returns from domain logic.
+### No Nullable Absence
+
+Use `Option<T>` (or explicit union narrowing) for values that may be absent. Domain logic never returns a nullable or sentinel value to mean "nothing".
 
 ### Composition Over Inheritance
 
 Data + functions, no class hierarchies. Types define shape; functions transform.
 
 ```
-type User = { id: string; name: string; active: boolean }
-const deactivate = (u: User): User => ({ ...u, active: false })
+type User = { id: string; name: string; isActive: boolean }
+const deactivate = (u: User): User => ({ ...u, isActive: false })
 const process = pipe(validate, enrich, format, save)
 ```
 
 Classes only when forced by framework or library. Keep them thin, delegate to pure functions.
 
-> **Adapters:** If a library requires a class (e.g., an SDK base class or Drupal plugin),
-> implement it in the Imperative Shell as an adapter. All business logic stays in pure functions
-> outside the class.
+> **Adapters:** If a library or framework requires a class (e.g., an SDK base class or plugin
+> interface), implement it in the Imperative Shell as an adapter. All business logic stays in
+> pure functions outside the class.
 
 ### Higher-Order Functions
 
@@ -91,7 +98,7 @@ Functions that accept or return other functions.
 
 ```
 const withLogging = (fn) => (input) => { log(input); return fn(input) }
-users.filter(u => u.active)
+users.filter(u => u.isActive)
 ```
 
 Use for: reusable wrappers, callbacks, collection transforms. Avoid: over-abstraction.
@@ -125,25 +132,105 @@ Pass dependencies as function parameters or use simple factory functions. See [T
 
 ### Naming
 
-- **Functions**: Verbs describing action or return value (`validateUser`, `calculateTotal`)
-- **Types**: Nouns (`User`, `ValidationResult`)
-- **Booleans**: Positive predicates (`isActive` not `isNotInactive`)
-- **No abbreviations**: `customer` not `cust`, `transaction` not `txn`
-- **Searchable**: No single letters, no magic numbers
-- **One word per concept**: Pick `get`, `fetch`, or `retrieve`—not all three
+Names are the primary documentation. If a name needs a comment to explain what it holds,
+rename it. Call sites should read like sentences; data definitions should read like tables.
 
-### Functions
+Casing and file naming follow each language's community convention; see the language guides
+and [File Naming Convention](toms-clean-arch.md#file-naming-convention). Domain vocabulary
+comes from the bounded context's [Ubiquitous Language](toms-clean-arch.md#ubiquitous-language).
 
-- **Explicit types**: Always annotate parameter and return types on functions across all languages.
-- **Small**: 5-25 lines max (30 in Rust/Python). Flat, branchless functional pipelines (e.g. `ResultAsync` chains)
-  may exceed this if the length is due to formatting, not cyclomatic complexity. In those cases,
-  disable the line-count lint scoped to the function block and add a comment explaining why.
-- **Single responsibility**: Does one thing, named for that thing
-- **Multi-param default**: 2-3 params of same kind is fine (`add(a, b)`, `clamp(min, max, val)`)
+#### Functions
+
+- **Verb first**: name the action or the value returned (`validateUser`, `calculateTotal`)
+- **Prefix vocabulary**: one meaning per prefix, used the same way everywhere
+
+| Prefix                | Meaning                            | Returns                      |
+| --------------------- | ---------------------------------- | ---------------------------- |
+| `is`, `has`, `can`    | Predicate                          | Boolean                      |
+| `to`                  | Infallible conversion              | Target type                  |
+| `parse`               | Untrusted input to domain type     | `Result<T, ParseError>`      |
+| `validate`            | Check a domain value against rules | `Result<T, ValidationError>` |
+| `find`                | Lookup that may miss               | `Option<T>`                  |
+| `get`                 | Lookup or access that cannot miss  | `T`                          |
+| `calculate`, `derive` | Pure computation                   | `T`                          |
+| `create`              | Construct a new value              | `T` or `Result<T, E>`        |
+| `load`, `save`        | IO read or write; shell only       | `Result<T, E>`               |
+
+- **Single responsibility**: if the honest name needs "and", split the function
+- **No flag-driven names**: `renderSummary` and `renderDetail`, not `render(detailed)`
+
+#### Types
+
+- **Nouns** for data (`Customer`, `LineItem`); outcomes as `<Noun>Result` or `<Noun>Error`
+- **Variants as qualified nouns**: `DraftOrder | SubmittedOrder`, not `Order1 | Order2`
+- **Error variants say what happened**: `FileNotFound`, `CycleDetected`, not `GeneralError`
+- **No type encodings**: no `IUser`, `UserType`, `nameString`, `salaryFloat`
+- **No false types**: `accountList` must be a list; otherwise `accounts`
+- **One tag key**: discriminated unions share a single tag key across the codebase; variant
+  casing follows the language guide
+
+#### Booleans
+
+- **Positive predicates**: `isActive`, not `isNotInactive`
+- **Read as a yes/no question**: `hasChildren`, `canRetry`; not `children`, `retry`
+- **Union over boolean** when a third state is plausible
+
+#### Variables and Constants
+
+- **Scope-sized length**: variable names grow with scope. Single letters only for lambda
+  parameters and loop variables in bodies of a few lines; exported or module-level names must
+  be greppable. Functions and types invert this: wide-scope public entry points stay short and
+  general (`parse`, `Order`); narrow private helpers carry the specific detail
+  (`parseLineItemDiscount`).
+- **Plural collections**: name collections with plural nouns (`accounts`, `activeUsers`), not
+  singular nouns or container suffixes (`accountList`)
+- **Units in names**: suffix physical and time quantities (`totalCents`, `lengthMm`,
+  `timeoutMs`) unless a unit type carries the unit
+- **Named constants**: no magic numbers or strings; `0`, `1`, `-1` and test fixtures excepted
+- **No shadowing**: an inner scope never reuses an outer name
+- **Unused bindings**: mark them per the language convention (commonly a `_` prefix)
+
+#### Vocabulary
+
+- **No abbreviations**: `customer` not `cust`, `transaction` not `txn`. Allowed: universal
+  acronyms (`id`, `url`, `http`) and terms established in the ubiquitous language.
+- **Pronounceable**: `generationTimestamp`, not `genymdhms`
+- **One word per concept**: pick `get`, `fetch`, or `retrieve` and use only that one
+- **One concept per word**: don't use `add` for both arithmetic and insertion
+- **No noise words**: `Info`, `Data`, `Object`, `Manager`, `Helper`, `Util` distinguish nothing;
+  `ProductInfo` beside `ProductData` is a naming failure
+- **No cute names**: `deleteAllItems`, not `whack`
+- **Meaningful distinctions**: when two names differ, the difference says why
+  (`sourceSheet` and `targetSheet`, not `sheet` and `sheet2`; `findAccountById` and
+  `listActiveAccounts`, not `getActiveAccount` and `getActiveAccounts`)
+
+#### Domain and Context
+
+- **Core speaks the problem domain**: domain and application code use the business vocabulary
+  from specs and ADRs
+- **Shell speaks the solution domain**: adapters may use technical names (`Queue`, `Cache`,
+  `Gateway`)
+- **Context from structure, not prefixes**: the module or type supplies context
+  (`address.state`). Prefix (`addressState`) only when a name leaves its context, such as a
+  flat export or an environment variable.
+- **Framework-forced classes** (see Adapters above) carry a role suffix naming what they adapt
+  (`Adapter`, `Client`, `Gateway`); each language guide lists its allowed suffixes
+
+### Function Shape
+
+- **Explicit types**: Always annotate parameter and return types on functions.
+- **One idea**: low cognitive complexity, nesting ≤ 2, no branches in loop bodies (language
+  guides set the ceilings). Split when the name or a test needs "and", not to satisfy a line
+  count. Do not scatter a linear narrative into once-called helpers.
+- **Fits on a screen**: more than 60 logical lines is an error (one screen at a readable font;
+  blank lines and comments excluded). Aim for what stays visible beside a test panel, about 30.
+  Length only approximates what matters, which is scope and branching.
+- **Multi-param default**: 2-3 params of same kind is fine (`add(a, b)`, `clamp(min, max, value)`)
 - **Curry when composed**: Don't pre-curry; curry at point of use if piping needed
 - **Curried for deps**: `(config) => (data) => result` when deps stable, data varies, function reused
 - **Data object**: 4+ params, or mixed concerns for self-documenting calls
-- **No flag arguments**: Never pass boolean flags to switch behavior; use a 2-variant union/enum or split into two functions
+- **No boolean parameters**: a flag that switches behavior becomes a 2-variant union/enum or two
+  functions (see Naming: no flag-driven names)
 
 ### Comments
 
@@ -154,7 +241,7 @@ Pass dependencies as function parameters or use simple factory functions. See [T
 ### Structure
 
 - **Vertical**: Related code close together, blank lines separate concepts
-- **Horizontal**: 100-110 char lines max (enforced by `dprint`)
+- **Horizontal**: 100-110 char lines max (formatter-enforced)
 - **Downward**: Top-to-bottom narrative; caller above callee
 
 ## Practical Patterns
@@ -173,12 +260,12 @@ validate(input)
 ### Guard Clauses Over Nesting (Zero Nested Loop Branches)
 
 ```
-if (!user) return Err("missing user")
-if (!user.active) return Err("inactive")
+if (!user) return Err(UserMissing)
+if (!user.isActive) return Err(UserInactive)
 return Ok(process(user))
 ```
 
-Max nesting depth: 1-2 levels. Never nest `if`/`match`/`switch` branches inside control loops; extract a named pure function for the element transform.
+Max nesting depth: 2. Never nest `if`/`match`/`switch` branches inside control loops; extract a named pure function for the element transform.
 
 ### Lookup Tables Over Switch
 
@@ -195,10 +282,12 @@ const handle = (status: Status) => handlers[status]()
 ### Declarative Iteration
 
 ```
-users.filter(u => u.active).map(u => u.email)
+users.filter(u => u.isActive).map(u => u.email)
 ```
 
-`for` acceptable for performance-critical paths or when early-return error propagation (`?`) is clearer, provided the loop body contains no nested branching.
+`for` acceptable for performance-critical paths or when early-return error propagation is clearer, provided the loop body contains no nested branching.
+
+Iteration over a finite collection is bounded by construction. Anything else (`while`, retry, polling, recursion whose depth depends on input) carries an explicit cap and returns a typed error when the cap is hit. Recursion over a finite structure is fine; unbounded recursion is not.
 
 ## Standing Rules
 
@@ -211,7 +300,7 @@ users.filter(u => u.active).map(u => u.email)
 | Consistency  | Follow existing conventions in codebase                                            |
 | When in Rome | Follow community/framework surface standards; apply Strategic FP between the lines |
 
-**When in Rome:** Community standards take precedence for surface conventions—formatting, docblocks, file/class layout, naming, and public framework APIs. Drupal modules published on drupal.org follow `drupal/coder`'s `Drupal` + `DrupalPractice` standards. Apply Strategic FP in the space between the lines: small pure functions, explicit error values, flat control flow, and immutable domain data. Keep framework-required OOP at the edges as thin export/adapter interfaces that delegate to pure logic. Omit redundant documentation only where the community standard explicitly permits it.
+**When in Rome:** Community standards take precedence for surface conventions: formatting, docblocks, file and type layout, naming, and public framework APIs. Apply Strategic FP between the lines: small pure functions, explicit error values, flat control flow, and immutable domain data. Keep framework-required OOP at the edges as thin adapters that delegate to pure logic. Each language or framework guide names its governing standard.
 
 ## When to Break Rules
 
@@ -230,13 +319,15 @@ The goal is **better code**, not points.
 - [ ] Explicit parameter and return types on all functions
 - [ ] Side effects at edges only
 - [ ] Errors as values (Result/Option/union)
-- [ ] No nulls—Option or union narrowing for absence
+- [ ] No nullable absence; Option or union narrowing
 - [ ] No shared mutable state
-- [ ] Zero nested conditionals inside loops (max depth 2)
+- [ ] Max nesting depth 2; no branches inside loop bodies
 - [ ] No class hierarchies
 - [ ] No DI containers
 - [ ] States as discriminated unions / sum types
-- [ ] Functions 5-25 lines (≤ 30 in Rust/Python)
-- [ ] Descriptive names, no abbreviations
+- [ ] One idea per function; low cognitive complexity; fits on a screen
+- [ ] Loops and recursion bounded; caps return typed errors
+- [ ] Zero lint warnings; suppressions scoped with a reason
+- [ ] Descriptive, scope-sized names; no abbreviations or noise words
 - [ ] Comments explain why, not what
 - [ ] Readable without FP expertise

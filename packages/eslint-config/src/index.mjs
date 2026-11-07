@@ -34,20 +34,33 @@ import boundaries from 'eslint-plugin-boundaries'
 import functional from 'eslint-plugin-functional'
 import oxlint from 'eslint-plugin-oxlint'
 import preferArrowFunctions from 'eslint-plugin-prefer-arrow-functions'
-import { dirname, resolve } from 'node:path'
+import sonarjs from 'eslint-plugin-sonarjs'
+import {
+  dirname,
+  resolve,
+} from 'node:path'
 import { fileURLToPath } from 'node:url'
 import tseslint from 'typescript-eslint'
 
 import {
   arrowFunctionRules,
+  complexityRules,
   domainRules,
   functionalRules,
   infraRules,
+  namingRules,
   restrictedSyntax,
   testRules,
 } from './rules.mjs'
 
-import { appFiles, boundaryElements, boundaryRules, domainFiles, infraFiles, testFiles } from './layers.mjs'
+import {
+  appFiles,
+  boundaryElements,
+  boundaryRules,
+  domainFiles,
+  infraFiles,
+  testFiles,
+} from './layers.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -80,10 +93,18 @@ const tsConfig = options => {
       name: '@tack/eslint-config/global',
       files: sourceFiles,
       languageOptions: { parser: tseslint.parser, parserOptions: { project: true, tsconfigRootDir } },
-      plugins: { functional, 'prefer-arrow-functions': preferArrowFunctions, boundaries },
+      plugins: {
+        functional,
+        'prefer-arrow-functions': preferArrowFunctions,
+        boundaries,
+        sonarjs,
+        '@typescript-eslint': tseslint.plugin,
+      },
       settings: { 'boundaries/elements': boundaryElements },
       rules: {
         ...functionalRules,
+        ...complexityRules,
+        ...namingRules,
         ...arrowFunctionRules,
         'no-restricted-syntax': restrictedSyntax,
         'boundaries/element-types': ['error', { default: 'disallow', rules: boundaryRules }],
@@ -112,9 +133,11 @@ export { tsConfig }
 
 export {
   arrowFunctionRules,
+  complexityRules,
   domainRules,
   functionalRules,
   infraRules,
+  namingRules,
   restrictedSyntax,
   testRules,
 } from './rules.mjs'

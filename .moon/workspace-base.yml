@@ -1,5 +1,8 @@
 $schema: "https://moonrepo.dev/schemas/workspace.json"
 
+# 2.6.5: daemon memory leak fix in pnpm workspaces; --affected installs deps in hooks.
+versionConstraint: ">=2.6.5"
+
 projects:
   globs:
     - "packages/*"
@@ -37,3 +40,11 @@ vcs:
 
 hasher:
   optimization: "accuracy"
+
+# Content-addressable output cache (2.3) is required for the shared worktree cache.
+experiments:
+  casOutputsCache: true
+
+# Share cache blobs/manifests across git worktrees of this repo (2.5, unstable).
+cache:
+  unstable_sharedWorktreeCache: true

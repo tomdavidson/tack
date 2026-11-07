@@ -5,6 +5,8 @@ unsafe_code = "forbid"
 missing_debug_implementations = "warn"
 # Keep APIs intentionally small; helps encapsulation
 unreachable_pub = "warn"
+# A Result is handled or discarded on purpose (`let _ = ...` + comment), never dropped
+unused_must_use = "deny"
 
 [workspace.lints.clippy]
 # ── Baseline coverage (from lang-rust.md) ───────────────────────
@@ -45,13 +47,17 @@ match_wild_err_arm = "deny"
 try_err = "deny"
 
 # ── 2) Strategic FP & Flat Control Flow ─────────────────────────
-# Activate .clippy.toml cognitive-complexity-threshold = 8
-cognitive_complexity = "warn"
+# Activate .clippy.toml cognitive-complexity-threshold = 8 (the "one idea" limit)
+cognitive_complexity = "deny"
 # Activate .clippy.toml excessive-nesting-threshold = 2 (no nested branches in loops)
-excessive_nesting = "warn"
-# Encourage guard clauses (early return) on Option/Result
-manual_let_else = "warn"
-# No else after return/break/continue (matches TS no-else-return: error)
+excessive_nesting = "deny"
+# Activate .clippy.toml too-many-lines-threshold = 60 (one screen)
+too_many_lines = "deny"
+# Activate .clippy.toml max-fn-params-bools = 0 (no boolean parameters)
+fn_params_excessive_bools = "deny"
+# Guard clauses (early return) on Option/Result
+manual_let_else = "deny"
+# No else after return/break/continue
 redundant_else = "deny"
 # Keep guard clauses separate when each checks a distinct rule
 collapsible_if = "allow"
@@ -71,10 +77,10 @@ inherent_to_string = "deny"
 cloned_instead_of_copied = "warn"
 
 # ── 4) Match/import hygiene ─────────────────────────────────────
-# Enumerate enum variants; require explicit #[allow] + comment for _ =>
-wildcard_enum_match_arm = "warn"
-# Discourage hiding new enum variants with _
-match_wildcard_for_single_variants = "warn"
+# Enumerate enum variants; `_ =>` requires an explicit #[allow] + comment
+wildcard_enum_match_arm = "deny"
+# Never hide a single remaining variant behind _
+match_wildcard_for_single_variants = "deny"
 # Avoid glob-importing enums into scope
 enum_glob_use = "deny"
 

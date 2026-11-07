@@ -30,17 +30,18 @@ until AST/lint tooling covers them).
 
 Configured in `configs/rust/.clippy.toml` and `configs/rust/clippy-cargo.merge.toml`:
 
-| Rule / Threshold                 | Setting | Purpose                                                      |
-| -------------------------------- | ------- | ------------------------------------------------------------ |
-| `too-many-lines-threshold`       | `30`    | Keep functions small (5–30 lines)                            |
-| `too-many-arguments-threshold`   | `4`     | 2–3 params typical; 4+ requires an input/context struct      |
-| `cognitive-complexity-threshold` | `8`     | Cap branching and loop complexity (`cognitive_complexity`)   |
-| `excessive-nesting-threshold`    | `2`     | Forbid nested branches inside loops (`excessive_nesting`)    |
-| `max-fn-params-bools`            | `1`     | Replace boolean flag parameters with a 2-variant `enum`      |
-| `max-struct-bools`               | `2`     | Replace boolean-bag structs with explicit state `enum`s      |
-| `manual_let_else`                | `warn`  | Use `let Some(x) = ... else { return ... }` guard clauses    |
-| `redundant_else`                 | `deny`  | No `else` after `return`, `break`, or `continue`             |
-| `collapsible_if`                 | `allow` | Keep guard clauses separate when each checks a distinct rule |
+| Rule / Threshold                 | Setting | Purpose                                                                                                           |
+| -------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `cognitive-complexity-threshold` | `8`     | The lintable proxy for "one idea" (`cognitive_complexity = deny`)                                                 |
+| `excessive-nesting-threshold`    | `2`     | No nested branches inside loops (`excessive_nesting = deny`)                                                      |
+| `too-many-lines-threshold`       | `60`    | Fits on one screen (`too_many_lines = deny`); aim for about 30                                                    |
+| `too-many-arguments-threshold`   | `4`     | 2–3 params typical; 4+ requires an input struct (one more than TS because a struct literal is the options object) |
+| `max-fn-params-bools`            | `0`     | No boolean parameters; use a 2-variant `enum` (`fn_params_excessive_bools = deny`)                                |
+| `max-struct-bools`               | `2`     | Replace boolean-bag structs with explicit state `enum`s                                                           |
+| `manual_let_else`                | `deny`  | Use `let Some(x) = ... else { return ... }` guard clauses                                                         |
+| `redundant_else`                 | `deny`  | No `else` after `return`, `break`, or `continue`                                                                  |
+| `collapsible_if`                 | `allow` | Keep guard clauses separate when each checks a distinct rule                                                      |
+| `unused_must_use` (`lints.rust`) | `deny`  | A `Result` is never dropped silently                                                                              |
 
 ```rust
 // GOOD — flat guard clauses with let-else, zero nesting
@@ -78,6 +79,10 @@ Enforced in `[workspace.lints.clippy]` (`clippy-cargo.merge.toml`):
 
 - `thiserror` for typed errors in libraries, domain, and application layers
 - `anyhow` or `miette` in binary entry points (`main.rs`) and top-level CLI reporting only
+- A `Result` is handled or discarded on purpose: `let _ = fallible();` with a comment saying
+  why, never a bare expression statement (`unused_must_use = deny`)
+- Invariants a type cannot express are checked where the value enters the domain (`parse`,
+  `try_from`) and returned as a typed error, never `assert!`ed in domain code
 - `?` for railway propagation; combinators (`map`, `and_then`, `ok_or`, `ok_or_else`) when they
   read cleaner than `match`
 - Skip `Result` for infallible operations where wrapping adds noise without safety
@@ -117,11 +122,11 @@ mod tests {
 Rust's `match` is exhaustive by default—strictly stronger than TypeScript's `switch` + `assertNever`
 because the compiler enforces it natively.
 
-| Lint                                 | Level  | Rule                                                  |
-| ------------------------------------ | ------ | ----------------------------------------------------- |
-| `wildcard_enum_match_arm`            | `warn` | Enumerate every enum variant; avoid `_ =>` catch-alls |
-| `match_wildcard_for_single_variants` | `warn` | Never use `_ =>` to match a single remaining variant  |
-| `enum_glob_use`                      | `deny` | Always qualify enum variants (`OrderStatus::Draft`)   |
+| Lint                                 | Level  | Rule                                                           |
+| ------------------------------------ | ------ | -------------------------------------------------------------- |
+| `wildcard_enum_match_arm`            | `deny` | Enumerate every enum variant; `_ =>` needs `#[allow]` + reason |
+| `match_wildcard_for_single_variants` | `deny` | Never use `_ =>` to match a single remaining variant           |
+| `enum_glob_use`                      | `deny` | Always qualify enum variants (`OrderStatus::Draft`)            |
 
 ```rust
 // GOOD — exhaustive match breaks at compile time when a variant is added
@@ -153,6 +158,9 @@ match order.status {
 - Accept `impl IntoIterator<Item = T>` when flexible collection inputs help callers
 - Use a simple `for` loop with `?` early return when lifetimes or fallible body steps make an
   iterator chain harder to read
+- Iteration over a finite collection is bounded by construction. `loop`, `while`, retries,
+  polling, and recursion whose depth depends on input carry an explicit cap (`max_attempts`,
+  `max_depth`) and return a typed `Err` when the cap is hit
 
 ```rust
 // GOOD — declarative iterator pipeline
@@ -214,7 +222,32 @@ impl UserId {
 - `should_implement_trait = "allow"`: prevents Clippy from demanding `std::str::FromStr` or operator
   traits when a domain `parse` function has a more specific signature.
 
-### 7. Formatting (`.rustfmt.toml` + `dprint.json`)
+### 7. Naming
+
+Casing is compiler-enforced (`non_snake_case`, `non_camel_case_types`, `non_upper_case_globals`).
+[Tom's Clean Code](toms-clean-code.md#naming) governs the words; the
+[Rust API Guidelines](https://rust-lang.github.io/api-guidelines/naming.html) override its
+prefix table where they conflict, because every Rust reader expects them.
+
+| Element                                | Convention                                                                         | Example                         |
+| -------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------- |
+| Functions, methods, variables, modules | `snake_case`                                                                       | `place_order`, `order_repo`     |
+| Types, traits, enum variants           | `PascalCase`                                                                       | `OrderId`, `OrderRepo`, `Draft` |
+| Constants, statics                     | `SCREAMING_SNAKE_CASE`                                                             | `MAX_RETRY_COUNT`               |
+| Unused bindings                        | `_` prefix                                                                         | `_ctx`                          |
+| Type parameters                        | Single capital for one unconstrained parameter; descriptive `PascalCase` otherwise | `T`, `Repo`                     |
+
+- **Accessors have no `get_` prefix**: `order.id()`, not `order.get_id()`. The universal `get`
+  rule (lookup that cannot fail) is satisfied by the bare noun.
+- **Conversions**: `as_` (free, borrowed), `to_` (expensive, borrowed), `into_` (owned). These
+  refine the universal `to` row; `From`/`TryFrom` for type-level conversions.
+- **Predicates**: `is_`, `has_`, `can_` return `bool`.
+- **Fallible**: `parse_*` and `try_*` return `Result`; `find_*` returns `Option`.
+- **Errors**: one `<Noun>Error` enum per layer; variants name what happened (`NotFound`,
+  `NotEditable`), without repeating the enum name (`enum_variant_names`).
+- **Newtypes** are domain nouns (`OrderId`, `Email`), never `IdString` or `EmailWrapper`.
+
+### 8. Formatting (`.rustfmt.toml` + `dprint.json`)
 
 Always format with `moon run :fmt` (`dprint fmt`, which delegates Rust files to `rustfmt`):
 
@@ -377,22 +410,24 @@ pub enum PlaceOrderError {
 
 ## Anti-Patterns
 
-| Smell                                | Problem                              | Instead                               |
-| ------------------------------------ | ------------------------------------ | ------------------------------------- |
-| `unwrap()` / `expect()` in lib code  | Panics on unexpected input           | `?` or typed `Result` combinators     |
-| Nested `if`/`match` inside loops     | High cognitive load (`max-depth`)    | Guard clauses (`let else`) + helpers  |
-| `_ =>` catch-all on domain enum      | Silently ignores new variants        | Exhaustive `match` arms               |
-| OOP methods on domain structs        | Couples data shape to use-case logic | Free pure functions                   |
-| Boolean flag parameters              | Call sites (`process(x, true)`)      | Two-variant `enum`                    |
-| `clone()` to silence borrow checker  | Masks ownership design issue         | Borrow `&str` / `&[T]` or restructure |
-| `serde` derives on core domain types | Couples domain to wire format        | Infrastructure DTOs + `TryFrom`       |
-| `async` on pure computation          | Infectious colored functions         | Synchronous pure functions            |
+| Smell                                | Problem                                   | Instead                               |
+| ------------------------------------ | ----------------------------------------- | ------------------------------------- |
+| `unwrap()` / `expect()` in lib code  | Panics on unexpected input                | `?` or typed `Result` combinators     |
+| Nested `if`/`match` inside loops     | High cognitive load (`excessive_nesting`) | Guard clauses (`let else`) + helpers  |
+| `_ =>` catch-all on domain enum      | Silently ignores new variants             | Exhaustive `match` arms               |
+| OOP methods on domain structs        | Couples data shape to use-case logic      | Free pure functions                   |
+| Boolean flag parameters              | Call sites (`process(x, true)`)           | Two-variant `enum`                    |
+| `clone()` to silence borrow checker  | Masks ownership design issue              | Borrow `&str` / `&[T]` or restructure |
+| `serde` derives on core domain types | Couples domain to wire format             | Infrastructure DTOs + `TryFrom`       |
+| `async` on pure computation          | Infectious colored functions              | Synchronous pure functions            |
 
 ## Checklist
 
 - [ ] Toolchain-enforced: `configs/rust` applied (`.rustfmt.toml`, `.clippy.toml`, `clippy-cargo.merge.toml`)
-- [ ] Functions ≤ 30 lines, ≤ 4 parameters, cognitive complexity ≤ 8, nesting depth ≤ 2
+- [ ] Cognitive complexity ≤ 8, nesting depth ≤ 2, ≤ 4 parameters, no `bool` parameters, ≤ 60 lines
 - [ ] Guard clauses (`let ... else`) with zero `else` after `return`
+- [ ] Loops and input-dependent recursion carry a cap that returns a typed `Err`
+- [ ] Naming per Rust API Guidelines: no `get_`, `as_`/`to_`/`into_`, `is_`/`has_`, `<Noun>Error`
 - [ ] `thiserror` in library/domain/app crates; `anyhow`/`miette` in binary crate only
 - [ ] Zero `unwrap()`, `expect()`, or `panic!()` outside test modules
 - [ ] Test modules annotated with `#[allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]`

@@ -25,6 +25,10 @@ in {
 
   # env sets environment variables available inside devenv shell and processes.
   env = {
+    # Same as vars.bwrap.dev_root_depth = 2 in a rendered consumer:
+    # ~/Projects/<org>/<repo> -> ~/Projects. One writable bind for every repo
+    # under it plus ~/Projects/.bwrap caches, so pnpm hardlinks survive.
+    BWRAP_DEV_ROOT = builtins.dirOf (builtins.dirOf projectRoot);
   };
 
   # enterShell runs once when the shell starts.

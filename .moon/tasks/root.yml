@@ -23,6 +23,12 @@ tasks:
 
   fmt:
     script: "dprint fmt"
+    # dprint comes from proto (.prototools), not a moon toolchain, so its
+    # version is not an implicit input. Fingerprint it so a bump invalidates.
+    checks:
+      - check: "fingerprint"
+        script: "dprint --version"
+        hash: "stdout"
     inputs:
       - "/**/*"
       - "/**/.*"
@@ -39,6 +45,10 @@ tasks:
 
   fmt-check:
     script: "dprint check"
+    checks:
+      - check: "fingerprint"
+        script: "dprint --version"
+        hash: "stdout"
     inputs:
       - "/**/*"
       - "/**/.*"
@@ -52,6 +62,10 @@ tasks:
 
   lint-sh:
     script: shellcheck **/*.sh
+    checks:
+      - check: "fingerprint"
+        script: "shellcheck --version"
+        hash: "stdout"
     inputs:
       - "**/*.sh"
     options:
@@ -73,6 +87,10 @@ tasks:
 
   gitleaks:
     script: "gitleaks git --no-banner --redact"
+    checks:
+      - check: "fingerprint"
+        script: "gitleaks version"
+        hash: "stdout"
     inputs:
       - "/**/*"
       - "/**/.*"

@@ -8,6 +8,20 @@ Error handling philosophy (errors as values, `Result<T, E>`, railway composition
 
 Pragmatic over dogmatic. The goal is working systems, not architecture purity points.
 
+## How Much of This Applies?
+
+Layering scales with the problem. Start at the lowest rung that holds and climb only when the next rung pays for itself.
+
+| Rung | Shape                                              | Files                                              |
+| ---- | -------------------------------------------------- | -------------------------------------------------- |
+| 1    | Utility / script, no domain model                  | One `.infra.ts` (or `cli/`). Pure helpers inline.  |
+| 2    | A rule worth testing without IO                    | Split it into `.domain.ts`. Still no app layer.    |
+| 3    | Two adapters or two use cases share orchestration  | Add `.app.ts`; `deps` is an inline parameter type. |
+| 4    | Ports reused across use cases, or swapped in tests | Add `ports.app.ts`.                                |
+| 5    | More than one bounded context                      | Strategic Design below.                            |
+
+Error types collapse the same way (see Error Propagation). Below rung 3, the domain error union _is_ the application error union; the only non-negotiable at every rung is the exhaustive transport mapping at the edge.
+
 ## The One Rule
 
 Dependencies point inward. Domain knows nothing about infrastructure. Infrastructure depends on domain via interfaces.
@@ -26,7 +40,7 @@ Dependencies point inward. Domain knows nothing about infrastructure. Infrastruc
 
 Violation test: "Would swapping Postgres for DynamoDB break this file?" If yes, it belongs further out.
 
-## Strategic Design (Do First)
+## Strategic Design (Rung 5: More Than One Context)
 
 ### Bounded Contexts
 
@@ -194,7 +208,7 @@ const placeOrderHandler = (useCase: PlaceOrderUseCase) => async (req: Request) =
 
 Error handling philosophy (errors as values, `Result<T, E>`) is owned by [Tom's Clean Code](toms-clean-code.md). This section covers how errors cross layer boundaries.
 
-Three layers, three error types, explicit mapping at each boundary.
+Three layers, three error types, explicit mapping at each boundary. Three error types only when there are three code layers: a single use case with no app layer uses one union and still gets an exhaustive transport map.
 
 ### Domain Errors
 
@@ -332,9 +346,11 @@ Layer identity is encoded in the file suffix. The suffix determines which lint r
 | `.app.ts`    | Application    | Use cases, orchestration, port interfaces                  |
 | `.infra.ts`  | Infrastructure | Adapters, repos, IO, HTTP handlers, CLI                    |
 
-Files without a layer suffix (e.g., `main.ts`, `shared/types.ts`) are not subject to layer-specific lint rules.
+Directory promotion is equivalent to the suffix: `domain/**`, `app/**`, `infra/**`, and `cli/**` (infra). Composition roots `src/main.ts` and `src/index.ts` are infra.
 
-Test files use `.spec.ts`, which replaces the layer suffix. `money.domain.ts` is tested by `money.spec.ts`, not `money.domain.spec.ts`.
+Files with no layer (e.g., `shared/types.ts`) are linted at **app** strictness: full FP rules, no imperative-shell allowances. If a file does IO, give it the infra suffix or directory; do not leave it unsuffixed. Lint only sees `src/**/*.ts` by default; code outside `src/` is unlinted.
+
+Test files use `.spec.ts`, which replaces the layer suffix. `money.domain.ts` is tested by `money.spec.ts`, not `money.domain.spec.ts`. `.test.ts` and `src/test/**` are also recognized.
 
 ## Folder Structure
 
@@ -386,17 +402,18 @@ Composition root (`main.ts`): Wire all dependencies explicitly here. No framewor
 | Cross-aggregate transaction           | Hidden coupling, use events                           |
 | Shared "common" model across contexts | Forced coupling, language collision                   |
 | Logic in wrong layer                  | Anemic domain + fat controllers, keep rules in domain |
-| File missing layer suffix             | Lint rules won't enforce layer constraints            |
+| Unsuffixed file doing IO              | Linted at app strictness; name it `.infra.ts`         |
 
 ## When to Break Rules
 
-| Situation                  | Pragmatic Choice                       |
-| -------------------------- | -------------------------------------- |
-| Simple CRUD, no invariants | Skip aggregates, direct repo access    |
-| Single context, small team | Skip formal context mapping            |
-| Prototype / spike          | Skip layers, refactor when validated   |
-| Performance critical path  | Allow domain to know persistence shape |
-| Generic subdomain          | Use simple service + repo, no DDD      |
+| Situation                         | Pragmatic Choice                                       |
+| --------------------------------- | ------------------------------------------------------ |
+| Utility / script, no domain model | Rung 1: one `.infra.ts`, pure helpers inline, no ports |
+| Simple CRUD, no invariants        | Skip aggregates, direct repo access                    |
+| Single context, small team        | Skip formal context mapping                            |
+| Prototype / spike                 | Skip layers, refactor when validated                   |
+| Performance critical path         | Allow domain to know persistence shape                 |
+| Generic subdomain                 | Use simple service + repo, no DDD                      |
 
 Apply DDD depth proportional to domain complexity. CRUD doesn't need aggregates.
 
@@ -414,7 +431,7 @@ Apply DDD depth proportional to domain complexity. CRUD doesn't need aggregates.
 - [ ] Composition root wires explicitly, no DI containers
 - [ ] Core subdomain gets DDD investment
 - [ ] Generic/supporting subdomains kept simple
-- [ ] Files use layer suffixes (`.domain.ts`, `.app.ts`, `.infra.ts`)
+- [ ] Files doing IO carry an infra suffix or directory; composition root is `main.ts`/`index.ts`
 - [ ] Folder structure screams business intent
 - [ ] Domain errors use typed discriminated unions, no transport concepts
 - [ ] Application errors are a union that includes domain errors

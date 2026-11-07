@@ -15,9 +15,9 @@ const deepMerge = (base, over) => {
   if (!isPlainObject(base) || !isPlainObject(over)) return over ?? base
   const out = { ...base }
   for (const key of Object.keys(over)) {
-    out[key] = isPlainObject(base[key]) && isPlainObject(over[key]) ?
-      deepMerge(base[key], over[key]) :
-      over[key]
+    out[key] = isPlainObject(base[key]) && isPlainObject(over[key])
+      ? deepMerge(base[key], over[key])
+      : over[key]
   }
   return out
 }

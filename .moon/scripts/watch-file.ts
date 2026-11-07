@@ -13,7 +13,10 @@
 import { spawn } from 'bun'
 import { Glob } from 'bun'
 import { watch } from 'fs'
-import { dirname, resolve } from 'path'
+import {
+  dirname,
+  resolve,
+} from 'path'
 
 const args = process.argv.slice(2)
 
@@ -109,9 +112,9 @@ const runOxlint = async (): Promise<string> => {
   const cleaned = stripMoonChrome(output)
   const header = `${CYAN}--- oxlint${fix ? ' --fix' : ''} ---${RESET}`
   return `${header}\n${
-    !cleaned || /^Found 0 warnings and 0 errors/.test(cleaned) ?
-      `${GREEN}✓${RESET}${DIM} | ${timing}${RESET}` :
-      cleaned.replace(/^Finished in .+$/m, '').trim()
+    !cleaned || /^Found 0 warnings and 0 errors/.test(cleaned)
+      ? `${GREEN}✓${RESET}${DIM} | ${timing}${RESET}`
+      : cleaned.replace(/^Finished in .+$/m, '').trim()
   }`
 }
 
