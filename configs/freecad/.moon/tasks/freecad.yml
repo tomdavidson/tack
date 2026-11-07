@@ -1,0 +1,54 @@
+$schema: "https://moonrepo.dev/schemas/tasks.json"
+
+# configs/freecad (ADR-0011): tasks for any project directory that holds one
+# FreeCAD model: a `.FCStd`, `freecad-lens.toml`, `objects.csv`, and synced
+# `sheets/`. Inherited by projects tagged `freecad`.
+#
+# `freecad-lens` is the devenv script from configs/freecad/freecad.nix; it
+# picks the in-repo checkout (FREECAD_LENS_PROJECT) or a pinned spec
+# (FREECAD_LENS_SPEC) and runs through the sandboxed uv. Never put a
+# repo-relative path to the tool here. FreeCADCmd comes from $FREECADCMD,
+# also set by the module.
+#
+# A consumer that vendors freecad-lens in-repo should make the tool's own
+# sources invalidate the cache: override `sync_tool` in a consumer-owned
+# task file that inherits later, e.g. .moon/tasks/freecad-local.yml with
+#   inheritedBy: {tags: [freecad], order: 20}
+#   fileGroups: {sync_tool: ["/pkgs/freecad-lens/src/**/*.py",
+#                            "/pkgs/freecad-lens/pyproject.toml",
+#                            "/pkgs/freecad-lens/uv.lock"]}
+inheritedBy:
+  tags:
+    - "freecad"
+  order: 10
+
+fileGroups:
+  sheets:
+    - "freecad-lens.toml"
+    - "objects.csv"
+    - "sheets/**/*.csv"
+    - "sheets/**/*.aliases.*"
+    - "sheets/**/*.py"
+  model:
+    - "*.FCStd"
+  sync_tool: []
+
+tasks:
+  lint:
+    command: "freecad-lens check ."
+    toolchains: ["system"]
+    inputs:
+      - "@group(sheets)"
+      - "@group(sync_tool)"
+    options:
+      runInCI: true
+
+  test-unit:
+    command: "freecad-lens audit --baseline HEAD --no-write ."
+    toolchains: ["system"]
+    inputs:
+      - "@group(sheets)"
+      - "@group(model)"
+      - "@group(sync_tool)"
+    options:
+      runInCI: false

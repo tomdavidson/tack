@@ -35,3 +35,7 @@ files:
     overwrite: false
   .moon/tasks/python.yml:
     target: .moon/tasks/python.yml
+
+# Moon v2.6 InheritedTasksManager skips symlinks in .moon/tasks/ (see .moon/tack.yml).
+mode:
+  - copy: ".moon/tasks/**"

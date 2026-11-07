@@ -7,4 +7,12 @@ allowUnfree: false
 inputs:
   nixpkgs:
     url: github:NixOS/nixpkgs/{{ vars.devenv.nixpkgs_ref | default(value='nixos-25.11') }}
+{% if vars.devenv.inputs is defined %}
+{% for name, url in vars.devenv.inputs %}
+  # vars.devenv.inputs.{{ name }}: extra input a tack module reads via
+  # `inputs."{{ name }}"` (e.g. configs/freecad for a newer FreeCAD).
+  {{ name }}:
+    url: {{ url }}
+{% endfor %}
+{% endif %}
 

@@ -22,7 +22,7 @@ tasks:
       runFromWorkspaceRoot: true
 
   fmt:
-    script: "dprint fmt"
+    command: "dprint fmt --allow-no-files"
     # dprint comes from proto (.prototools), not a moon toolchain, so its
     # version is not an implicit input. Fingerprint it so a bump invalidates.
     checks:
@@ -30,31 +30,22 @@ tasks:
         script: "dprint --version"
         hash: "stdout"
     inputs:
-      - "/**/*"
-      - "/**/.*"
-      - "/**/.*/**/*"
+      - "@group(all)"
       - "!**/*.tera*"
-      # Workspace-rooted /**/* returns pnpm's dependency symlinks under
-      # packages/*/node_modules despite .gitignore; the hasher then warns
-      # "only files can be hashed" for each. See #32.
-      - "!**/node_modules/**"
     options:
       runInCI: false
       runFromWorkspaceRoot: true
       affectedFiles: args
 
   fmt-check:
-    script: "dprint check"
+    command: "dprint check --allow-no-files"
     checks:
       - check: "fingerprint"
         script: "dprint --version"
         hash: "stdout"
     inputs:
-      - "/**/*"
-      - "/**/.*"
-      - "/**/.*/**/*"
+      - "@group(all)"
       - "!**/*.tera*"
-      - "!**/node_modules/**"
     options:
       runInCI: true
       runFromWorkspaceRoot: true
@@ -92,10 +83,7 @@ tasks:
         script: "gitleaks version"
         hash: "stdout"
     inputs:
-      - "/**/*"
-      - "/**/.*"
-      - "/**/.*/**/*"
-      - "!**/node_modules/**"
+      - "@group(all)"
     options:
       runFromWorkspaceRoot: true
 

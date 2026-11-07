@@ -63,6 +63,35 @@ vars:
   # `uv` script itself and a second definition is a module conflict.
   # python: {}
 
+  # freecad vars: consumed by configs/freecad (ADR-0011).
+  #
+  # Pins the headless FreeCADCmd that moon tasks execute; the modelling GUI
+  # stays host-installed. No version is configured here: it comes from the
+  # nixpkgs input the consumer names in devenv.yaml and is locked by
+  # devenv.lock. nixos-25.11 has FreeCAD 1.0.2; for 1.1 add
+  #   inputs:
+  #     nixpkgs-freecad:
+  #       url: github:NixOS/nixpkgs/nixos-unstable
+  # to devenv.yaml (seed-once; edit by hand if already rendered).
+  #
+  # Enable the pack (requires configs/python for the sandboxed uv):
+  #   pkgs:
+  #     - configs/common
+  #     - configs/devenv
+  #     - configs/python
+  #     - configs/freecad
+  #     - .moon
+  #   vars:
+  #     devenv:
+  #       imports:
+  #         - ./.tack/configs/python/python.nix
+  #         - ./.tack/configs/freecad/freecad.nix
+  #
+  # Projects opt in with `tags: [freecad]` in moon.yml. Where freecad-lens
+  # lives is a consumer devenv.nix override: env.FREECAD_LENS_PROJECT for an
+  # in-repo checkout, env.FREECAD_LENS_SPEC for a published or git spec.
+  # freecad: {}
+
   # drupal vars: consumed by configs/drupal + configs/devenv.
   #
   # variant selects the devenv Nix module to import. The rendered devenv.nix

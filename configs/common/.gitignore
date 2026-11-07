@@ -166,3 +166,10 @@ credentials.json
 .devenv/
 .devenv.flake.nix
 devenv.local.nix
+
+# ---- tack submodule ----
+# Use `.tack/*` (contents) rather than `.tack` or `.tack/` so `.gitignore`-aware
+# walkers (moon glob hasher, dprint, rg, fd) skip the submodule tree and any
+# directory symlinks inside `.tack/node_modules/.pnpm/`, while Git still sees the
+# `.tack` gitlink entry itself un-ignored when staging submodule pointer updates.
+.tack/*
