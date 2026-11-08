@@ -25,29 +25,48 @@ export const complexityRules = { 'sonarjs/cognitive-complexity': ['error', 8] }
 
 // ── Naming (lang-typescript.md Naming) ───────────────────────────
 // Casing is enforced here; the words are governed by toms-clean-code.md.
-export const namingRules = {
-  '@typescript-eslint/naming-convention': [
-    'error',
-    { selector: 'default', format: ['camelCase'], leadingUnderscore: 'allow' },
-    { selector: 'import', format: null },
-    { selector: 'variable', format: ['camelCase', 'UPPER_CASE'], leadingUnderscore: 'allow' },
-    { selector: 'variable', modifiers: ['destructured'], format: null },
-    { selector: 'function', format: ['camelCase'] },
-    { selector: 'parameter', format: ['camelCase'], leadingUnderscore: 'allow' },
-    { selector: 'parameter', modifiers: ['destructured'], format: null },
-    { selector: 'typeLike', format: ['PascalCase'] },
-    { selector: 'typeParameter', format: ['PascalCase'] },
-    { selector: 'enumMember', format: ['PascalCase'] },
-    { selector: 'interface', format: ['PascalCase'], custom: { regex: '^I[A-Z]', match: false } },
-    { selector: 'objectLiteralProperty', modifiers: ['requiresQuotes'], format: null },
-    {
-      selector: ['variable', 'parameter', 'property'],
-      types: ['boolean'],
-      format: ['PascalCase'],
-      prefix: ['is', 'has', 'can', 'should'],
-      leadingUnderscore: 'allow',
-    },
-  ],
+// Strict formats: acronyms are words (HttpClient, userId), never runs of
+// capitals (HTTPClient, userID). Plain PascalCase/camelCase accept both and
+// leave the choice to the author; Strict* removes the choice.
+const namingSelectors = [
+  { selector: 'default', format: ['strictCamelCase'], leadingUnderscore: 'allow' },
+  { selector: 'import', format: null },
+  { selector: 'variable', format: ['strictCamelCase', 'UPPER_CASE'], leadingUnderscore: 'allow' },
+  { selector: 'variable', modifiers: ['destructured'], format: null },
+  { selector: 'function', format: ['strictCamelCase'] },
+  { selector: 'parameter', format: ['strictCamelCase'], leadingUnderscore: 'allow' },
+  { selector: 'parameter', modifiers: ['destructured'], format: null },
+  { selector: 'typeLike', format: ['StrictPascalCase'] },
+  { selector: 'typeParameter', format: ['StrictPascalCase'] },
+  { selector: 'enumMember', format: ['StrictPascalCase'] },
+  { selector: 'interface', format: ['StrictPascalCase'], custom: { regex: '^I[A-Z]', match: false } },
+  // Keys that cannot be identifiers ('content-type'). Does NOT cover foreign
+  // names that happen to be valid identifiers (ThreadID, Authorization):
+  // dprint strips their quotes and this modifier no longer matches. Those
+  // belong in codec files (codecRules) or in string constants, never as keys.
+  { selector: 'objectLiteralProperty', modifiers: ['requiresQuotes'], format: null },
+  {
+    selector: ['variable', 'parameter', 'property'],
+    types: ['boolean'],
+    format: ['StrictPascalCase'],
+    prefix: ['is', 'has', 'can', 'should'],
+    leadingUnderscore: 'allow',
+  },
+]
+
+export const namingRules = { '@typescript-eslint/naming-convention': ['error', ...namingSelectors] }
+
+// ── Codec files: foreign identifiers as property names ─────────
+// *.codec.ts is the one place an external shape (HTTP header, query param,
+// third-party JSON key) may appear as a property. Individual selectors
+// (objectLiteralProperty, typeProperty) outrank the grouped boolean-prefix
+// selector, so `success: z.boolean()` passes here and nowhere else. The
+// codec exports domain-named types; the raw z.infer never leaves the file.
+export const codecRules = {
+  '@typescript-eslint/naming-convention': ['error', ...namingSelectors, {
+    selector: ['objectLiteralProperty', 'typeProperty'],
+    format: null,
+  }],
 }
 
 // ── Arrow function enforcement ─────────────────────────────────

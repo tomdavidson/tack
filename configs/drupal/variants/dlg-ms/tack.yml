@@ -47,3 +47,8 @@ files:
     target: .moon/templates/dlg-ms/moon.yml.tera
   templates/dlg-ms/composer.json:
     target: .moon/templates/dlg-ms/composer.json
+
+# Everything landing under .moon must be a real file; moon skips symlinks
+# (see .moon/tack.yml). Globs match package-relative source paths.
+mode:
+  - copy: ["microsite.yml", "templates/**"]

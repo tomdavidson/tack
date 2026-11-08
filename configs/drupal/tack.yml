@@ -93,3 +93,10 @@ files:
     overwrite: false
   services/db/fly.toml:
     overwrite: false
+
+# moon lstat-walks .moon/ and skips symlinks (tasks and generate templates
+# alike), so everything that lands under .moon must be a real file. Mode
+# globs match the package-relative source path: templates/** is what
+# becomes .moon/templates/** (see .moon/tack.yml).
+mode:
+  - copy: [".moon/**", "templates/**"]

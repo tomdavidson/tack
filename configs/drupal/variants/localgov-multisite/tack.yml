@@ -45,3 +45,8 @@ files:
     target: .moon/templates/localgov-microsite/template.yml
   templates/localgov-microsite/moon.yml.tera:
     target: .moon/templates/localgov-microsite/moon.yml.tera
+
+# Everything landing under .moon must be a real file; moon skips symlinks
+# (see .moon/tack.yml). Globs match package-relative source paths.
+mode:
+  - copy: ["localgov-microsite.yml", "templates/**"]

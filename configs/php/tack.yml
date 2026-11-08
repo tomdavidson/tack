@@ -37,3 +37,8 @@ files:
     target: dprint.json
   .moon/tasks/php.yml:
     target: .moon/tasks/php.yml
+
+# moon's InheritedTasksManager lstat-walks .moon/ and skips symlinks, so
+# anything under .moon must be a real file (see .moon/tack.yml).
+mode:
+  - copy: ".moon/**"
