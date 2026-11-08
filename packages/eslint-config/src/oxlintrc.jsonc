@@ -42,23 +42,23 @@
         "max": 2,
       },
     ],
-    // SEMANTIC: caps function size as a complexity proxy.
-    // dprint line-wrapping changes visual lines, but this counts logical lines
-    // (skipBlankLines + skipComments), which dprint doesn't track.
+    // SEMANTIC: one screen at a readable font. Length is a smell, not the
+    // limit; the limit is sonarjs/cognitive-complexity (ESLint side, 8).
+    // Counts logical lines (skipBlankLines + skipComments).
     "max-lines-per-function": [
-      "warn",
+      "error",
       {
-        "max": 25,
+        "max": 60,
         "skipBlankLines": true,
         "skipComments": true,
       },
     ],
-    // SEMANTIC: caps cyclomatic complexity (branch count).
-    // Pure control-flow metric, no formatting tool can replicate this.
+    // SEMANTIC: cyclomatic backstop behind cognitive complexity.
+    // oxlint has no cognitive-complexity rule; that one is ESLint-only.
     "complexity": [
-      "warn",
+      "error",
       {
-        "max": 5,
+        "max": 10,
       },
     ],
     // SEMANTIC: caps parameter count to enforce small function signatures.
@@ -235,9 +235,18 @@
     "no-eval": "error",
     "eqeqeq": "error",
     "no-implicit-coercion": "error",
-    "no-shadow": "warn",
+    "no-shadow": "error",
+    // Unused bindings carry a leading underscore (lang-typescript.md Naming)
+    "typescript/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_",
+      },
+    ],
     "no-magic-numbers": [
-      "warn",
+      "error",
       {
         "ignore": [
           0,
@@ -379,23 +388,11 @@
         "unicorn/no-array-for-each": "off",
         // process.env access is expected in infra
         "node/no-process-env": "off",
-        // Complexity limits loosen slightly for adapter wiring
-        "max-lines-per-function": [
-          "warn",
-          {
-            "max": 40,
-            "skipBlankLines": true,
-            "skipComments": true,
-          },
-        ],
-        "complexity": [
-          "warn",
-          {
-            "max": 8,
-          },
-        ],
+        // Nesting loosens by one for adapter wiring; the 60-line limit and
+        // cyclomatic backstop do not change. Cognitive complexity relaxes to
+        // 12 on the ESLint side (infraRules).
         "max-depth": [
-          "warn",
+          "error",
           {
             "max": 3,
           },

@@ -10,13 +10,31 @@ catalog:
   # npm's bats-file is a 0.0.1-security placeholder (name was hijacked); pin the official tag
   bats-file: github:bats-core/bats-file#v0.4.0
   bats-support: ^0.3.0
-  eslint: ^9.0.0
+  eslint: ^10.13.0
   fast-check: ^3.0.0
-  oxlint: ^1.58.0
+  oxlint: ^1.89.0
   typescript: ^5.9.3
-  oxlint-tsgolint: ^0.19.0
+  oxlint-tsgolint: ^7.0.2005
 peerDependencyRules:
   # bats-file declares bats-support as a git-URL peer, which pnpm cannot
   # match against the npm release of the same tag (0.3.0).
   allowAny:
     - bats-support
+
+overrides:
+  # GHSA-23c5-xmqv-rm74 / GHSA-3ppc-4f35-3m26 / GHSA-7r86-cg39-jmmj: one
+  # transitive pins minimatch 10.1.2. 10.2.6 is the last 10.x.
+  "minimatch@10": "^10.2.6"
+
+auditConfig:
+  # Mirrors osv-scanner.toml. CVE-2026-118764 minimatch globparts
+  # amplification: fixed only in 11.0.1, no 10.x backport; dev/lint only.
+  # Drop when typescript-eslint and eslint ship on ^11.0.1.
+  ignoreGhsas:
+    - GHSA-g3hv-75wg-m249
+
+allowBuilds:
+  # pnpm 12 ships its Rust binary via @pnpm/exe's install script. Without
+  # this, a pnpm that self-provisions from packageManager runs through
+  # Node.js and warns on every invocation.
+  "@pnpm/exe": true

@@ -30,7 +30,10 @@ import nodePlugin from 'eslint-plugin-n'
 import unicorn from 'eslint-plugin-unicorn'
 import tseslint from 'typescript-eslint'
 
-import { astroClientScriptRules, astroFrontmatterRules } from './rules.mjs'
+import {
+  astroClientScriptRules,
+  astroFrontmatterRules,
+} from './rules.mjs'
 
 /**
  * @param {object} [options]

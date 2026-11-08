@@ -33,6 +33,7 @@ select = [
   # sorting (matching TS). Enabling "I" here makes ruff check --fix and WASM
   # dprint fmt fight over first-party vs third-party grouping in monorepos.
   # "I", # isort
+  "N", # pep8-naming (snake_case, PascalCase, UPPER_CASE; lang-python.md Naming)
   "UP", # pyupgrade (modern Python syntax & union types)
   "B", # flake8-bugbear (B006/B008 no mutable defaults, B904 raise-from)
   "SIM", # flake8-simplify
@@ -63,8 +64,10 @@ select = [
 ignore = ["E501"]
 
 [lint.mccabe]
-# Complexity guardrail (matches Rust cognitive-complexity-threshold = 8)
-max-complexity = 8
+# Cyclomatic backstop. The "one idea" limit is cognitive complexity <= 8,
+# enforced by complexipy in the python `lint-complexity` moon task because
+# Ruff has no cognitive-complexity rule.
+max-complexity = 10
 
 [lint.pylint]
 # Strategic FP: data classes (@dataclass(frozen=True), TypedDict) have 0 public
@@ -72,14 +75,15 @@ max-complexity = 8
 max-public-methods = 0
 # 2-3 params typical; 4+ requires a frozen dataclass or TypedDict (PLR0913)
 max-args = 4
-# Cap branching sprawl (PLR0912)
-max-branches = 8
-# Flat control flow: forbid nested branches inside loops (PLR1702, matches TS max-depth: 2)
+# Cyclomatic backstop behind complexipy (PLR0912)
+max-branches = 10
+# Flat control flow: no nested branches inside loops (PLR1702)
 max-nested-blocks = 2
 # Allow flat guard clauses while capping sprawl (PLR0911)
 max-returns = 6
-# Keep functions small: 5-30 statements (PLR0915, matches Rust 30 lines / TS 25 lines)
-max-statements = 30
+# Fits on one screen; aim for about 30. Length is a smell, complexity is the
+# limit (PLR0915)
+max-statements = 60
 
 [lint.per-file-ignores]
 # Adapter shells in infra.py / ports in app.py may define Protocol/adapter methods

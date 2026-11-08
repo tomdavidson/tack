@@ -139,9 +139,20 @@ export const parse = (s: string): Result<Money, ParseError> => {
 
 ```ts
 // src/orders/money.spec.ts
-import { fc, it } from '@fast-check/vitest'
-import { describe, expect } from 'vitest'
-import { add, fromCents, parse, serialize } from './money.domain.ts'
+import {
+  fc,
+  it,
+} from '@fast-check/vitest'
+import {
+  describe,
+  expect,
+} from 'vitest'
+import {
+  add,
+  fromCents,
+  parse,
+  serialize,
+} from './money.domain.ts'
 
 const tdd = !!process.env.TDD
 
@@ -191,8 +202,15 @@ Without Vitest, co-locate a `.spec.ts` file next to the source. Use builtin asse
 ```ts
 // src/orders/money.spec.ts
 import { strict as assert } from 'node:assert'
-import { describe, test } from 'node:test'
-import { add, fromCents, parse } from './money.domain.ts'
+import {
+  describe,
+  test,
+} from 'node:test'
+import {
+  add,
+  fromCents,
+  parse,
+} from './money.domain.ts'
 
 describe('fromCents', () => {
   test('should create Money from positive cents', () => {
@@ -305,8 +323,14 @@ Prefer `@fast-check/vitest` over raw `fc.assert(fc.property(...))`. It provides 
 **`g()` helper** for filling unused fields with random data without a full property test:
 
 ```ts
-import { fc, it } from '@fast-check/vitest'
-import { describe, expect } from 'vitest'
+import {
+  fc,
+  it,
+} from '@fast-check/vitest'
+import {
+  describe,
+  expect,
+} from 'vitest'
 
 describe('computeAge', () => {
   it('should always compute a non-negative age', ({ g }) => {
@@ -360,7 +384,10 @@ export const orderArb = fc.record({
 
 ```ts
 import { ZodFastCheck } from 'zod-fast-check'
-import { MoneySchema, OrderItemSchema } from '../src/schemas.ts'
+import {
+  MoneySchema,
+  OrderItemSchema,
+} from '../src/schemas.ts'
 
 export const moneyArb = ZodFastCheck().inputOf(MoneySchema)
 export const orderItemArb = ZodFastCheck().inputOf(OrderItemSchema)

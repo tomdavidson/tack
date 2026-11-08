@@ -55,13 +55,15 @@ Framework signatures, mutable adapter objects, and documented exception contract
 
 ### 1. Function Size, Complexity, and Flat Control Flow (`phpcs.xml.dist`)
 
-| Sniff / Metric                                                                           | Setting | Purpose                                                          |
-| ---------------------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------- |
-| `Generic.Metrics.NestingLevel`                                                           | `2`     | Forbid nested branches inside loops (matches TS/Rust/Py depth 2) |
-| `Generic.Metrics.CyclomaticComplexity`                                                   | `8`     | Cap branching complexity per function (error at `10`)            |
-| `SlevomatCodingStandard.Functions.FunctionLength`                                        | `30`    | Keep functions small (≤ 30 lines)                                |
-| `SlevomatCodingStandard.ControlStructures.EarlyExit`                                     | `error` | Enforce guard clauses; forbid `else` after `return`              |
-| `SlevomatCodingStandard.ControlStructures.DisallowContinueWithoutIntegerOperandInSwitch` | `error` | Prevent `switch`/`loop` continue bugs                            |
+| Sniff / Metric                                                                           | Setting | Purpose                                                                         |
+| ---------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------- |
+| `SlevomatCodingStandard.Complexity.Cognitive`                                            | `8`     | Cognitive complexity, the lintable proxy for "one idea" (error)                 |
+| `Generic.Metrics.NestingLevel`                                                           | `2`     | No nested branches inside loops (`absoluteNestingLevel` 2, error)               |
+| `Generic.Metrics.CyclomaticComplexity`                                                   | `10`    | Cyclomatic backstop behind Cognitive (`absoluteComplexity` 10)                  |
+| `SlevomatCodingStandard.Functions.FunctionLength`                                        | `60`    | Fits on one screen; aim for about 30                                            |
+| Parameters (advisory; no sniff)                                                          | `4`     | 2–3 typical; 4+ takes a `final readonly class` DTO, which is the options object |
+| `SlevomatCodingStandard.ControlStructures.EarlyExit`                                     | `error` | Enforce guard clauses; forbid `else` after `return`                             |
+| `SlevomatCodingStandard.ControlStructures.DisallowContinueWithoutIntegerOperandInSwitch` | `error` | Prevent `switch`/`loop` continue bugs                                           |
 
 ```php
 <?php
@@ -110,6 +112,38 @@ named pure function and compose with `array_map` or `array_filter`.
 | `SlevomatCodingStandard.Functions.StaticClosure`                       | `error` | Require `static fn(...) => ...` so closures never capture `$this`            |
 | `SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable`         | `error` | Ban `$_GET`, `$_POST`, `$_SERVER`, `$GLOBALS` outside boundary               |
 | `Generic.PHP.ForbiddenFunctions` / `phpstan-disallowed-calls`          | `error` | Ban `eval`, `extract`, `compact`, `var_dump`, `print_r`, `dd`, `die`, `exit` |
+
+### 4. Naming (PSR-1 / Drupal Coder)
+
+Casing follows PSR-1 as Drupal Coder enforces it. Drupal is the PHP this guide is written for,
+so its conventions are adopted for all PHP rather than maintained as a Drupal exception.
+[Tom's Clean Code](toms-clean-code.md#naming) governs the words.
+
+| Element                                        | Convention                                                  | Example                                     |
+| ---------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------- |
+| Classes, interfaces, traits, enums, enum cases | `PascalCase`                                                | `DraftOrder`, `OrderRepoInterface`, `Draft` |
+| Methods, properties, variables in classes      | `camelCase`                                                 | `validateOrder`, `$unitPrice`               |
+| Procedural functions and variables             | `snake_case`, module-prefixed functions                     | `my_module_help`, `$form_state`             |
+| Inherited framework parameters                 | Keep the parent's name                                      | `$form_state`, `$plugin_id`                 |
+| Class constants                                | `UPPER_SNAKE_CASE`                                          | `MAX_ITEMS`                                 |
+| Files                                          | PSR-4: one type per file, filename = type                   | `DraftOrder.php`                            |
+| Namespaces                                     | `PascalCase` segments mirroring `Domain/`, `App/`, `Infra/` | `Drupal\my_module\Domain`                   |
+
+- **Role suffixes are the convention**: interfaces end in `Interface`, abstract bases in `Base`,
+  traits in `Trait` (`OrderRepoInterface`, `FormBase`, `StringTranslationTrait`). This is the
+  one place the universal "no type encodings" rule yields to When in Rome.
+- **Error values end in `Error`, throwables end in `Exception`**: `OrderNotFoundError` is a
+  `final readonly class` returned in a union; `PluginNotFoundException` is thrown and caught in
+  `Infra/`. Never give a returned value class the `Exception` suffix.
+- **Predicates**: `is`, `has`, `can` return `bool`.
+- **Fallible**: `parse*` and `validate*` return `T|<Noun>Error`; `find*` returns `?T`.
+- **No getters on readonly data**: promoted `public readonly` properties are read directly
+  (`$order->id`). Getters belong on framework classes whose contract requires them.
+- **Unused parameters** stay only when an inherited signature requires them, under the parent's
+  name; otherwise remove them. PHP has no `_` convention.
+- **Unions are discriminated by class**, states by backed `enum`; there is no tag key. Enum
+  cases are `PascalCase`; backing values are `snake_case` strings when they cross a wire or land
+  in config.
 
 ---
 
@@ -235,6 +269,16 @@ function calculateTotalCents(array $items): int {
 When `array_filter` is used on a `list<T>`, wrap with `array_values(...)` so PHPStan preserves the
 `list<T>` type without gaps in integer keys.
 
+### 5. Bounded Iteration & Explicit Result Handling
+
+- Iteration over a finite array is bounded by construction. A `while` loop, retry, poll, or
+  recursion whose depth depends on input carries an explicit cap (`$maxAttempts`, `$maxDepth`)
+  and returns a typed error value when the cap is hit.
+- A `T|<Noun>Error` return is always assigned and narrowed (`instanceof` or `match (true)`) before
+  use. A fallible call as a bare expression statement discards the error; when discarding is
+  intended, assign it and say why in a comment. PHPStan does not flag an ignored union return,
+  so this is a review rule.
+
 ---
 
 ## Testing (`PHPUnit`)
@@ -266,8 +310,10 @@ When `array_filter` is used on a `list<T>`, wrap with `array_values(...)` so PHP
 - [ ] `declare(strict_types=1);` at the top of every PHP file
 - [ ] Native parameter, return, and property types on every declaration + PHPDoc `list<T>` / `array<K, V>`
 - [ ] PHPStan `level: 8` (or `level: 6+` with `phpstan-strict-rules` in Drupal)
-- [ ] Functions ≤ 30 lines, cyclomatic complexity ≤ 8, nesting depth ≤ 2
+- [ ] Cognitive complexity ≤ 8, nesting depth ≤ 2, ≤ 4 parameters, ≤ 60 lines
 - [ ] Guard clauses (`EarlyExit`), zero `else` after `return`
+- [ ] Naming per PSR-1/Drupal Coder: `Interface`/`Base`/`Trait` suffixes, `*Error` values vs `*Exception` throwables, no DTO getters
+- [ ] Advisory: loops and input-dependent recursion carry a cap; `T|Error` returns always narrowed
 - [ ] `final readonly class` for all domain/DTO types; zero mutable properties
 - [ ] Backed `enum`s and union types with exhaustive `match (...)` (never `switch`)
 - [ ] `static fn(...) => ...` on all closures

@@ -55,7 +55,11 @@ The Astro Container API renders `.astro` components to HTML strings in Node.js w
 // @vitest-environment node
 import { it } from '@fast-check/vitest'
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
-import { beforeAll, describe, expect } from 'vitest'
+import {
+  beforeAll,
+  describe,
+  expect,
+} from 'vitest'
 import ArticleCard from '../components/ArticleCard.astro'
 import { buildEntry } from '../test/builders.ts'
 
@@ -142,7 +146,10 @@ When the Container API cannot cover the test, `@vitest/browser-playwright` rende
 
 ```typescript
 // src/tests/counter.browser.spec.ts — Layer 2 (browser)
-import { describe, expect } from 'vitest'
+import {
+  describe,
+  expect,
+} from 'vitest'
 import { render } from 'vitest-browser-react'
 import Counter from '../components/Counter'
 
@@ -180,9 +187,18 @@ MSW (`setupServer`) intercepts HTTP at the Node.js network layer. Runs at Layer 
 // src/tests/api-components.spec.ts — Layer 2
 // @vitest-environment node
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
-import { http, HttpResponse } from 'msw'
+import {
+  http,
+  HttpResponse,
+} from 'msw'
 import { setupServer } from 'msw/node'
-import { afterAll, afterEach, beforeAll, describe, expect } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+} from 'vitest'
 import WeatherWidget from '../components/WeatherWidget.astro'
 
 const server = setupServer()
@@ -217,8 +233,14 @@ describe('WeatherWidget', () => {
 Instead of hardcoding mock responses, use fast-check arbitraries (see [TypeScript Testing](./testing-typescript.md)) to fuzz-test component resilience to unexpected data:
 
 ```typescript
-import { fc, it } from '@fast-check/vitest'
-import { describe, expect } from 'vitest'
+import {
+  fc,
+  it,
+} from '@fast-check/vitest'
+import {
+  describe,
+  expect,
+} from 'vitest'
 
 const weatherResponseArb = fc.record({
   temp: fc.integer({ min: -60, max: 140 }),
@@ -302,7 +324,11 @@ Extend Playwright's `test` fixture to catch framework hydration mismatches.
 
 ```typescript
 // test/e2e/base.ts
-import { type ConsoleMessage, expect, test as base } from '@playwright/test'
+import {
+  type ConsoleMessage,
+  expect,
+  test as base,
+} from '@playwright/test'
 
 const HYDRATION_PATTERNS = [
   /hydration failed/i,
@@ -326,7 +352,10 @@ export { expect }
 
 ```typescript
 // test/e2e/hydration.spec.ts
-import { expect, test } from './base.ts'
+import {
+  expect,
+  test,
+} from './base.ts'
 
 test.describe('ReactCounter island', () => {
   test('should hydrate and respond to clicks without errors', async ({ page, hydrationErrors }) => {

@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────
 export const structuralRules = {
   'max-depth': ['warn', { max: 3 }],
-  'complexity': ['warn', { max: 8 }],
+  complexity: ['warn', { max: 8 }],
   'max-params': ['error', { max: 3 }],
   'no-else-return': 'error',
   'no-nested-ternary': 'error',
@@ -80,7 +80,7 @@ export const hygieneRules = {
   'no-console': ['warn', { allow: ['warn', 'error'] }],
   'no-debugger': 'error',
   'no-eval': 'error',
-  'eqeqeq': 'error',
+  eqeqeq: 'error',
   'no-implicit-coercion': 'error',
   'no-throw-literal': 'error',
   'prefer-promise-reject-errors': 'error',

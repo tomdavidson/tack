@@ -8,14 +8,18 @@ const MARKER = '<!-- gh-settings-plan -->'
 
 const buildBody = ({ planSummary, strippedKeys, changed }) => {
   const stripped = JSON.parse(strippedKeys || '[]')
-  const changeHeader = changed === 'true' ?
-    '### 🟡 GitHub Settings Plan: changes pending' :
-    '### 🟢 GitHub Settings Plan: no changes'
+  const changeHeader = changed === 'true'
+    ? '### 🟡 GitHub Settings Plan: changes pending'
+    : '### 🟢 GitHub Settings Plan: no changes'
 
-  const strippedBlock = stripped.length ?
-    ['', '**Stripped enforced keys** (ignored from repo overrides):', '', ...stripped.map(k => `- \`${k}\``)]
-      .join('\n') :
-    ''
+  const strippedBlock = stripped.length
+    ? [
+      '',
+      '**Stripped enforced keys** (ignored from repo overrides):',
+      '',
+      ...stripped.map(k => `- \`${k}\``),
+    ].join('\n')
+    : ''
 
   const plan = planSummary?.trim() || '(no plan output captured)'
 

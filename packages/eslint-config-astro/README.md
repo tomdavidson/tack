@@ -59,7 +59,10 @@ export default defineConfig(
 ### Rules only (bring your own parser/plugins)
 
 ```js
-import { astroFrontmatterRules, structuralRules } from '@astro-bay/eslint-config-astro/rules'
+import {
+  astroFrontmatterRules,
+  structuralRules,
+} from '@astro-bay/eslint-config-astro/rules'
 ```
 
 ## Options

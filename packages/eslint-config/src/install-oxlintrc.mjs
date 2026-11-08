@@ -13,9 +13,20 @@
  *   "postinstall": "node node_modules/@tack/eslint-config/src/install-oxlintrc.mjs"
  */
 
-import { applyEdits, modify, parse } from 'jsonc-parser'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { relative, resolve } from 'node:path'
+import {
+  applyEdits,
+  modify,
+  parse,
+} from 'jsonc-parser'
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
+import {
+  relative,
+  resolve,
+} from 'node:path'
 
 const SCHEMA = './node_modules/oxlint/configuration_schema.json'
 const EXTENDS_ENTRY = './node_modules/@tack/eslint-config/src/oxlintrc.jsonc'

@@ -48,18 +48,19 @@ classes live), and `**/tests/**`.
 
 ### 2. Function Size, Complexity, and Flat Control Flow
 
-| Rule / Setting                       | Value | Purpose                                                             |
-| ------------------------------------ | ----- | ------------------------------------------------------------------- |
-| `C901` (`mccabe.max-complexity`)     | `8`   | Cap cyclomatic complexity (matches Rust `8` / TS `5`)               |
-| `PLR1702` (`max-nested-blocks`)      | `2`   | Forbid nested branches inside loops (matches TS/Rust depth `2`)     |
-| `PLR0915` (`max-statements`)         | `30`  | Keep functions small (5–30 statements)                              |
-| `PLR0913` (`max-args`)               | `4`   | 2–3 params typical; 4+ requires a frozen dataclass or `TypedDict`   |
-| `PLR0912` (`max-branches`)           | `8`   | Cap branching sprawl                                                |
-| `PLR0911` (`max-returns`)            | `6`   | Allow flat guard clauses while capping sprawl                       |
-| `RET505`–`RET508` (`flake8-return`)  | `err` | No `else` / `elif` after `return`, `raise`, `break`, `continue`     |
-| `FBT001`–`FBT003` (`boolean-trap`)   | `err` | No boolean flag parameters; use `Literal` or `Enum`                 |
-| `PLR2004` (`magic-value-comparison`) | `err` | Extract magic numbers/strings to named constants (relaxed in tests) |
-| `SIM` + `FURB`                       | `err` | Rewrite imperative loop mutations into declarative transforms       |
+| Rule / Setting                       | Value | Purpose                                                                                                                          |
+| ------------------------------------ | ----- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `complexipy` (`moon run :lint`)      | `8`   | Cognitive complexity, the lintable proxy for "one idea"; Ruff has no cognitive metric, so this runs as its own lint step         |
+| `PLR1702` (`max-nested-blocks`)      | `2`   | No nested branches inside loops                                                                                                  |
+| `PLR0915` (`max-statements`)         | `60`  | Fits on one screen; aim for about 30                                                                                             |
+| `PLR0913` (`max-args`)               | `4`   | 2–3 params typical; 4+ requires a frozen dataclass or `TypedDict` (one more than TS because the dataclass is the options object) |
+| `C901` (`mccabe.max-complexity`)     | `10`  | Cyclomatic backstop behind `complexipy`                                                                                          |
+| `PLR0912` (`max-branches`)           | `10`  | Cyclomatic backstop behind `complexipy`                                                                                          |
+| `PLR0911` (`max-returns`)            | `6`   | Allow flat guard clauses while capping sprawl                                                                                    |
+| `RET505`–`RET508` (`flake8-return`)  | `err` | No `else` / `elif` after `return`, `raise`, `break`, `continue`                                                                  |
+| `FBT001`–`FBT003` (`boolean-trap`)   | `err` | No boolean flag parameters; use `Literal` or `Enum`                                                                              |
+| `PLR2004` (`magic-value-comparison`) | `err` | Extract magic numbers/strings to named constants (relaxed in tests)                                                              |
+| `SIM` + `FURB`                       | `err` | Rewrite imperative loop mutations into declarative transforms                                                                    |
 
 ```python
 # GOOD — flat guard clauses, zero else after return, explicit return type
@@ -110,7 +111,32 @@ Cents = NewType("Cents", int)
 | `ERA` (`eradicate`)           | Flag commented-out dead code                                            |
 | `S` (`bandit`)                | Flag `eval`, `exec`, shell injection, hardcoded secrets                 |
 
-### 5. Formatting (`@dprint/ruff`)
+### 5. Naming (`N` pep8-naming)
+
+Casing is enforced by `N801`–`N818`. [Tom's Clean Code](toms-clean-code.md#naming) governs the
+words; PEP 8 overrides its prefix table where they conflict.
+
+| Element                                                   | Convention                                                                         | Example                         |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------- |
+| Functions, variables, modules, packages                   | `snake_case`                                                                       | `place_order`, `order_repo.py`  |
+| Classes, dataclasses, `NewType`, `Protocol`, type aliases | `PascalCase`                                                                       | `OrderId`, `OrderRepo`, `Order` |
+| Module-level constants                                    | `UPPER_SNAKE_CASE`                                                                 | `MAX_ITEMS`                     |
+| Unused arguments and bindings                             | `_` prefix (`ARG`)                                                                 | `_ctx`                          |
+| Module-private names                                      | `_` prefix                                                                         | `_parse_line`                   |
+| Type parameters                                           | Single capital for one unconstrained parameter; descriptive `PascalCase` otherwise | `T`, `Repo`                     |
+
+- **Attribute access, not getters**: frozen dataclass fields are read directly (`order.id`);
+  `get_` is reserved for lookups with a default (`dict.get`, `getattr`).
+- **No marker prefixes or suffixes on types**: `OrderRepo`, not `IOrderRepo`, `OrderRepoProtocol`,
+  `AbstractOrderRepo`, or `BaseOrderRepo`.
+- **Predicates**: `is_`, `has_`, `can_` return `bool`.
+- **Fallible**: `parse_*` and `validate_*` return `T | <Noun>Error`; `find_*` returns `T | None`.
+- **Errors** are frozen dataclasses named `<Noun>Error` whose names say what happened
+  (`ItemLimitExceededError`, `OrderNotFoundError`); the union of a layer's errors is
+  `<Layer>Error` (`OrderDomainError`).
+- **Modules** are named for the concern they hold; never `utils.py`, `helpers.py`, `common.py`.
+
+### 6. Formatting (`@dprint/ruff`)
 
 Always format with `moon run :fmt` (`dprint fmt`, which formats Python via `@dprint/ruff`):
 
@@ -248,6 +274,16 @@ class OrderRepo(Protocol):
   pure functions.
 - Never mutate local state across `await` points.
 
+### 6. Bounded Iteration & Explicit Result Handling
+
+- Iteration over a finite collection is bounded by construction. A `while` loop, retry, poll, or
+  recursion whose depth depends on input carries an explicit cap (`max_attempts`, `max_depth`)
+  and returns a typed error value when the cap is hit.
+- A `T | <Noun>Error` return is always bound to a name and narrowed (`isinstance` or `match`)
+  before use. A fallible call as a bare expression statement discards the error; when discarding
+  is intended, assign to `_` with a comment saying why. No Ruff rule sees through union returns,
+  so this is a review rule.
+
 ---
 
 ## Testing (`pytest` + `hypothesis`)
@@ -280,8 +316,10 @@ class OrderRepo(Protocol):
 - [ ] Toolchain-enforced: `configs/python` applied (`ruff.toml` extended, `basedpyright` in dev deps)
 - [ ] Zero public methods on domain/data classes (`PLR0904`, `PLR6301`)
 - [ ] Every function has explicit parameter and return type annotations (`ANN`, zero `Any`)
-- [ ] Functions ≤ 30 statements, ≤ 4 parameters, cyclomatic complexity ≤ 8, nesting depth ≤ 2
+- [ ] Cognitive complexity ≤ 8 (`complexipy`), nesting depth ≤ 2, ≤ 4 parameters, ≤ 60 statements
 - [ ] Zero `else` after `return` / `raise` (`RET505`–`RET508`); zero boolean flag params (`FBT`)
+- [ ] Naming per PEP 8 (`N`): attribute access not `get_`, no `I`/`Abstract`/`Base` markers, `<Noun>Error`
+- [ ] Advisory: loops and input-dependent recursion carry a cap; `T | Error` returns always narrowed
 - [ ] Advisory: feature-based module layout (`domain.py`, `app.py`, `infra.py`)
 - [ ] Advisory: `@dataclass(frozen=True, slots=True)` with `tuple` collections for domain data
 - [ ] Advisory: module-level pure functions for domain logic; `typing.Protocol` for ports

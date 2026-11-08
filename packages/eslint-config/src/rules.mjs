@@ -17,6 +17,39 @@ export const functionalRules = {
   'functional/no-return-void': 'error',
 }
 
+// ── Complexity (oxlint has no cognitive-complexity rule) ────────
+// Cognitive complexity is the lintable proxy for "one idea" (toms-clean-code.md
+// Function Shape). oxlint carries the cyclomatic backstop (complexity: 10),
+// nesting (max-depth: 2), and length (max-lines-per-function: 60).
+export const complexityRules = { 'sonarjs/cognitive-complexity': ['error', 8] }
+
+// ── Naming (lang-typescript.md Naming) ───────────────────────────
+// Casing is enforced here; the words are governed by toms-clean-code.md.
+export const namingRules = {
+  '@typescript-eslint/naming-convention': [
+    'error',
+    { selector: 'default', format: ['camelCase'], leadingUnderscore: 'allow' },
+    { selector: 'import', format: null },
+    { selector: 'variable', format: ['camelCase', 'UPPER_CASE'], leadingUnderscore: 'allow' },
+    { selector: 'variable', modifiers: ['destructured'], format: null },
+    { selector: 'function', format: ['camelCase'] },
+    { selector: 'parameter', format: ['camelCase'], leadingUnderscore: 'allow' },
+    { selector: 'parameter', modifiers: ['destructured'], format: null },
+    { selector: 'typeLike', format: ['PascalCase'] },
+    { selector: 'typeParameter', format: ['PascalCase'] },
+    { selector: 'enumMember', format: ['PascalCase'] },
+    { selector: 'interface', format: ['PascalCase'], custom: { regex: '^I[A-Z]', match: false } },
+    { selector: 'objectLiteralProperty', modifiers: ['requiresQuotes'], format: null },
+    {
+      selector: ['variable', 'parameter', 'property'],
+      types: ['boolean'],
+      format: ['PascalCase'],
+      prefix: ['is', 'has', 'can', 'should'],
+      leadingUnderscore: 'allow',
+    },
+  ],
+}
+
 // ── Arrow function enforcement ─────────────────────────────────
 // ESLint owns the semantic rule (must use arrows).
 // dprint owns arrow formatting (parens, wrapping).
@@ -45,6 +78,7 @@ export const domainRules = { 'functional/prefer-readonly-type': 'error' }
 
 // ── Infrastructure: imperative shell allowances ────────────────
 export const infraRules = {
+  'sonarjs/cognitive-complexity': ['error', 12],
   'functional/no-let': 'warn',
   'functional/no-loop-statements': 'warn',
   'functional/no-try-statements': 'off',
@@ -60,6 +94,8 @@ export const infraRules = {
 
 // ── Tests: fully relax FP rules ──────────────────────────────
 export const testRules = {
+  'sonarjs/cognitive-complexity': 'off',
+  '@typescript-eslint/naming-convention': 'off',
   'functional/no-let': 'off',
   'functional/no-loop-statements': 'off',
   'functional/no-try-statements': 'off',

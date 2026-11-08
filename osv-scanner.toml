@@ -1,0 +1,14 @@
+# osv-scanner config. Picked up automatically by the reusable osv-scanner
+# action. Every ignore carries ignoreUntil so it is revisited, not forgotten.
+# Mirror any entry here in pnpm-workspace.yaml auditConfig.ignoreGhsas.
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-02-01
+reason = """
+CVE-2026-118764 minimatch globparts amplification. Patched only in 11.0.1;
+no 10.x backport. Reached via typescript-eslint and eslint (dev/lint only)
+on patterns we write. Vulnerable path requires optimizationLevel >= 2;
+default is 1. minimatch 11 removed makeRe/matchOne, so an override breaks
+downstream callers. Drop when typescript-eslint and eslint ship on ^11.0.1.
+"""

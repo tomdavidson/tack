@@ -6,7 +6,14 @@
 // ── Layer file globs ───────────────────────────────────────────
 export const domainFiles = ['src/**/*.domain.ts', 'src/**/domain/**/*.ts']
 export const appFiles = ['src/**/*.app.ts', 'src/**/app/**/*.ts']
-export const infraFiles = ['src/**/*.infra.ts', 'src/**/infra/**/*.ts', 'src/cli/**/*.ts']
+// Composition root (main.ts / index.ts) is the imperative shell: wiring + IO.
+export const infraFiles = [
+  'src/**/*.infra.ts',
+  'src/**/infra/**/*.ts',
+  'src/cli/**/*.ts',
+  'src/main.ts',
+  'src/index.ts',
+]
 export const testFiles = ['src/**/*.spec.ts', 'src/**/*.test.ts', 'src/test/**/*.ts']
 
 export const frameworkInfraFiles = ['**/integration.ts', '**/*.config.ts']

@@ -89,7 +89,7 @@ rules outside the three layers (e.g., framework entry points), use a distinct gl
 
 ## Formatting
 
-- 2-space indentation, no tabs (Rust: 4-space; Makefile: tabs)
+- 2-space indentation, no tabs
 - LF line endings, final newline at EOF, trim trailing whitespace (except Markdown)
 - Line width: 110 characters (100 for JSON and Markdown)
 - Single quotes for strings and JSX attributes
@@ -127,13 +127,42 @@ readability/testability: `(deps) => (data) => result`.
 ### Rules
 
 - Explicit return types on all functions (`typescript/explicit-function-return-type: error`; inline callback expressions and typed function expressions may infer).
-- Max 3 parameters. Use an options object for more.
-- Max function length: 25 logical lines (blank lines and comments excluded).
-- Max cyclomatic complexity: 5 branches per function.
-- Max nesting depth: 2. Use guard clauses and early returns. Never `else` after `return`.
+- Max 3 parameters (`max-params: error`). Use an options object for more.
+- Cognitive complexity ≤ 8 per function (`sonarjs/cognitive-complexity: error`). This is the
+  lintable proxy for "one idea"; cyclomatic `complexity: error` at 10 is a backstop.
+- Function length: > 60 logical lines is an error (`max-lines-per-function: error`, blank lines
+  and comments excluded). Aim for about 30. Length is a smell; complexity and nesting are the
+  limits.
+- Max nesting depth: 2 (`max-depth: error`). Use guard clauses and early returns. Never `else`
+  after `return` (`no-else-return: error`).
 - No boolean parameters. Split into separate functions (or pass a 2-variant union).
-- No nested ternaries. Single-line ternaries for simple cases; early-return for complex ones.
-- No variable shadowing. Use distinct names in inner scopes.
+- No nested ternaries (`no-nested-ternary: error`). Single-line ternaries for simple cases;
+  early-return for complex ones.
+- No variable shadowing (`no-shadow`). Use distinct names in inner scopes.
+
+## Naming
+
+Casing follows the TypeScript community convention; the rules in
+[Tom's Clean Code](toms-clean-code.md#naming) govern what the words are.
+
+| Element                          | Convention                                                                   | Example                         |
+| -------------------------------- | ---------------------------------------------------------------------------- | ------------------------------- |
+| Functions, variables, properties | `camelCase`                                                                  | `calculateTotal`, `isActive`    |
+| Types, type aliases, enums       | `PascalCase`                                                                 | `LineItem`, `OrderError`        |
+| Union tag key                    | `kind`                                                                       | `{ kind: 'Draft' }`             |
+| Union tag values                 | `PascalCase` string literals                                                 | `'FileNotFound'`, `'Submitted'` |
+| Module-level constants           | `SCREAMING_SNAKE_CASE`                                                       | `MAX_RETRY_COUNT`               |
+| Files                            | `kebab-case.<layer>.ts`                                                      | `validate-line-items.app.ts`    |
+| Unused bindings                  | `_` prefix                                                                   | `(_event, context) => ...`      |
+| Type parameters                  | Descriptive `PascalCase`; single letter only for one unconstrained parameter | `<Item>`, `<T>`                 |
+
+- **Predicates**: `is`, `has`, `can` prefix; type guards are `is<Type>` returning `value is Type`.
+- **Boolean props**: `isActive`, `hasChildren`; never a bare adjective or noun.
+- **Result-returning functions**: `parse*`, `validate*` return `Result`; `find*` returns `Option`
+  or `T | undefined`; `get*` cannot fail.
+- **Class suffixes** (infra only): `Adapter`, `Client`, `Gateway`, `Controller`. `Module` and
+  `Provider` only where the framework names them (NestJS, Angular).
+- **No type encodings**: no `IUser`, `TUser`, `UserType`, `UserInterface`.
 
 ## Error Handling
 
@@ -156,6 +185,11 @@ no natural return value, it performs a side effect and belongs in an infrastruct
 - `no-throw-statements: error` and `no-try-statements: error` in domain and application
 - `no-return-void: error` in domain and application; off in infrastructure
 - `._unsafeUnwrap()` and `._unsafeUnwrapErr()` are banned via `no-restricted-properties`
+- Every `Result` and `ResultAsync` is consumed. `typescript/no-floating-promises` catches a
+  dropped `ResultAsync` everywhere; `functional/no-expression-statements` (error in domain and
+  app) rejects a bare call statement, which is a dropped sync `Result`. In infra that rule is
+  off, so consuming a sync `Result` there is a review rule. Discard on purpose with `void` and a
+  comment saying why.
 - Only throw `Error` subclasses with messages: `throw new Error('...')`, never `throw 'string'`
 - Always use `new` with Error: `throw new Error(...)`, not `throw Error(...)`
 - Prefer `TypeError` when the issue is a type/shape violation
@@ -255,6 +289,9 @@ const findNode = (tree: TreeNode, id: string): TreeNode | undefined =>
   `.some()` over `.filter().length`, `.indexOf()` over `.findIndex()` for simple lookups.
 - Prefer `Set.has()` over `Array.includes()` for repeated lookups.
 - `.reduce()` is allowed (`unicorn/no-array-reduce: allow`).
+- Iteration over an array or finite structure is bounded by construction. A `while`, retry,
+  poll, or recursion whose depth depends on input carries an explicit cap (`maxAttempts`,
+  `maxDepth`) and returns a typed `Err` when the cap is hit.
 
 ## Control Flow
 
@@ -273,9 +310,9 @@ const handlers: Record<Status, (v: Value) => Value> = { ... } as const
 
 ```ts
 // Growing union
-const message = match(error).with({ type: 'FileNotFound' }, e => `Missing: ${e.path}`).with({
-  type: 'CycleDetected',
-}, e => `Cycle: ${e.chain}`).with({ type: 'ContextParseError' }, e => `Bad context: ${e.message}`)
+const message = match(error).with({ kind: 'FileNotFound' }, e => `Missing: ${e.path}`).with({
+  kind: 'CycleDetected',
+}, e => `Cycle: ${e.chain}`).with({ kind: 'ContextParseError' }, e => `Bad context: ${e.message}`)
   .exhaustive()
 
 // Stable union
@@ -357,7 +394,8 @@ const pipe = <T>(value: T, ...fns: Array<(a: T) => T>): T => fns.reduce((acc, fn
 ## Classes
 
 When a framework forces it: thin wrapper delegating to pure functions. In infrastructure,
-classes are allowed only with suffix: Controller, Adapter, Module, Client, Provider, Gateway.
+classes are allowed only with a role suffix: `Adapter`, `Client`, `Gateway`, `Controller`, plus
+`Module` and `Provider` where the framework uses those names (see Naming).
 
 - No static-only classes. Use module-scoped functions.
 - No extraneous classes (classes that could be a plain object or module).
@@ -387,11 +425,13 @@ Inline first. Add a dependency only when it materially improves readability or s
 
 ## Layer Relaxations
 
-Infrastructure files (`repo.ts`, `io.ts`, `adapter.ts`, `src/cli/**`):
+Infrastructure files (`*.infra.ts`, `**/infra/**`, `src/cli/**`):
 
 - `let` and loops: warn. Still prefer `const` and declarative iteration.
 - `try`/`catch`, `throw`: permitted (for wrapping externals into Result).
 - Expression statements, `void` returns, mutable data: permitted.
+- Complexity loosens for wiring: cognitive complexity ≤ 12, nesting ≤ 3. The 60-line limit does
+  not change.
 
 Test files (`*.spec.ts`, `*.test.ts`, `src/test/**`):
 
@@ -425,7 +465,10 @@ pattern where the rule is already relaxed.
 - [ ] Fetch then process (async then pure)
 - [ ] Spread for updates
 - [ ] Array methods over loops (no `.forEach()`)
+- [ ] Loops and recursion bounded; caps return typed `Err`
+- [ ] Cognitive complexity ≤ 8; nesting ≤ 2; ≤ 3 params
 - [ ] No `any` leakage (check return types, args, assignments)
 - [ ] No variable shadowing
+- [ ] Naming: `camelCase`/`PascalCase`/`SCREAMING_SNAKE_CASE`, `kind` tag, `_` unused
 - [ ] Inline helpers before deps
 - [ ] `ResultAsync` chains over bare `await` stacking

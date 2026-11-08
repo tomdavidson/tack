@@ -10,7 +10,7 @@
 This guide extends [PHP Patterns](lang-php.md). For Drupal modules intended for drupal.org, Drupal community conventions and supported framework APIs take precedence over the generic PHP preferences. Apply Strategic FP within those constraints, not by disabling community checks.
 
 - Retain the project's supported `Drupal` and `DrupalPractice` rulesets and its Drupal GitLab CI checks. Passing those checks is necessary for this project's compatibility goal, but is not a guarantee of publication, security coverage, or acceptance.
-- Use Drupal's 2-space indentation, same-line braces, naming, declaration spacing, and documentation conventions. Use uppercase `TRUE`, `FALSE`, and `NULL` as executable literals; keep native type keywords and PHPDoc types in their required casing. Plain PHP retains lowercase literals.
+- Use Drupal's 2-space indentation, same-line braces, declaration spacing, and documentation conventions. Naming follows [PHP Patterns § Naming](lang-php.md#4-naming-psr-1--drupal-coder), which adopts Drupal Coder's conventions for all PHP. Use uppercase `TRUE`, `FALSE`, and `NULL` as executable literals; keep native type keywords and PHPDoc types in their required casing. Plain PHP retains lowercase literals.
 - Put each PSR-4 class, interface, trait, or enum in its matching file under the module namespace. The grouped declarations in examples below are explanatory: split them into separate files.
 - Supply required class/interface/enum summaries, procedural-file `@file` documentation, and method documentation. Use inherited documentation where appropriate. Omit redundant constructor or typed-property prose only where the installed Coder version and current community standard permit it; retain useful collection types and required descriptions. Do not suppress commenting rules merely to reduce noise.
 - Preserve framework method signatures, reference parameters, mutable framework objects, and exception contracts. Do not force readonly classes onto forms, plugins, entities, or other framework subclasses. Add types only where compatible with supported Drupal/PHP versions and inherited APIs.
@@ -39,7 +39,9 @@ Instead, structure every custom module around a strict split:
    - Tested in milliseconds via `tests/src/Unit/` (`moon run <module>:test-unit`) with **zero
      database or Drupal container bootstrap**.
 2. **Imperative Drupal Shell (`src/Controller/`, `src/Form/`, `src/Plugin/`, `src/Hook/`, `src/Infra/`)**:
-   - Thin adapters (10–25 lines per method).
+   - Thin adapters: aim for 10–25 lines per method. The lint limits are the same as all PHP
+     (cognitive complexity ≤ 8, 60 lines); the tighter aim is because an adapter that needs more
+     is holding a decision that belongs in `Domain/` or `App/`.
    - Extract typed primitives from `EntityInterface` / `FormStateInterface` / `Request` into
      `final readonly class` domain inputs.
    - Call the pure domain/application function.
@@ -265,7 +267,7 @@ moon run my_module:verify # runs lint (phpcs) + typecheck (phpstan) + test-unit 
 - [ ] `declare(strict_types=1);` at the top of every `.php`, `.module`, and `.install` file
 - [ ] Pure domain types (`final readonly class`, `enum`) and rules in `src/Domain/` with zero Drupal imports
 - [ ] Application ports (`interface`) in `src/App/`, implemented by Drupal adapters in `src/Infra/`
-- [ ] Controllers, Forms, Plugins, and `#[Hook]` classes act as thin adapters (≤ 25 lines per method)
+- [ ] Controllers, Forms, Plugins, and `#[Hook]` classes act as thin adapters (aim ≤ 25 lines per method; lint limits per [PHP Patterns](lang-php.md))
 - [ ] Community `Drupal` / `DrupalPractice` checks pass without style-conflict exclusions
 - [ ] Required documentation, uppercase executable literals, and one-type-per-file layout follow the supported Coder standard
 - [ ] Complexity budgets are validated against actual PHPCS configuration; nesting metrics do not prove a ban on every branch inside a loop
