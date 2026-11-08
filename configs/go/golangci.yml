@@ -1,5 +1,7 @@
 # configs/go/golangci.yml
 # Shared golangci-lint v2 ruleset read through .tack.
+# Thresholds mirror lang-typescript.md / lang-rust.md: cognitive 8, cyclomatic 10,
+# nesting 2, 60 logical lines. See patterns/lang-go.md Part 1.
 version: "2"
 
 linters:
@@ -7,14 +9,23 @@ linters:
   enable:
     - bodyclose
     - contextcheck
+    - cyclop
+    - depguard
     - errcheck
+    - errname
     - errorlint
     - exhaustive
+    - funlen
+    - gocognit
+    - gocritic
     - gosec
     - govet
     - ineffassign
     - misspell
+    - mnd
+    - nestif
     - nilerr
+    - nilnil
     - noctx
     - revive
     - rowserrcheck
@@ -23,3 +34,71 @@ linters:
     - unconvert
     - unused
     - wastedassign
+
+  settings:
+    gocognit:
+      min-complexity: 8
+    cyclop:
+      max-complexity: 10
+    nestif:
+      min-complexity: 2
+    funlen:
+      lines: 60
+      statements: -1
+      ignore-comments: true
+    exhaustive:
+      default-signifies-exhaustive: false
+      default-case-required: false
+    mnd:
+      ignored-numbers: ["0", "1", "-1"]
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    gocritic:
+      enabled-tags: [diagnostic, style]
+      disabled-checks:
+        - hugeParam
+        - commentedOutCode
+    revive:
+      rules:
+        # Go's acronym form: userID, HTTPClient, parseJSON (lang-go.md Naming).
+        - name: var-naming
+        - name: receiver-naming
+        - name: error-naming
+        - name: error-strings
+        - name: context-as-argument
+        - name: early-return
+        - name: indent-error-flow
+        - name: superfluous-else
+        - name: unexported-return
+        - name: flag-parameter
+        - name: argument-limit
+          arguments: [3]
+        - name: max-control-nesting
+          arguments: [2]
+        - name: unhandled-error
+    depguard:
+      rules:
+        # Domain packages: pure data and logic. No IO, no wire formats.
+        domain:
+          files:
+            - "**/domain/**/*.go"
+            - "**/*_domain.go"
+          deny:
+            - pkg: "net/http"
+              desc: domain must not do IO; put the adapter in infra
+            - pkg: "database/sql"
+              desc: domain must not do IO; put the repo in infra
+            - pkg: "os"
+              desc: domain must not touch the process or filesystem
+            - pkg: "encoding/json"
+              desc: wire formats belong in *_codec.go under infra
+            - pkg: "encoding/xml"
+              desc: wire formats belong in *_codec.go under infra
+            - pkg: "gopkg.in/yaml"
+              desc: wire formats belong in *_codec.go under infra
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [funlen, gocognit, cyclop, nestif, mnd, errcheck, gosec]

@@ -187,6 +187,10 @@ comes from the bounded context's [Ubiquitous Language](toms-clean-arch.md#ubiqui
 - **Units in names**: suffix physical and time quantities (`totalCents`, `lengthMm`,
   `timeoutMs`) unless a unit type carries the unit
 - **Named constants**: no magic numbers or strings; `0`, `1`, `-1` and test fixtures excepted
+- **Fixtures are named for what they are**: `thread`, `draftOrder`; variants carry the
+  qualifier the test cares about (`expiredThread`, `orderWithTwoItems`); builders are
+  `make<Type>(overrides)`. No `Fixture` suffix or type encoding. Scope-sized length applies in
+  tests too; single letters are not fixtures.
 - **No shadowing**: an inner scope never reuses an outer name
 - **Unused bindings**: mark them per the language convention (commonly a `_` prefix)
 
@@ -194,6 +198,9 @@ comes from the bounded context's [Ubiquitous Language](toms-clean-arch.md#ubiqui
 
 - **No abbreviations**: `customer` not `cust`, `transaction` not `txn`. Allowed: universal
   acronyms (`id`, `url`, `http`) and terms established in the ubiquitous language.
+- **Acronym casing is fixed per language**: each language guide names exactly one form
+  (`HttpClient` or `HTTPClient`, `userId` or `userID`) and the linter enforces it. The author
+  never chooses; a codebase never has both.
 - **Pronounceable**: `generationTimestamp`, not `genymdhms`
 - **One word per concept**: pick `get`, `fetch`, or `retrieve` and use only that one
 - **One concept per word**: don't use `add` for both arithmetic and insertion
@@ -215,6 +222,16 @@ comes from the bounded context's [Ubiquitous Language](toms-clean-arch.md#ubiqui
   flat export or an environment variable.
 - **Framework-forced classes** (see Adapters above) carry a role suffix naming what they adapt
   (`Adapter`, `Client`, `Gateway`); each language guide lists its allowed suffixes
+- **Foreign names are data**: identifiers we do not own (wire headers, query params, vendor
+  payload keys, protocol fields such as `Thread-ID` or `Authorization`) are string values or
+  entries in a boundary schema, never declared names in our code. Naming rules govern the names
+  we choose; a lint suppression to admit someone else's name is a review reject.
+- **External shapes are translated, not mirrored**: describe an external payload with a schema
+  at the boundary and map it to domain vocabulary where it enters; the raw external shape never
+  crosses into application or domain code. Never hand-write a type that copies a payload field
+  for field. This is the naming face of the anti-corruption layer in
+  [Tom's Clean Architecture](toms-clean-arch.md). Each language guide names the file type that
+  holds the translation and the schema tool that does it.
 
 ### Function Shape
 

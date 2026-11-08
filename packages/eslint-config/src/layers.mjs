@@ -15,6 +15,11 @@ export const infraFiles = [
   'src/index.ts',
 ]
 export const testFiles = ['src/**/*.spec.ts', 'src/**/*.test.ts', 'src/test/**/*.ts']
+// Codec: the only files that may spell foreign identifiers (wire headers,
+// external JSON keys) as property names. They describe external shapes with
+// zod and export domain-named types + fromWire/toWire. Infra-side: imports
+// domain, imported by infra and tests, never by app or domain.
+export const codecFiles = ['src/**/*.codec.ts', 'src/**/codec/**/*.ts']
 
 export const frameworkInfraFiles = ['**/integration.ts', '**/*.config.ts']
 
@@ -24,6 +29,7 @@ export const boundaryElements = [
   { type: 'domain', pattern: domainFiles },
   { type: 'app', pattern: appFiles },
   { type: 'infra', pattern: [...infraFiles, ...frameworkInfraFiles] },
+  { type: 'codec', pattern: codecFiles },
   { type: 'test', pattern: testFiles },
 ]
 
@@ -31,6 +37,7 @@ export const boundaryElements = [
 export const boundaryRules = [
   { from: 'domain', allow: ['domain'] },
   { from: 'app', allow: ['domain', 'app'] },
-  { from: 'infra', allow: ['domain', 'app', 'infra'] },
-  { from: 'test', allow: ['domain', 'app', 'infra', 'test'] },
+  { from: 'codec', allow: ['domain', 'codec'] },
+  { from: 'infra', allow: ['domain', 'app', 'infra', 'codec'] },
+  { from: 'test', allow: ['domain', 'app', 'infra', 'codec', 'test'] },
 ]

@@ -20,3 +20,8 @@ ignore:
 files:
   .moon/tasks/nix.yml:
     target: .moon/tasks/nix.yml
+
+# moon's InheritedTasksManager lstat-walks .moon/ and skips symlinks, so
+# anything under .moon must be a real file (see .moon/tack.yml).
+mode:
+  - copy: ".moon/**"

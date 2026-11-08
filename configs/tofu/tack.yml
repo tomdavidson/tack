@@ -23,3 +23,8 @@ files:
     target: .gitignore
   .moon/tasks/tofu.yml:
     target: .moon/tasks/tofu.yml
+
+# moon's InheritedTasksManager lstat-walks .moon/ and skips symlinks, so
+# anything under .moon must be a real file (see .moon/tack.yml).
+mode:
+  - copy: ".moon/**"

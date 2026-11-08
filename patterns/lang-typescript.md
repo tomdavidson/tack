@@ -53,10 +53,15 @@ src/orders/
 Tests (`*.spec.ts`, `*.test.ts`) are a file type, not an architectural layer. oxlint relaxes
 all FP, complexity, and type-safety rules for test globs.
 
+Codecs (`*.codec.ts`, `**/codec/**`) are a file type on the infra side. A codec describes one
+external shape (HTTP headers, query params, a third-party JSON body) with zod and exports
+domain-named types plus `fromWire`/`toWire`. It is the only place a foreign identifier may
+appear as a property name (see [Foreign Identifiers](#foreign-identifiers)).
+
 ### Import Direction
 
-Domain may import domain. App may import domain and app. Infra may import all three. Nothing
-imports from tests.
+Domain may import domain. App may import domain and app. Infra may import all three plus
+codecs. Codecs import domain only. Nothing imports from tests.
 
 Domain files must never import Node.js built-ins (`fs`, `path`, `http`, `net`, `crypto`,
 `child_process`), HTTP frameworks, database drivers, or cloud SDKs. Express external
@@ -145,16 +150,17 @@ readability/testability: `(deps) => (data) => result`.
 Casing follows the TypeScript community convention; the rules in
 [Tom's Clean Code](toms-clean-code.md#naming) govern what the words are.
 
-| Element                          | Convention                                                                   | Example                         |
-| -------------------------------- | ---------------------------------------------------------------------------- | ------------------------------- |
-| Functions, variables, properties | `camelCase`                                                                  | `calculateTotal`, `isActive`    |
-| Types, type aliases, enums       | `PascalCase`                                                                 | `LineItem`, `OrderError`        |
-| Union tag key                    | `kind`                                                                       | `{ kind: 'Draft' }`             |
-| Union tag values                 | `PascalCase` string literals                                                 | `'FileNotFound'`, `'Submitted'` |
-| Module-level constants           | `SCREAMING_SNAKE_CASE`                                                       | `MAX_RETRY_COUNT`               |
-| Files                            | `kebab-case.<layer>.ts`                                                      | `validate-line-items.app.ts`    |
-| Unused bindings                  | `_` prefix                                                                   | `(_event, context) => ...`      |
-| Type parameters                  | Descriptive `PascalCase`; single letter only for one unconstrained parameter | `<Item>`, `<T>`                 |
+| Element                          | Convention                                                                              | Example                                       |
+| -------------------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Functions, variables, properties | `camelCase`                                                                             | `calculateTotal`, `isActive`                  |
+| Types, type aliases, enums       | `PascalCase`                                                                            | `LineItem`, `OrderError`                      |
+| Union tag key                    | `kind`                                                                                  | `{ kind: 'Draft' }`                           |
+| Union tag values                 | `PascalCase` string literals                                                            | `'FileNotFound'`, `'Submitted'`               |
+| Module-level constants           | `SCREAMING_SNAKE_CASE`                                                                  | `MAX_RETRY_COUNT`                             |
+| Files                            | `kebab-case.<layer>.ts`                                                                 | `validate-line-items.app.ts`                  |
+| Unused bindings                  | `_` prefix                                                                              | `(_event, context) => ...`                    |
+| Type parameters                  | Descriptive `PascalCase`; single letter only for one unconstrained parameter            | `<Item>`, `<T>`                               |
+| Acronyms inside identifiers      | Treated as words; never a run of capitals (lint: `strictCamelCase`, `StrictPascalCase`) | `HttpClient`, `userId`, `IoPort`, `parseJson` |
 
 - **Predicates**: `is`, `has`, `can` prefix; type guards are `is<Type>` returning `value is Type`.
 - **Boolean props**: `isActive`, `hasChildren`; never a bare adjective or noun.
@@ -163,6 +169,25 @@ Casing follows the TypeScript community convention; the rules in
 - **Class suffixes** (infra only): `Adapter`, `Client`, `Gateway`, `Controller`. `Module` and
   `Provider` only where the framework names them (NestJS, Angular).
 - **No type encodings**: no `IUser`, `TUser`, `UserType`, `UserInterface`.
+
+### Foreign Identifiers
+
+Principle: [Foreign names are data](toms-clean-code.md#domain-and-context). In TypeScript the
+`requiresQuotes` exemption does not help: dprint strips quotes from any key that is a valid
+identifier (`ThreadID`, `Authorization`), so `naming-convention` sees a plain property.
+
+- Outbound headers and query params: a `SCREAMING_SNAKE_CASE` constant or a `[name, value]`
+  tuple fed to `Headers`/`URLSearchParams`. `const THREAD_ID_HEADER = 'Thread-ID'`.
+- Inbound bodies and anything with structure: a `*.codec.ts` file, where `objectLiteralProperty`
+  and `typeProperty` have `format: null`. The zod schema spells the foreign keys as-is
+  (`z.object({ ThreadID: z.string(), success: z.boolean() })`) and a `transform` or `fromWire`
+  maps them to domain names (`threadId`, a `Result`). The raw `z.infer` type stays inside the
+  codec.
+
+### Test Fixtures
+
+Principle: [Fixtures are named for what they are](toms-clean-code.md#variables-and-constants).
+`naming-convention` is off in `*.spec.ts`, so this is review-enforced here.
 
 ## Error Handling
 
@@ -362,6 +387,10 @@ const mod: unknown = await import('some:optional-peer').catch(() => {})
 - Do not add unnecessary type assertions (`as Type` when TS already knows the type).
 - Do not add unnecessary explicit type arguments when TS can infer them.
 - `@ts-ignore` and `@ts-expect-error` require a description (min 5 chars). `@ts-nocheck` banned.
+- External shapes are translated, not mirrored ([principle](toms-clean-code.md#domain-and-context)):
+  zod schema in a `*.codec.ts` file, domain type derived through `transform`. A hand-written
+  `readonly success: boolean` outside a codec is a naming error by design; inside the codec the
+  same field is the foreign name being translated.
 
 ## Null Handling
 

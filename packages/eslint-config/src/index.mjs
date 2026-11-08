@@ -44,6 +44,7 @@ import tseslint from 'typescript-eslint'
 
 import {
   arrowFunctionRules,
+  codecRules,
   complexityRules,
   domainRules,
   functionalRules,
@@ -57,6 +58,7 @@ import {
   appFiles,
   boundaryElements,
   boundaryRules,
+  codecFiles,
   domainFiles,
   infraFiles,
   testFiles,
@@ -118,6 +120,9 @@ const tsConfig = options => {
     // Infrastructure: imperative shell allowances
     { name: '@tack/eslint-config/infra', files: infraFiles, rules: infraRules },
 
+    // Codec: foreign identifiers allowed as property names (and nowhere else)
+    { name: '@tack/eslint-config/codec', files: codecFiles, rules: codecRules },
+
     // Tests: fully relax FP rules
     { name: '@tack/eslint-config/tests', files: testFiles, rules: testRules },
 
@@ -133,6 +138,7 @@ export { tsConfig }
 
 export {
   arrowFunctionRules,
+  codecRules,
   complexityRules,
   domainRules,
   functionalRules,
@@ -146,6 +152,7 @@ export {
   appFiles,
   boundaryElements,
   boundaryRules,
+  codecFiles,
   domainFiles,
   frameworkInfraFiles,
   infraFiles,
